@@ -6,7 +6,7 @@ class GameRoom {
       hearts: { up: [], down: [] },
       diamonds: { up: [], down: [] },
       clubs: { up: [], down: [] },
-      spades: { up: [], down: [] }
+      spades: { up: [], down: [] },
     };
     this.currentPlayerIndex = 0;
     this.started = false;
@@ -20,27 +20,27 @@ class GameRoom {
 
   addPlayer(id, name) {
     if (this.players.length >= 11) return false;
-    if (this.players.find(p => p.id === id)) return false;
-    
-    this.players.push({ 
-      id, 
-      name, 
-      cards: [], 
+    if (this.players.find((p) => p.id === id)) return false;
+
+    this.players.push({
+      id,
+      name,
+      cards: [],
       connected: true,
-      totalScore: 0
+      totalScore: 0,
     });
-    
+
     // Initialize score tracking
     this.playerScores[id] = 0;
     return true;
   }
 
   removePlayer(id) {
-    const playerIndex = this.players.findIndex(p => p.id === id);
+    const playerIndex = this.players.findIndex((p) => p.id === id);
     if (playerIndex !== -1) {
       this.players.splice(playerIndex, 1);
       delete this.playerScores[id];
-      
+
       // Adjust current player index if needed
       if (this.currentPlayerIndex >= this.players.length) {
         this.currentPlayerIndex = 0;
@@ -51,22 +51,22 @@ class GameRoom {
   startGame() {
     if (this.players.length < 4) return false;
     if (this.started) return false;
-    
+
     this.started = true;
     this.resetBoard();
     this.deck = this.createDeck();
     this.shuffleDeck();
     this.dealCards();
-    
+
     // Find who has 7 of hearts
-    this.currentPlayerIndex = this.players.findIndex(p => 
-      p.cards.some(c => c.suit === 'hearts' && c.rank === 7)
+    this.currentPlayerIndex = this.players.findIndex((p) =>
+      p.cards.some((c) => c.suit === "hearts" && c.rank === 7)
     );
-    
+
     // Auto-play 7 of hearts
-    const heartsSevenCard = { suit: 'hearts', rank: 7 };
+    const heartsSevenCard = { suit: "hearts", rank: 7 };
     this.playCard(this.players[this.currentPlayerIndex].id, heartsSevenCard);
-    
+
     return true;
   }
 
@@ -75,12 +75,12 @@ class GameRoom {
       hearts: { up: [], down: [] },
       diamonds: { up: [], down: [] },
       clubs: { up: [], down: [] },
-      spades: { up: [], down: [] }
+      spades: { up: [], down: [] },
     };
   }
 
   createDeck() {
-    const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
+    const suits = ["hearts", "diamonds", "clubs", "spades"];
     const deck = [];
     for (let suit of suits) {
       for (let rank = 1; rank <= 13; rank++) {
@@ -99,12 +99,12 @@ class GameRoom {
 
   dealCards() {
     // Clear all player cards
-    this.players.forEach(p => p.cards = []);
-    
+    this.players.forEach((p) => (p.cards = []));
+
     const totalCards = 52;
     const cardsPerPlayer = Math.floor(totalCards / this.players.length);
     let cardIndex = 0;
-    
+
     // Deal equal number of cards to each player
     for (let i = 0; i < cardsPerPlayer; i++) {
       for (let player of this.players) {
@@ -113,16 +113,16 @@ class GameRoom {
         }
       }
     }
-    
+
     // Deal remaining cards one by one
     let playerIndex = 0;
     while (cardIndex < this.deck.length) {
       this.players[playerIndex].cards.push(this.deck[cardIndex++]);
       playerIndex = (playerIndex + 1) % this.players.length;
     }
-    
+
     // Sort each player's cards
-    this.players.forEach(player => {
+    this.players.forEach((player) => {
       player.cards.sort((a, b) => {
         if (a.suit !== b.suit) {
           const suitOrder = { hearts: 0, diamonds: 1, clubs: 2, spades: 3 };
@@ -134,19 +134,21 @@ class GameRoom {
   }
 
   isValidMove(playerId, card) {
-    const player = this.players.find(p => p.id === playerId);
-    if (!player || this.players[this.currentPlayerIndex].id !== playerId) return false;
-    
+    const player = this.players.find((p) => p.id === playerId);
+    if (!player || this.players[this.currentPlayerIndex].id !== playerId)
+      return false;
+
     // Check if player has the card
-    if (!player.cards.some(c => c.suit === card.suit && c.rank === card.rank)) return false;
-    
+    if (!player.cards.some((c) => c.suit === card.suit && c.rank === card.rank))
+      return false;
+
     const suitBoard = this.board[card.suit];
-    
+
     // If suit not started, must be 7
     if (suitBoard.up.length === 0 && suitBoard.down.length === 0) {
       return card.rank === 7;
     }
-    
+
     // Check if we can play above the highest card
     if (suitBoard.up.length > 0) {
       const highestCard = suitBoard.up[suitBoard.up.length - 1];
@@ -154,7 +156,7 @@ class GameRoom {
         return true;
       }
     }
-    
+
     // Check if we can play below the lowest card
     if (suitBoard.down.length > 0) {
       const lowestCard = suitBoard.down[suitBoard.down.length - 1];
@@ -162,55 +164,64 @@ class GameRoom {
         return true;
       }
     }
-    
+
     // Special case: if only 7 is played, we can play 6 or 8
-    if (suitBoard.up.length === 1 && suitBoard.up[0] === 7 && suitBoard.down.length === 0) {
+    if (
+      suitBoard.up.length === 1 &&
+      suitBoard.up[0] === 7 &&
+      suitBoard.down.length === 0
+    ) {
       return card.rank === 6 || card.rank === 8;
     }
-    
+
     return false;
   }
 
   playCard(playerId, card) {
     if (!this.isValidMove(playerId, card)) return false;
-    
-    const player = this.players.find(p => p.id === playerId);
+
+    const player = this.players.find((p) => p.id === playerId);
     // Remove the card from player's hand
-    player.cards = player.cards.filter(c => !(c.suit === card.suit && c.rank === card.rank));
-    
+    player.cards = player.cards.filter(
+      (c) => !(c.suit === card.suit && c.rank === card.rank)
+    );
+
     const suitBoard = this.board[card.suit];
-    
+
     // Place the card on the board
     if (suitBoard.up.length === 0 && suitBoard.down.length === 0) {
       // First card of the suit (should be 7)
       suitBoard.up.push(card.rank);
-    } else if (suitBoard.up.length > 0 && card.rank > suitBoard.up[suitBoard.up.length - 1]) {
+    } else if (
+      suitBoard.up.length > 0 &&
+      card.rank > suitBoard.up[suitBoard.up.length - 1]
+    ) {
       // Card goes above current highest
       suitBoard.up.push(card.rank);
     } else {
       // Card goes below current lowest
       suitBoard.down.push(card.rank);
     }
-    
+
     // Check if player won (first to empty hand)
     if (player.cards.length === 0) {
       this.gameFinished = true;
     } else {
       this.nextTurn();
     }
-    
+
     return true;
   }
 
   finishGame() {
     // Game is finished when one player empties their hand
     // Calculate final scores for all remaining cards
-    this.players.forEach(player => {
+    this.players.forEach((player) => {
       const finalScore = this.calculatePlayerScore(player.cards);
-      player.totalScore = finalScore;
-      this.playerScores[player.id] = finalScore;
+      player.totalScore += finalScore; // Accumulate across rounds
+      this.playerScores[player.id] = player.totalScore;
     });
-    
+
     this.gameFinished = true;
   }
 
@@ -230,77 +241,86 @@ class GameRoom {
   }
 
   canPlayerPlay(playerId) {
-    const player = this.players.find(p => p.id === playerId);
-    if (!player || this.players[this.currentPlayerIndex].id !== playerId) return false;
-    
-    return player.cards.some(card => this.isValidMove(playerId, card));
+    const player = this.players.find((p) => p.id === playerId);
+    if (!player || this.players[this.currentPlayerIndex].id !== playerId)
+      return false;
+
+    return player.cards.some((card) => this.isValidMove(playerId, card));
   }
 
   passTurn(playerId) {
     if (this.players[this.currentPlayerIndex].id !== playerId) return false;
-    
+
     // Check if player really can't play
     if (this.canPlayerPlay(playerId)) {
       return false; // Player has valid moves, can't pass
     }
-    
+
     this.nextTurn();
     return true;
   }
 
   nextTurn() {
-    this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
-    
+    this.currentPlayerIndex =
+      (this.currentPlayerIndex + 1) % this.players.length;
+
     // Skip disconnected players
     let attempts = 0;
-    while (!this.players[this.currentPlayerIndex].connected && attempts < this.players.length) {
-      this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
+    while (
+      !this.players[this.currentPlayerIndex].connected &&
+      attempts < this.players.length
+    ) {
+      this.currentPlayerIndex =
+        (this.currentPlayerIndex + 1) % this.players.length;
       attempts++;
     }
   }
 
   checkWinner() {
-    return this.players.some(p => p.cards.length === 0) || this.gameFinished;
+    return this.players.some((p) => p.cards.length === 0) || this.gameFinished;
   }
 
   getWinner() {
-    const winner = this.players.find(p => p.cards.length === 0);
-    
+    const winner = this.players.find((p) => p.cards.length === 0);
+
     // Calculate final scores for all players
-    const finalScores = this.players.map(p => ({
-      name: p.name,
-      score: this.calculatePlayerScore(p.cards),
-      isWinner: p.cards.length === 0
-    })).sort((a, b) => a.score - b.score); // Sort by score (lowest first)
-    
+    const finalScores = this.players
+      .map((p) => ({
+        name: p.name,
+        score: this.calculatePlayerScore(p.cards),
+        isWinner: p.cards.length === 0,
+      }))
+      .sort((a, b) => a.score - b.score); // Sort by score (lowest first)
+
     return {
-      type: 'game_complete',
+      type: "game_complete",
       winner: winner.name,
-      finalScores: finalScores
+      finalScores: finalScores,
     };
   }
 
   getPlayerCards(playerId) {
-    const player = this.players.find(p => p.id === playerId);
+    const player = this.players.find((p) => p.id === playerId);
     return player ? player.cards : [];
   }
 
   getValidMoves(playerId) {
-    const player = this.players.find(p => p.id === playerId);
-    if (!player || this.players[this.currentPlayerIndex].id !== playerId) return [];
-    
-    return player.cards.filter(card => this.isValidMove(playerId, card));
+    const player = this.players.find((p) => p.id === playerId);
+    if (!player || this.players[this.currentPlayerIndex].id !== playerId)
+      return [];
+
+    return player.cards.filter((card) => this.isValidMove(playerId, card));
   }
 
   getState() {
     return {
       roomCode: this.roomCode,
-      players: this.players.map(p => ({
+      players: this.players.map((p) => ({
         name: p.name,
         cardCount: p.cards.length,
         connected: p.connected,
         isCurrentPlayer: this.players[this.currentPlayerIndex]?.id === p.id,
-        totalScore: p.totalScore
+        totalScore: p.totalScore,
       })),
       board: this.board,
       started: this.started,
@@ -308,7 +328,7 @@ class GameRoom {
       roundsPlayed: this.roundsPlayed,
       maxRounds: this.maxRounds,
       gameFinished: this.gameFinished,
-      currentPlayerName: this.players[this.currentPlayerIndex]?.name
+      currentPlayerName: this.players[this.currentPlayerIndex]?.name,
     };
   }
 
@@ -321,25 +341,50 @@ class GameRoom {
   }
 
   setPlayerDisconnected(playerId) {
-    const player = this.players.find(p => p.id === playerId);
+    const player = this.players.find((p) => p.id === playerId);
     if (player) {
       player.connected = false;
     }
   }
 
   setPlayerConnected(playerId) {
-    const player = this.players.find(p => p.id === playerId);
+    const player = this.players.find((p) => p.id === playerId);
     if (player) {
       player.connected = true;
     }
   }
 
   getConnectedPlayersCount() {
-    return this.players.filter(p => p.connected).length;
+    return this.players.filter((p) => p.connected).length;
   }
 
   isRoomEmpty() {
     return this.getConnectedPlayersCount() === 0;
+  }
+
+  continueRound() {
+    if (!this.gameFinished) return false;
+
+    // Advance round counters
+    this.round++;
+    this.roundsPlayed++;
+    this.gameFinished = false;
+
+    // Reset board and redeal
+    this.resetBoard();
+    this.deck = this.createDeck();
+    this.shuffleDeck();
+    this.dealCards();
+
+    // Determine the player who has 7♥ and make them start
+    this.currentPlayerIndex = this.players.findIndex((p) =>
+      p.cards.some((c) => c.suit === "hearts" && c.rank === 7)
+    );
+
+    const heartsSevenCard = { suit: "hearts", rank: 7 };
+    this.playCard(this.players[this.currentPlayerIndex].id, heartsSevenCard);
+
+    return true;
   }
 }
 

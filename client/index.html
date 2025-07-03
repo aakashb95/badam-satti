@@ -118,7 +118,8 @@
         <div id="winner-display"></div>
         <div id="final-scores"></div>
         <div class="game-over-actions">
-          <button onclick="returnToMenu()">Return to Menu</button>
+          <button id="continue-round-btn" onclick="continueRound()">Continue Round</button>
+          <button id="exit-game-btn" onclick="exitGame()">Exit Game</button>
         </div>
       </div>
     </div>
@@ -143,6 +144,17 @@
     <!-- Notification -->
     <div id="notification" class="notification hidden">
       <span id="notification-text"></span>
+    </div>
+
+    <!-- Summary Screen -->
+    <div id="summary-screen" class="screen hidden">
+      <div class="container">
+        <h2>🏅 Game Summary</h2>
+        <div id="summary-scores"></div>
+        <div class="game-over-actions">
+          <button onclick="returnToMenu()">Return to Menu</button>
+        </div>
+      </div>
     </div>
   </div>
 
