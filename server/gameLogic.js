@@ -165,13 +165,9 @@ class GameRoom {
       }
     }
 
-    // Special case: if only 7 is played, we can play 6 or 8
-    if (
-      suitBoard.up.length === 1 &&
-      suitBoard.up[0] === 7 &&
-      suitBoard.down.length === 0
-    ) {
-      return card.rank === 6 || card.rank === 8;
+    // If 7 has been played but no lower cards yet, allow 6
+    if (suitBoard.down.length === 0 && suitBoard.up.includes(7)) {
+      return card.rank === 6;
     }
 
     return false;

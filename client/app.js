@@ -11,6 +11,7 @@ let reconnectAttempts = 0;
 let maxReconnectAttempts = 5;
 let autoPassTimeout = null;
 let countdownInterval = null;
+let attemptedSessionReconnect = false;
 
 // Initialize socket connection
 function initializeSocket() {
@@ -20,8 +21,24 @@ function initializeSocket() {
   socket.on("connect", () => {
     console.log("Connected to server");
     console.log("Socket ID:", socket.id);
-    // Don't hide loading immediately - wait for specific responses
     reconnectAttempts = 0;
+
+    // Attempt session-based reconnection once per page load
+    if (!attemptedSessionReconnect) {
+      attemptedSessionReconnect = true;
+      const savedSession = JSON.parse(
+        localStorage.getItem("gameSession") || "null"
+      );
+      if (savedSession && savedSession.roomCode && savedSession.username) {
+        myUsername = savedSession.username;
+        currentRoom = savedSession.roomCode;
+        showLoading("Restoring session...");
+        socket.emit("reconnect_player", {
+          roomCode: currentRoom,
+          username: myUsername,
+        });
+      }
+    }
   });
 
   socket.on("disconnect", () => {
@@ -40,6 +57,10 @@ function initializeSocket() {
     console.log("Room created:", roomCode);
     currentRoom = roomCode;
     gameState = state;
+    localStorage.setItem(
+      "gameSession",
+      JSON.stringify({ roomCode: currentRoom, username: myUsername })
+    );
     hideLoading();
     showWaitingRoom();
   });
@@ -48,6 +69,10 @@ function initializeSocket() {
     console.log("Room joined:", roomCode);
     currentRoom = roomCode;
     gameState = state;
+    localStorage.setItem(
+      "gameSession",
+      JSON.stringify({ roomCode: currentRoom, username: myUsername })
+    );
     hideLoading();
     showWaitingRoom();
   });
@@ -124,6 +149,14 @@ function initializeSocket() {
   socket.on("reconnected", ({ gameState: state }) => {
     console.log("Reconnected successfully");
     gameState = state;
+    // Ensure session is persisted (in case it was missing)
+    if (currentRoom && myUsername) {
+      localStorage.setItem(
+        "gameSession",
+        JSON.stringify({ roomCode: currentRoom, username: myUsername })
+      );
+    }
+    hideLoading();
     if (gameState.started) {
       showGameScreen();
     } else {
@@ -150,6 +183,14 @@ function initializeSocket() {
   socket.on("error", (message) => {
     console.error("Server error:", message);
     hideLoading();
+    // Clear invalid saved session if reconnection failed
+    if (
+      message === "Room not found" ||
+      message === "Player not found in room" ||
+      message === "Game already started"
+    ) {
+      localStorage.removeItem("gameSession");
+    }
     showError(message);
   });
 }
@@ -301,6 +342,7 @@ function leaveRoom() {
   validMoves = [];
   clearTimeout(autoPassTimeout);
   clearInterval(countdownInterval);
+  localStorage.removeItem("gameSession");
   socket.disconnect();
   socket.connect();
   showScreen("menu-screen");
@@ -524,32 +566,28 @@ function updatePlayersInfo() {
 function updateBoard() {
   if (!gameState) return;
 
-  Object.entries(gameState.board).forEach(([suit, cards]) => {
+  Object.entries(gameState.board).forEach(([suit, suitObj]) => {
     const cardsDisplay = document.getElementById(`${suit}-cards`);
     if (!cardsDisplay) return;
 
-    const allCards = [];
-
-    // Add down cards (in reverse order)
-    if (cards.down && cards.down.length > 0) {
-      allCards.push(...cards.down.slice().reverse());
+    // Build list of card ranks in display order (down reversed then up)
+    const allRanks = [];
+    if (suitObj.down && suitObj.down.length > 0) {
+      allRanks.push(...suitObj.down.slice().reverse());
+    }
+    if (suitObj.up && suitObj.up.length > 0) {
+      allRanks.push(...suitObj.up);
     }
 
-    // Add up cards
-    if (cards.up && cards.up.length > 0) {
-      allCards.push(...cards.up);
-    }
-
-    cardsDisplay.innerHTML = allCards
-      .map(
-        (rank, index) => `
-      <div class="board-card ${getSuitColor(suit)}" style="margin-top: ${
-          index === 0 ? 0 : -40
-        }px;">
-        ${getRankDisplay(rank)}
-      </div>
-    `
-      )
+    cardsDisplay.innerHTML = allRanks
+      .map((rank, idx) => {
+        const card = { suit, rank };
+        return `<img src="images/cards/${getCardFilename(
+          card
+        )}" class="board-card-img" style="margin-top:${
+          idx === 0 ? 0 : -40
+        }px;" />`;
+      })
       .join("");
   });
 }
@@ -558,25 +596,38 @@ function updateMyCards() {
   const myCardsContainer = document.getElementById("my-cards");
   if (!myCardsContainer) return;
 
-  myCardsContainer.innerHTML = myCards
-    .map((card) => {
-      const isValid = validMoves.some(
-        (move) => move.suit === card.suit && move.rank === card.rank
-      );
-      return `
-      <div class="card ${getSuitColor(card.suit)} ${isValid ? "valid" : ""}" 
-           onclick="playCard({suit: '${card.suit}', rank: ${card.rank}})"
-           ${
-             !isValid || !isMyTurn
-               ? 'style="opacity: 0.5; cursor: not-allowed;"'
-               : ""
-           }>
-        <div class="card-rank">${getRankDisplay(card.rank)}</div>
-        <div class="card-suit">${getSuitSymbol(card.suit)}</div>
-      </div>
-    `;
+  const suitOrder = ["hearts", "diamonds", "clubs", "spades"];
+
+  const html = suitOrder
+    .map((suit) => {
+      const cardsOfSuit = myCards
+        .filter((c) => c.suit === suit)
+        .sort((a, b) => a.rank - b.rank);
+
+      if (cardsOfSuit.length === 0) return "";
+
+      const cardsHtml = cardsOfSuit
+        .map((card, idx) => {
+          const isValid = validMoves.some(
+            (move) => move.suit === card.suit && move.rank === card.rank
+          );
+          const dimClass = !isMyTurn || !isValid ? "dim" : "";
+          const playClass = isMyTurn && isValid ? "playable" : "";
+          return `<img src="images/cards/${getCardFilename(
+            card
+          )}" class="hand-card ${
+            isValid ? "valid" : ""
+          } ${dimClass} ${playClass}" onclick="playCard({suit:'${
+            card.suit
+          }',rank:${card.rank}})" />`;
+        })
+        .join("");
+
+      return `<div class="hand-suit">${cardsHtml}</div>`;
     })
-    .join("");
+    .join(" ");
+
+  myCardsContainer.innerHTML = html;
 }
 
 function updateGameActions() {
@@ -626,6 +677,14 @@ function getRankDisplay(rank) {
   if (rank === 12) return "Q";
   if (rank === 13) return "K";
   return rank.toString();
+}
+
+// Get filename for SVG deck (e.g. AH.svg, 10S.svg)
+function getCardFilename(card) {
+  const suitLetters = { hearts: "H", diamonds: "D", clubs: "C", spades: "S" };
+  const rankMap = { 1: "A", 11: "J", 12: "Q", 13: "K" };
+  const rankPart = rankMap[card.rank] || card.rank.toString();
+  return `${rankPart}${suitLetters[card.suit]}.svg`;
 }
 
 // Modal and Notification Functions
@@ -680,6 +739,7 @@ function continueRound() {
 function exitGame() {
   showLoading("Calculating results...");
   socket.emit("exit_game");
+  localStorage.removeItem("gameSession");
 }
 
 function showSummary(summary) {
