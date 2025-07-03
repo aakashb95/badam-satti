@@ -1,0 +1,642 @@
+// Global variables
+let socket;
+let myUsername = '';
+let currentRoom = '';
+let gameState = null;
+let myCards = [];
+let validMoves = [];
+let canPass = false;
+let isMyTurn = false;
+let reconnectAttempts = 0;
+let maxReconnectAttempts = 5;
+let autoPassTimeout = null;
+let countdownInterval = null;
+
+// Initialize socket connection
+function initializeSocket() {
+  socket = io();
+  
+  // Connection events
+  socket.on('connect', () => {
+    console.log('Connected to server');
+    console.log('Socket ID:', socket.id);
+    // Don't hide loading immediately - wait for specific responses
+    reconnectAttempts = 0;
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Disconnected from server');
+    showLoading('Connection lost. Reconnecting...');
+    attemptReconnection();
+  });
+
+  socket.on('connect_error', (error) => {
+    console.error('Connection error:', error);
+    showError('Connection failed. Please check your internet connection.');
+  });
+
+  // Room events
+  socket.on('room_created', ({ roomCode, gameState: state }) => {
+    console.log('Room created:', roomCode);
+    currentRoom = roomCode;
+    gameState = state;
+    hideLoading();
+    showWaitingRoom();
+  });
+
+  socket.on('room_joined', ({ roomCode, gameState: state }) => {
+    console.log('Room joined:', roomCode);
+    currentRoom = roomCode;
+    gameState = state;
+    hideLoading();
+    showWaitingRoom();
+  });
+
+  socket.on('player_joined', ({ playerName, gameState: state }) => {
+    console.log('Player joined:', playerName);
+    gameState = state;
+    updateWaitingRoom();
+    showNotification(`${playerName} joined the room`);
+  });
+
+  socket.on('player_disconnected', ({ playerName, gameState: state }) => {
+    console.log('Player disconnected:', playerName);
+    gameState = state;
+    if (gameState.started) {
+      updateGameScreen();
+    } else {
+      updateWaitingRoom();
+    }
+    showNotification(`${playerName} disconnected`);
+  });
+
+  socket.on('player_reconnected', ({ playerName, gameState: state }) => {
+    console.log('Player reconnected:', playerName);
+    gameState = state;
+    if (gameState.started) {
+      updateGameScreen();
+    } else {
+      updateWaitingRoom();
+    }
+    showNotification(`${playerName} reconnected`);
+  });
+
+  // Game events
+  socket.on('game_started', ({ gameState: state }) => {
+    console.log('Game started');
+    gameState = state;
+    showGameScreen();
+  });
+
+  socket.on('your_cards', ({ cards, validMoves: moves }) => {
+    console.log('Received cards:', cards);
+    myCards = cards;
+    validMoves = moves;
+    canPass = moves.length === 0;
+    updateMyCards();
+    updateGameActions();
+  });
+
+  socket.on('card_played', ({ playerName, card, gameState: state }) => {
+    console.log(`${playerName} played ${card.rank} of ${card.suit}`);
+    gameState = state;
+    updateGameScreen();
+    showNotification(`${playerName} played ${getRankDisplay(card.rank)} of ${getSuitName(card.suit)}`);
+  });
+
+  socket.on('turn_passed', ({ playerName, gameState: state }) => {
+    console.log(`${playerName} passed`);
+    gameState = state;
+    updateGameScreen();
+    showNotification(`${playerName} passed`);
+  });
+
+  socket.on('game_over', (winner) => {
+    console.log('Game over:', winner);
+    clearTimeout(autoPassTimeout);
+    showGameOver(winner);
+  });
+
+  socket.on('reconnected', ({ gameState: state }) => {
+    console.log('Reconnected successfully');
+    gameState = state;
+    if (gameState.started) {
+      showGameScreen();
+    } else {
+      showWaitingRoom();
+    }
+  });
+
+  // Error handling
+  socket.on('error', (message) => {
+    console.error('Server error:', message);
+    hideLoading();
+    showError(message);
+  });
+}
+
+// UI Navigation Functions
+function showScreen(screenId) {
+  document.querySelectorAll('.screen').forEach(screen => {
+    screen.classList.add('hidden');
+  });
+  document.getElementById(screenId).classList.remove('hidden');
+}
+
+function showLoading(message = 'Loading...') {
+  document.getElementById('loading-message').textContent = message;
+  showScreen('loading-screen');
+}
+
+function hideLoading() {
+  if (document.getElementById('loading-screen').classList.contains('hidden')) {
+    return;
+  }
+  
+  // Show appropriate screen based on current state
+  if (gameState && gameState.started) {
+    showGameScreen();
+  } else if (currentRoom) {
+    showWaitingRoom();
+  } else if (myUsername) {
+    showScreen('menu-screen');
+  } else {
+    showScreen('login-screen');
+  }
+}
+
+function showMainMenu() {
+  const username = document.getElementById('username').value.trim();
+  if (!username) {
+    showError('Please enter your name');
+    return;
+  }
+  
+  if (username.length > 20) {
+    showError('Name too long (max 20 characters)');
+    return;
+  }
+  
+  myUsername = username;
+  document.getElementById('welcome').textContent = `Welcome, ${myUsername}!`;
+  showScreen('menu-screen');
+}
+
+function showWaitingRoom() {
+  showScreen('waiting-screen');
+  document.getElementById('room-display').textContent = currentRoom;
+  
+  // Show start button only for room creator
+  if (gameState && gameState.players.length > 0 && gameState.players[0].name === myUsername) {
+    document.getElementById('start-btn').classList.remove('hidden');
+  } else {
+    document.getElementById('start-btn').classList.add('hidden');
+  }
+  
+  updateWaitingRoom();
+}
+
+function showGameScreen() {
+  showScreen('game-screen');
+  updateGameScreen();
+}
+
+function showGameOver(winner) {
+  showScreen('game-over-screen');
+  
+  const winnerDisplay = document.getElementById('winner-display');
+  const finalScores = document.getElementById('final-scores');
+  
+  if (winner.type === 'game_complete') {
+    winnerDisplay.innerHTML = `<h3>🏆 ${winner.winner} Wins!</h3>`;
+    finalScores.innerHTML = `
+      <h4>Final Scores:</h4>
+      <div class="scores-list">
+        ${winner.finalScores.map((score, index) => 
+          `<div class="score-item ${index === 0 ? 'winner' : ''}">
+            ${score.name}: ${score.score} points
+          </div>`
+        ).join('')}
+      </div>
+    `;
+  } else {
+    winnerDisplay.innerHTML = `<h3>🎉 ${winner.winner} won Round ${winner.round}!</h3>`;
+    finalScores.innerHTML = `
+      <h4>Round ${winner.round} Scores:</h4>
+      <div class="scores-list">
+        ${winner.roundScores.map(score => 
+          `<div class="score-item">${score.name}: ${score.score} points</div>`
+        ).join('')}
+      </div>
+    `;
+  }
+}
+
+// Room Management
+function createRoom() {
+  if (!myUsername) {
+    showError('Please enter your name first');
+    return;
+  }
+  
+  if (!socket || !socket.connected) {
+    showError('Not connected to server. Please refresh the page.');
+    return;
+  }
+  
+  showLoading('Creating room...');
+  socket.emit('create_room', myUsername);
+}
+
+function joinRoom() {
+  const roomCode = document.getElementById('room-code').value.trim().toUpperCase();
+  
+  if (!myUsername) {
+    showError('Please enter your name first');
+    return;
+  }
+  
+  if (!roomCode || roomCode.length !== 6) {
+    showError('Please enter a valid 6-character room code');
+    return;
+  }
+  
+  if (!socket || !socket.connected) {
+    showError('Not connected to server. Please refresh the page.');
+    return;
+  }
+  
+  showLoading('Joining room...');
+  socket.emit('join_room', { roomCode, username: myUsername });
+}
+
+function leaveRoom() {
+  currentRoom = '';
+  gameState = null;
+  myCards = [];
+  validMoves = [];
+  clearTimeout(autoPassTimeout);
+  clearInterval(countdownInterval);
+  socket.disconnect();
+  socket.connect();
+  showScreen('menu-screen');
+}
+
+function leaveGame() {
+  leaveRoom();
+}
+
+function startGame() {
+  if (!gameState || gameState.players.length < 4) {
+    showError('Need at least 4 players to start');
+    return;
+  }
+  
+  if (gameState.players.length > 11) {
+    showError('Too many players (max 11)');
+    return;
+  }
+  
+  showLoading('Starting game...');
+  socket.emit('start_game');
+}
+
+function copyRoomCode() {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(currentRoom).then(() => {
+      showNotification('Room code copied to clipboard!');
+    }).catch(err => {
+      console.error('Failed to copy: ', err);
+      showNotification('Failed to copy room code');
+    });
+  } else {
+    // Fallback for older browsers
+    const textArea = document.createElement('textarea');
+    textArea.value = currentRoom;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      showNotification('Room code copied to clipboard!');
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+      showNotification('Failed to copy room code');
+    }
+    document.body.removeChild(textArea);
+  }
+}
+
+// Game Actions
+function playCard(card) {
+  if (!isMyTurn) {
+    showError('It\'s not your turn');
+    return;
+  }
+  
+  if (!validMoves.some(move => move.suit === card.suit && move.rank === card.rank)) {
+    showError('Invalid move');
+    return;
+  }
+  
+  clearTimeout(autoPassTimeout);
+  clearInterval(countdownInterval);
+  socket.emit('play_card', card);
+}
+
+function passTurn() {
+  if (!isMyTurn) {
+    showError('It\'s not your turn');
+    return;
+  }
+  
+  if (!canPass) {
+    showError('You have valid moves - cannot pass');
+    return;
+  }
+  
+  clearTimeout(autoPassTimeout);
+  clearInterval(countdownInterval);
+  socket.emit('pass_turn');
+}
+
+// Update Functions
+function updateWaitingRoom() {
+  if (!gameState) return;
+  
+  const playersList = document.getElementById('players-list');
+  const playerCount = document.getElementById('player-count');
+  
+  playerCount.textContent = `(${gameState.players.length}/11)`;
+  
+  playersList.innerHTML = gameState.players.map(player => `
+    <div class="player-item ${player.connected ? 'connected' : 'disconnected'}">
+      <span class="player-name">${player.name}</span>
+      <span class="player-status">${player.connected ? '🟢' : '🔴'}</span>
+    </div>
+  `).join('');
+}
+
+function updateGameScreen() {
+  if (!gameState) return;
+  
+  // Update round info
+  const roundDisplay = document.getElementById('round-display');
+  if (roundDisplay) {
+    roundDisplay.textContent = `Round ${gameState.round}/${gameState.maxRounds}`;
+  }
+  
+  // Update turn info
+  const turnDisplay = document.getElementById('turn-display');
+  isMyTurn = gameState.currentPlayerName === myUsername;
+  
+  if (turnDisplay) {
+    if (isMyTurn) {
+      turnDisplay.textContent = 'Your Turn';
+      turnDisplay.className = 'my-turn';
+    } else {
+      turnDisplay.textContent = `${gameState.currentPlayerName}'s Turn`;
+      turnDisplay.className = 'other-turn';
+    }
+  }
+  
+  // Update players info
+  updatePlayersInfo();
+  
+  // Update board
+  updateBoard();
+  
+  // Update game actions
+  updateGameActions();
+  
+  // Set up auto-play/auto-pass timer if it's my turn
+  if (isMyTurn) {
+    clearTimeout(autoPassTimeout);
+    clearInterval(countdownInterval);
+    
+    let timeLeft = 15;
+    const updateCountdown = () => {
+      const turnDisplay = document.getElementById('turn-display');
+      if (turnDisplay && isMyTurn) {
+        turnDisplay.textContent = `Your Turn (${timeLeft}s)`;
+      }
+      timeLeft--;
+    };
+    
+    updateCountdown();
+    countdownInterval = setInterval(updateCountdown, 1000);
+    
+    autoPassTimeout = setTimeout(() => {
+      if (isMyTurn) {
+        clearInterval(countdownInterval);
+        if (validMoves.length > 0) {
+          // Auto-play a random valid move
+          const randomMove = validMoves[Math.floor(Math.random() * validMoves.length)];
+          console.log('Auto-playing random card:', randomMove);
+          showNotification('Auto-playing random card');
+          playCard(randomMove);
+        } else if (canPass) {
+          // Auto-pass if no valid moves
+          console.log('Auto-passing turn');
+          showNotification('Auto-passing turn');
+          passTurn();
+        }
+      }
+    }, 15000); // Auto-play/pass after 15 seconds
+  } else {
+    clearTimeout(autoPassTimeout);
+    clearInterval(countdownInterval);
+  }
+}
+
+function updatePlayersInfo() {
+  if (!gameState) return;
+  
+  const playersInfo = document.getElementById('players-info');
+  if (!playersInfo) return;
+  
+  playersInfo.innerHTML = gameState.players.map(player => `
+    <div class="player-info ${player.isCurrentPlayer ? 'current-player' : ''} ${player.connected ? 'connected' : 'disconnected'}">
+      <div class="player-name">${player.name}</div>
+      <div class="player-cards">${player.cardCount} cards</div>
+      <div class="player-status">${player.connected ? '🟢' : '🔴'}</div>
+    </div>
+  `).join('');
+}
+
+function updateBoard() {
+  if (!gameState) return;
+  
+  Object.entries(gameState.board).forEach(([suit, cards]) => {
+    const cardsDisplay = document.getElementById(`${suit}-cards`);
+    if (!cardsDisplay) return;
+    
+    const allCards = [];
+    
+    // Add down cards (in reverse order)
+    if (cards.down && cards.down.length > 0) {
+      allCards.push(...cards.down.slice().reverse());
+    }
+    
+    // Add up cards
+    if (cards.up && cards.up.length > 0) {
+      allCards.push(...cards.up);
+    }
+    
+    cardsDisplay.innerHTML = allCards.map(rank => `
+      <div class="board-card ${getSuitColor(suit)}">
+        ${getRankDisplay(rank)}
+      </div>
+    `).join('');
+  });
+}
+
+function updateMyCards() {
+  const myCardsContainer = document.getElementById('my-cards');
+  if (!myCardsContainer) return;
+  
+  myCardsContainer.innerHTML = myCards.map(card => {
+    const isValid = validMoves.some(move => move.suit === card.suit && move.rank === card.rank);
+    return `
+      <div class="card ${getSuitColor(card.suit)} ${isValid ? 'valid' : ''}" 
+           onclick="playCard({suit: '${card.suit}', rank: ${card.rank}})"
+           ${!isValid || !isMyTurn ? 'style="opacity: 0.5; cursor: not-allowed;"' : ''}>
+        <div class="card-rank">${getRankDisplay(card.rank)}</div>
+        <div class="card-suit">${getSuitSymbol(card.suit)}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function updateGameActions() {
+  const passBtn = document.getElementById('pass-btn');
+  if (!passBtn) return;
+  
+  if (isMyTurn && canPass) {
+    passBtn.disabled = false;
+    passBtn.textContent = 'Pass Turn';
+  } else if (isMyTurn && !canPass) {
+    passBtn.disabled = true;
+    passBtn.textContent = 'You must play a card';
+  } else {
+    passBtn.disabled = true;
+    passBtn.textContent = 'Not your turn';
+  }
+}
+
+// Utility Functions
+function getSuitSymbol(suit) {
+  const symbols = {
+    hearts: '♥',
+    diamonds: '♦',
+    clubs: '♣',
+    spades: '♠'
+  };
+  return symbols[suit] || suit;
+}
+
+function getSuitName(suit) {
+  const names = {
+    hearts: 'Hearts',
+    diamonds: 'Diamonds',
+    clubs: 'Clubs',
+    spades: 'Spades'
+  };
+  return names[suit] || suit;
+}
+
+function getSuitColor(suit) {
+  return (suit === 'hearts' || suit === 'diamonds') ? 'red' : 'black';
+}
+
+function getRankDisplay(rank) {
+  if (rank === 1) return 'A';
+  if (rank === 11) return 'J';
+  if (rank === 12) return 'Q';
+  if (rank === 13) return 'K';
+  return rank.toString();
+}
+
+// Modal and Notification Functions
+function showError(message) {
+  document.getElementById('error-message').textContent = message;
+  document.getElementById('error-modal').classList.remove('hidden');
+}
+
+function closeError() {
+  document.getElementById('error-modal').classList.add('hidden');
+}
+
+function showNotification(message) {
+  const notification = document.getElementById('notification');
+  const notificationText = document.getElementById('notification-text');
+  
+  notificationText.textContent = message;
+  notification.classList.remove('hidden');
+  
+  setTimeout(() => {
+    notification.classList.add('hidden');
+  }, 3000);
+}
+
+function returnToMenu() {
+  leaveRoom();
+}
+
+// Reconnection Logic
+function attemptReconnection() {
+  if (reconnectAttempts >= maxReconnectAttempts) {
+    showError('Connection lost. Please refresh the page.');
+    return;
+  }
+  
+  reconnectAttempts++;
+  showLoading(`Reconnecting... (${reconnectAttempts}/${maxReconnectAttempts})`);
+  
+  setTimeout(() => {
+    if (socket.disconnected) {
+      socket.connect();
+    }
+  }, 2000 * reconnectAttempts);
+}
+
+// Initialize app
+document.addEventListener('DOMContentLoaded', function() {
+  // Start on login screen
+  showScreen('login-screen');
+  initializeSocket();
+  
+  // Handle visibility change (app going to background)
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      console.log('App went to background');
+    } else {
+      console.log('App came to foreground');
+      // Refresh game state when app comes back
+      if (currentRoom && gameState) {
+        socket.emit('get_state');
+      }
+    }
+  });
+  
+  // Handle online/offline events
+  window.addEventListener('online', function() {
+    console.log('Back online');
+    showNotification('Connection restored');
+    if (socket.disconnected) {
+      socket.connect();
+    }
+  });
+  
+  window.addEventListener('offline', function() {
+    console.log('Gone offline');
+    showNotification('Connection lost');
+  });
+});
+
+// Prevent accidental page reload
+window.addEventListener('beforeunload', function(e) {
+  if (currentRoom && gameState && gameState.started) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
