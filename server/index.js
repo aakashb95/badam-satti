@@ -217,8 +217,9 @@ io.on('connection', (socket) => {
 
       // Check for winner
       if (room.checkWinner()) {
+        room.finishGame();
         const winner = room.getWinner();
-        console.log(`Winner in room ${currentRoom}:`, winner);
+        console.log(`Game finished in room ${currentRoom}:`, winner);
         io.to(currentRoom).emit('game_over', winner);
       }
 

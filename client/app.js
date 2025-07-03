@@ -207,29 +207,24 @@ function showGameOver(winner) {
   const winnerDisplay = document.getElementById('winner-display');
   const finalScores = document.getElementById('final-scores');
   
-  if (winner.type === 'game_complete') {
-    winnerDisplay.innerHTML = `<h3>🏆 ${winner.winner} Wins!</h3>`;
-    finalScores.innerHTML = `
-      <h4>Final Scores:</h4>
-      <div class="scores-list">
-        ${winner.finalScores.map((score, index) => 
-          `<div class="score-item ${index === 0 ? 'winner' : ''}">
-            ${score.name}: ${score.score} points
-          </div>`
-        ).join('')}
-      </div>
-    `;
-  } else {
-    winnerDisplay.innerHTML = `<h3>🎉 ${winner.winner} won Round ${winner.round}!</h3>`;
-    finalScores.innerHTML = `
-      <h4>Round ${winner.round} Scores:</h4>
-      <div class="scores-list">
-        ${winner.roundScores.map(score => 
-          `<div class="score-item">${score.name}: ${score.score} points</div>`
-        ).join('')}
-      </div>
-    `;
-  }
+  winnerDisplay.innerHTML = `<h3>🏆 ${winner.winner} Wins!</h3><p>Game Over - First to empty their hand!</p>`;
+  finalScores.innerHTML = `
+    <h4>Final Scores (Remaining Cards):</h4>
+    <div class="scores-list">
+      ${winner.finalScores.map(score => 
+        `<div class="score-item ${score.isWinner ? 'winner' : ''}">
+          <span class="player-name">${score.name}</span>
+          <span class="player-score">${score.score} points</span>
+        </div>`
+      ).join('')}
+    </div>
+    <div class="scoring-info">
+      <small>
+        Scoring: A=1, Numbers=face value, J=11, Q=12, K=13<br>
+        Lower scores are better!
+      </small>
+    </div>
+  `;
 }
 
 // Room Management
@@ -413,20 +408,23 @@ function updateGameScreen() {
     clearTimeout(autoPassTimeout);
     clearInterval(countdownInterval);
     
-    let timeLeft = 15;
+    let timeLeft = 10;
     const updateCountdown = () => {
       const turnDisplay = document.getElementById('turn-display');
       if (turnDisplay && isMyTurn) {
         turnDisplay.textContent = `Your Turn (${timeLeft}s)`;
       }
-      timeLeft--;
+      if (timeLeft > 0) {
+        timeLeft--;
+      }
     };
     
     updateCountdown();
     countdownInterval = setInterval(updateCountdown, 1000);
     
     autoPassTimeout = setTimeout(() => {
-      if (isMyTurn) {
+      console.log('Auto-play timeout triggered. isMyTurn:', isMyTurn, 'validMoves:', validMoves.length, 'canPass:', canPass);
+      if (isMyTurn && gameState && gameState.currentPlayerName === myUsername) {
         clearInterval(countdownInterval);
         if (validMoves.length > 0) {
           // Auto-play a random valid move
@@ -439,9 +437,13 @@ function updateGameScreen() {
           console.log('Auto-passing turn');
           showNotification('Auto-passing turn');
           passTurn();
+        } else {
+          console.log('Cannot auto-play or auto-pass - player has valid moves but canPass is false');
         }
+      } else {
+        console.log('Auto-play timeout but not my turn anymore');
       }
-    }, 15000); // Auto-play/pass after 15 seconds
+    }, 10000); // Auto-play/pass after 10 seconds
   } else {
     clearTimeout(autoPassTimeout);
     clearInterval(countdownInterval);

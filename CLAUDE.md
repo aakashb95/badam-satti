@@ -27,7 +27,7 @@ A complete multiplayer Progressive Web App (PWA) implementation of the Indian ca
 - **Scoring**: Points based on remaining cards when someone wins
 
 ### Technical Features
-- **Auto-play**: Random card selection after 15 seconds of inactivity
+- **Auto-play**: Random card selection after 10 seconds of inactivity
 - **Disconnection Handling**: Auto-play for disconnected players
 - **Reconnection**: Players can rejoin with same username
 - **Error Handling**: Comprehensive validation and user feedback
@@ -58,7 +58,7 @@ A complete multiplayer Progressive Web App (PWA) implementation of the Indian ca
 - `player_disconnected` / `player_reconnected` - Connection handling
 
 ### Auto-play System
-- 15-second countdown timer with visual feedback
+- 10-second countdown timer with visual feedback
 - Random valid move selection
 - Auto-pass when no moves available
 - Applies to both disconnected players and idle players
@@ -105,12 +105,12 @@ http://localhost:3000
 # - Create room from one device
 # - Join from 2+ other devices
 # - Start game with 4+ players
-# - Test auto-play by waiting 15 seconds
+# - Test auto-play by waiting 10 seconds
 # - Test disconnection/reconnection
 ```
 
 ## Recent Enhancements
-1. **Auto-play Feature** - Added 15-second countdown with random card selection
+1. **Auto-play Feature** - Added 10-second countdown with random card selection
 2. **Increased Timeouts** - Socket ping timeout: 60s, interval: 25s
 3. **Disconnection Auto-play** - Server auto-plays for disconnected players
 4. **Visual Feedback** - Countdown timer shown to players
@@ -128,7 +128,7 @@ http://localhost:3000
 
 ## Development Notes
 - All Socket.io timeout values increased for stability
-- Auto-play triggers after exactly 15 seconds of inactivity
+- Auto-play triggers after exactly 10 seconds of inactivity
 - Random move selection uses `Math.random()` for fair play
 - Service worker caches all static assets for offline use
 - Game state fully synchronized across all connected clients

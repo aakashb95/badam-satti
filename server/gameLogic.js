@@ -192,9 +192,9 @@ class GameRoom {
       suitBoard.down.push(card.rank);
     }
     
-    // Check if round is finished
+    // Check if player won (first to empty hand)
     if (player.cards.length === 0) {
-      this.finishRound();
+      this.gameFinished = true;
     } else {
       this.nextTurn();
     }
@@ -202,41 +202,28 @@ class GameRoom {
     return true;
   }
 
-  finishRound() {
-    // Calculate scores for this round
+  finishGame() {
+    // Game is finished when one player empties their hand
+    // Calculate final scores for all remaining cards
     this.players.forEach(player => {
-      const roundScore = this.calculatePlayerScore(player.cards);
-      player.totalScore += roundScore;
-      this.playerScores[player.id] += roundScore;
+      const finalScore = this.calculatePlayerScore(player.cards);
+      player.totalScore = finalScore;
+      this.playerScores[player.id] = finalScore;
     });
     
-    this.roundsPlayed++;
-    
-    if (this.roundsPlayed >= this.maxRounds) {
-      this.gameFinished = true;
-    } else {
-      // Prepare for next round
-      this.round++;
-      this.resetBoard();
-      this.deck = this.createDeck();
-      this.shuffleDeck();
-      this.dealCards();
-      
-      // Find who has 7 of hearts for next round
-      this.currentPlayerIndex = this.players.findIndex(p => 
-        p.cards.some(c => c.suit === 'hearts' && c.rank === 7)
-      );
-      
-      // Auto-play 7 of hearts
-      const heartsSevenCard = { suit: 'hearts', rank: 7 };
-      this.playCard(this.players[this.currentPlayerIndex].id, heartsSevenCard);
-    }
+    this.gameFinished = true;
   }
 
   calculatePlayerScore(cards) {
     return cards.reduce((sum, card) => {
-      if (card.rank === 1 || card.rank >= 11) {
-        return sum + 10; // Ace, Jack, Queen, King = 10 points
+      if (card.rank === 1) {
+        return sum + 1; // Ace = 1 point
+      } else if (card.rank === 11) {
+        return sum + 11; // Jack = 11 points
+      } else if (card.rank === 12) {
+        return sum + 12; // Queen = 12 points
+      } else if (card.rank === 13) {
+        return sum + 13; // King = 13 points
       }
       return sum + card.rank; // Number cards = face value
     }, 0);
@@ -277,32 +264,20 @@ class GameRoom {
   }
 
   getWinner() {
-    if (this.gameFinished) {
-      // Game finished after all rounds - player with lowest total score wins
-      const sortedPlayers = this.players.sort((a, b) => a.totalScore - b.totalScore);
-      return {
-        type: 'game_complete',
-        winner: sortedPlayers[0].name,
-        finalScores: sortedPlayers.map(p => ({
-          name: p.name,
-          score: p.totalScore
-        }))
-      };
-    } else {
-      // Round winner (first to empty hand)
-      const roundWinner = this.players.find(p => p.cards.length === 0);
-      const roundScores = this.players.map(p => ({
-        name: p.name,
-        score: this.calculatePlayerScore(p.cards)
-      }));
-      
-      return {
-        type: 'round_complete',
-        winner: roundWinner.name,
-        roundScores: roundScores,
-        round: this.round
-      };
-    }
+    const winner = this.players.find(p => p.cards.length === 0);
+    
+    // Calculate final scores for all players
+    const finalScores = this.players.map(p => ({
+      name: p.name,
+      score: this.calculatePlayerScore(p.cards),
+      isWinner: p.cards.length === 0
+    })).sort((a, b) => a.score - b.score); // Sort by score (lowest first)
+    
+    return {
+      type: 'game_complete',
+      winner: winner.name,
+      finalScores: finalScores
+    };
   }
 
   getPlayerCards(playerId) {
