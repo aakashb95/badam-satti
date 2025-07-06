@@ -22,15 +22,6 @@ function initializeSocket() {
     console.log("Socket ID:", socket.id);
     // Don't hide loading immediately - wait for specific responses
     reconnectAttempts = 0;
-    
-    // If we were previously in a room, try to reconnect
-    if (currentRoom && myUsername && reconnectAttempts > 0) {
-      console.log(`Auto-reconnecting to room ${currentRoom} as ${myUsername}`);
-      socket.emit("reconnect_player", {
-        roomCode: currentRoom,
-        username: myUsername
-      });
-    }
   });
 
   socket.on("disconnect", () => {
@@ -68,7 +59,7 @@ function initializeSocket() {
     showNotification(`${playerName} joined the room`);
   });
 
-  socket.on("player_disconnected", ({ playerName, gameState: state, message }) => {
+  socket.on("player_disconnected", ({ playerName, gameState: state }) => {
     console.log("Player disconnected:", playerName);
     gameState = state;
     if (gameState.started) {
@@ -76,19 +67,10 @@ function initializeSocket() {
     } else {
       updateWaitingRoom();
     }
-    showNotification(message || `${playerName} disconnected`);
+    showNotification(`${playerName} disconnected`);
   });
 
-  socket.on("player_reconnected", ({ playerName, gameState: state }) => {
-    console.log("Player reconnected:", playerName);
-    gameState = state;
-    if (gameState.started) {
-      updateGameScreen();
-    } else {
-      updateWaitingRoom();
-    }
-    showNotification(`${playerName} reconnected`);
-  });
+  // Removed player_reconnected handler - no reconnection allowed for fair gameplay
 
   // Game events
   socket.on("game_started", ({ gameState: state }) => {
@@ -141,19 +123,7 @@ function initializeSocket() {
     showNotification(data.message);
   });
 
-  socket.on("reconnected", ({ gameState: state }) => {
-    console.log("Reconnected successfully");
-    gameState = state;
-    reconnectAttempts = 0; // Reset reconnect attempts on successful reconnection
-    hideLoading();
-    if (gameState.started) {
-      showGameScreen();
-      showNotification("Reconnected to game successfully!");
-    } else {
-      showWaitingRoom();
-      showNotification("Reconnected to room successfully!");
-    }
-  });
+  // Removed reconnected handler - no reconnection allowed for fair gameplay
 
   // Listen for new round
   socket.on("round_continued", ({ gameState: state }) => {
@@ -831,7 +801,7 @@ function returnToMenu() {
 // Reconnection Logic
 function attemptReconnection() {
   if (reconnectAttempts >= maxReconnectAttempts) {
-    showError("Connection lost. Please refresh the page.");
+    showError("Connection lost. Please refresh the page to rejoin.");
     return;
   }
 
@@ -841,17 +811,6 @@ function attemptReconnection() {
   setTimeout(() => {
     if (socket.disconnected) {
       socket.connect();
-      
-      // If we were in a game, try to reconnect to the room
-      if (currentRoom && myUsername) {
-        setTimeout(() => {
-          console.log(`Attempting to reconnect to room ${currentRoom} as ${myUsername}`);
-          socket.emit("reconnect_player", {
-            roomCode: currentRoom,
-            username: myUsername
-          });
-        }, 1000);
-      }
     }
   }, 2000 * reconnectAttempts);
 }

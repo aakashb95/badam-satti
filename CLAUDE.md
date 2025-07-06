@@ -30,7 +30,7 @@ A complete multiplayer Progressive Web App (PWA) implementation of the Indian ca
 ### Technical Features
 - **Auto-play**: Random card selection after 15 seconds of inactivity (client-side only)
 - **Game Persistence**: SQLite database ensures games survive server restarts
-- **Smart Reconnection**: Disconnected players preserved in game, can rejoin seamlessly
+- **Card Redistribution**: Disconnected players' cards redistributed for fair, fast gameplay
 - **Rate Limiting**: Spam protection (10 rooms/min, 20 joins/min per IP)
 - **Round Continuation**: Players can continue to next round or exit with cumulative scores
 - **Error Handling**: Comprehensive validation and user feedback
@@ -67,7 +67,6 @@ A complete multiplayer Progressive Web App (PWA) implementation of the Indian ca
 **Room Management:**
 - `create_room` / `join_room` - Room creation and joining
 - `get_state` - Request current game state
-- `reconnect_player` - Rejoin with existing username
 
 **Game Actions:**
 - `start_game` - Begin gameplay (creator only)
@@ -76,8 +75,8 @@ A complete multiplayer Progressive Web App (PWA) implementation of the Indian ca
 - `exit_game` - Leave game and view cumulative scores
 
 **System Events:**
-- `player_disconnected` / `player_reconnected` - Connection handling
-- `cards_redistributed` - When player disconnects
+- `player_disconnected` - Player removed, cards redistributed
+- `cards_redistributed` - When player disconnects during game
 - `round_continued` - Round transition
 - `game_totals` - Final cumulative scores
 
@@ -90,9 +89,9 @@ A complete multiplayer Progressive Web App (PWA) implementation of the Indian ca
 
 ### Connection Management
 - Socket timeout: 60 seconds ping timeout, 25 seconds ping interval
-- Auto-reconnection with exponential backoff (up to 5 attempts)
-- Smart reconnection preserves player state in active games
-- State synchronization on reconnect with database restoration
+- Auto-reconnection with exponential backoff (up to 5 attempts) for server connection only
+- Disconnected players removed immediately for fair gameplay
+- Fast game continuation via card redistribution
 - Offline/online event handling
 
 ## Game State Management
@@ -138,7 +137,7 @@ http://localhost:3000
 
 ## Recent Enhancements
 1. **Game Persistence** - SQLite database ensures zero data loss on server restart
-2. **Smart Reconnection** - Disconnected players preserved in game, seamless rejoin
+2. **Card Redistribution** - Immediate card redistribution maintains fair, fast gameplay
 3. **Rate Limiting** - Spam protection with IP-based throttling
 4. **Health Monitoring** - Comprehensive `/health` and `/health/detailed` endpoints
 5. **Multi-Round System** - Complete 7-round gameplay with cumulative scoring
@@ -154,7 +153,7 @@ http://localhost:3000
 - ✅ Real-time multiplayer synchronization
 - ✅ Auto-play with 15-second countdown
 - ✅ Game persistence through server restarts
-- ✅ Smart reconnection (players preserved during disconnect)
+- ✅ Fast card redistribution on player disconnect
 - ✅ Rate limiting and spam protection
 - ✅ Round continuation and exit system
 - ✅ Cumulative scoring across rounds
@@ -173,7 +172,7 @@ http://localhost:3000
 - Game state fully synchronized across all connected clients
 - Room cleanup runs every 60 seconds (database + memory)
 - Graceful shutdown saves all active games to database
-- Smart reconnection preserves player state during disconnects
+- Disconnected players immediately removed with card redistribution
 - Complete SVG card set with custom design
 - Sophisticated card sorting: hearts, diamonds, clubs, spades by rank
 - Server auto-plays 7♥ to start each round
