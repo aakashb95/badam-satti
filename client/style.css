@@ -879,11 +879,57 @@ button:disabled {
 }
 
 .board-card-img {
-  width: 44px;
+  width: 60px;
   height: auto;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease;
+  position: relative;
 }
+
+.board-card-img:hover {
+  transform: scale(1.05);
+  z-index: 10;
+}
+
+/* Key cards in overflow mode */
+.board-card-img.key-card {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  position: relative;
+}
+
+.board-card-img.key-card::after {
+  content: '⋯';
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: rgba(33, 150, 243, 0.9);
+  color: white;
+  font-size: 14px;
+  font-weight: bold;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  animation: keyCardPulse 2s ease-in-out infinite;
+}
+
+@keyframes keyCardPulse {
+  0%, 100% { 
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  50% { 
+    transform: scale(1.1);
+    opacity: 1;
+  }
+}
+
+/* Mobile responsive for key cards will be handled in the main media queries */
 
 .hand-suit {
   display: inline-block;
@@ -1004,50 +1050,194 @@ button:disabled {
 
 /* Players Info Mobile */
 .players-info-mobile {
-  margin-top: 60px;
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
   border-radius: 12px;
-  margin-bottom: 16px;
+  padding: 12px;
+  margin: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 #players-info {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
-  justify-content: center;
+}
+
+/* Current Player Indicator - Prominent Display */
+.current-player-indicator {
+  background: linear-gradient(135deg, rgba(33, 150, 243, 0.15), rgba(33, 150, 243, 0.08));
+  border: 2px solid rgba(33, 150, 243, 0.3);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  animation: currentPlayerPulse 2s ease-in-out infinite;
+}
+
+.current-player-indicator.warning-indicator {
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.15), rgba(255, 193, 7, 0.08));
+  border-color: rgba(255, 193, 7, 0.4);
+  animation: warningPulse 2s ease-in-out infinite;
+}
+
+.current-player-indicator.critical-warning {
+  background: linear-gradient(135deg, rgba(244, 67, 54, 0.15), rgba(244, 67, 54, 0.08));
+  border-color: rgba(244, 67, 54, 0.4);
+  animation: criticalPulse 1.5s ease-in-out infinite;
+}
+
+.current-player-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.current-player-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 2px;
+}
+
+.current-player-turn {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.current-player-details {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.current-player-cards {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.1);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+/* Other Players List - Simplified */
+.other-players-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .player-info {
-  background: rgba(255, 255, 255, 0.1);
-  padding: 8px 12px;
-  border-radius: 20px;
-  min-width: 70px;
-  text-align: center;
-  font-size: 12px;
-  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: 1;
+  min-width: 120px;
+  max-width: 180px;
 }
 
-.player-info.current-player {
-  background: linear-gradient(45deg, #4CAF50, #45a049);
-  color: white;
-  animation: pulse 2s ease-in-out infinite;
+.player-info.warning-indicator {
+  background: rgba(255, 193, 7, 0.1);
+  border-color: rgba(255, 193, 7, 0.3);
+  animation: warningGlow 2s ease-in-out infinite;
 }
 
 .player-info.disconnected {
-  opacity: 0.5;
   background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.05);
+  opacity: 0.6;
+}
+
+.player-info.connected {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .player-name {
-  font-weight: 600;
-  font-size: 11px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-status-indicators {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.connection-status {
+  font-size: 12px;
+}
+
+.warning-icon {
+  font-size: 14px;
+  animation: warningBounce 1s ease-in-out infinite;
+}
+
+/* Animations */
+@keyframes currentPlayerPulse {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.4);
+  }
+  50% { 
+    box-shadow: 0 0 0 4px rgba(33, 150, 243, 0.1);
+  }
+}
+
+@keyframes warningPulse {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.4);
+  }
+  50% { 
+    box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.1);
+  }
+}
+
+@keyframes criticalPulse {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.6);
+  }
+  50% { 
+    box-shadow: 0 0 0 6px rgba(244, 67, 54, 0.1);
+  }
+}
+
+@keyframes warningGlow {
+  0%, 100% { 
+    background: rgba(255, 193, 7, 0.1);
+  }
+  50% { 
+    background: rgba(255, 193, 7, 0.15);
+  }
+}
+
+@keyframes warningBounce {
+  0%, 100% { 
+    transform: scale(1);
+  }
+  50% { 
+    transform: scale(1.1);
+  }
+}
+
+/* Legacy styles kept for backwards compatibility */
+.player-info.current-player {
+  /* This class is no longer used but kept for safety */
 }
 
 .player-cards {
-  font-size: 10px;
-  color: #888;
-  margin-top: 2px;
+  /* This class is no longer used but kept for safety */
 }
 
 /* Game Container Mobile */
@@ -1220,6 +1410,48 @@ button:disabled {
     padding: 12px 16px;
   }
 
+  /* Current Player Indicator - Mobile */
+  .current-player-indicator {
+    padding: 10px;
+    border-radius: 8px;
+  }
+
+  .current-player-name {
+    font-size: 14px;
+  }
+
+  .current-player-turn {
+    font-size: 11px;
+  }
+
+  .current-player-cards {
+    font-size: 12px;
+    padding: 3px 6px;
+  }
+
+  /* Other Players List - Mobile */
+  .other-players-list {
+    gap: 4px;
+  }
+
+  .player-info {
+    min-width: 100px;
+    max-width: 140px;
+    padding: 6px 8px;
+  }
+
+  .player-name {
+    font-size: 12px;
+  }
+
+  .warning-icon {
+    font-size: 12px;
+  }
+
+  .connection-status {
+    font-size: 10px;
+  }
+
   #game-board {
     min-height: 180px;
     max-height: 220px;
@@ -1235,8 +1467,16 @@ button:disabled {
     font-size: 12px;
   }
 
-  .board-card-img {
+    .board-card-img {
     width: 45px;
+  }
+
+  .board-card-img.key-card::after {
+    font-size: 12px;
+    width: 18px;
+    height: 18px;
+    top: -6px;
+    right: -6px;
   }
 
   .hand-card {
@@ -1278,10 +1518,47 @@ button:disabled {
     padding: 8px 12px;
   }
 
-  .player-info {
-    padding: 6px 8px;
-    min-width: 60px;
+  /* Current Player Indicator - Small Mobile */
+  .current-player-indicator {
+    padding: 8px;
+    border-radius: 6px;
+  }
+
+  .current-player-name {
+    font-size: 12px;
+  }
+
+  .current-player-turn {
     font-size: 10px;
+  }
+
+  .current-player-cards {
+    font-size: 11px;
+    padding: 2px 5px;
+  }
+
+  /* Other Players List - Small Mobile */
+  .other-players-list {
+    gap: 3px;
+  }
+
+  .player-info {
+    padding: 5px 6px;
+    min-width: 80px;
+    max-width: 120px;
+    font-size: 10px;
+  }
+
+  .player-name {
+    font-size: 11px;
+  }
+
+  .warning-icon {
+    font-size: 11px;
+  }
+
+  .connection-status {
+    font-size: 9px;
   }
 
   #game-board {
@@ -1302,6 +1579,14 @@ button:disabled {
 
   .board-card-img {
     width: 40px;
+  }
+
+  .board-card-img.key-card::after {
+    font-size: 10px;
+    width: 16px;
+    height: 16px;
+    top: -5px;
+    right: -5px;
   }
 
   .hand-card {
@@ -1339,6 +1624,57 @@ button:disabled {
   .players-info-mobile {
     margin-top: 60px;
     padding: 6px 12px;
+  }
+
+  /* Current Player Indicator - Landscape */
+  .current-player-indicator {
+    padding: 6px;
+    border-radius: 6px;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .current-player-info {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .current-player-name {
+    font-size: 12px;
+  }
+
+  .current-player-turn {
+    font-size: 9px;
+  }
+
+  .current-player-cards {
+    font-size: 10px;
+    padding: 2px 4px;
+  }
+
+  /* Other Players List - Landscape */
+  .other-players-list {
+    gap: 3px;
+  }
+
+  .player-info {
+    min-width: 70px;
+    max-width: 100px;
+    padding: 4px 6px;
+  }
+
+  .player-name {
+    font-size: 10px;
+  }
+
+  .warning-icon {
+    font-size: 10px;
+  }
+
+  .connection-status {
+    font-size: 8px;
   }
 
   #game-board {

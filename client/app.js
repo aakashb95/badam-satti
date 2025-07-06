@@ -508,19 +508,97 @@ function updatePlayersInfo() {
   const playersInfo = document.getElementById("players-info");
   if (!playersInfo) return;
 
-  playersInfo.innerHTML = gameState.players
-    .map(
-      (player) => `
-    <div class="player-info ${player.isCurrentPlayer ? "current-player" : ""} ${
-        player.connected ? "connected" : "disconnected"
-      }">
-      <div class="player-name">${player.name}</div>
-      <div class="player-cards">${player.cardCount} cards</div>
-      <div class="player-status">${player.connected ? "🔵" : "🔴"}</div>
-    </div>
-  `
-    )
-    .join("");
+  // Helper function to determine warning level for a player
+  const getWarningLevel = (player) => {
+    if (player.cardCount >= 3) return "none";
+
+    if (player.isCurrentPlayer) {
+      // For current player, we can check if all their cards are guaranteed playable
+      const allCardsPlayable =
+        myCards.length > 0 && myCards.length === validMoves.length;
+      if (allCardsPlayable) {
+        return "critical"; // Red warning - about to win
+      }
+      return "warning"; // Yellow warning - close but not guaranteed
+    }
+
+    // For other players, we can only show general warning since we don't know their cards
+    return "warning"; // Yellow warning - they're close
+  };
+
+  // Current player gets special treatment
+  const currentPlayer = gameState.players.find((p) => p.isCurrentPlayer);
+  const otherPlayers = gameState.players.filter((p) => !p.isCurrentPlayer);
+
+  let html = "";
+
+  // Show current player prominently
+  if (currentPlayer) {
+    const warningLevel = getWarningLevel(currentPlayer);
+    const warningClass =
+      warningLevel === "critical"
+        ? "critical-warning"
+        : warningLevel === "warning"
+        ? "warning-indicator"
+        : "";
+    const warningIcon =
+      warningLevel === "critical"
+        ? "🔴"
+        : warningLevel === "warning"
+        ? "🟡"
+        : "";
+
+    html += `
+      <div class="current-player-indicator ${warningClass}">
+        <div class="current-player-info">
+          <span class="current-player-name">${currentPlayer.name}</span>
+          <span class="current-player-turn">Current Turn</span>
+        </div>
+        <div class="current-player-details">
+          <span class="current-player-cards">${
+            currentPlayer.cardCount
+          } cards</span>
+          ${
+            warningIcon
+              ? `<span class="warning-icon">${warningIcon}</span>`
+              : ""
+          }
+        </div>
+      </div>
+    `;
+  }
+
+  // Show other players in simplified format
+  if (otherPlayers.length > 0) {
+    html += '<div class="other-players-list">';
+    otherPlayers.forEach((player) => {
+      const warningLevel = getWarningLevel(player);
+      const warningClass =
+        warningLevel === "warning" ? "warning-indicator" : "";
+      const warningIcon = warningLevel === "warning" ? "🟡" : "";
+
+      html += `
+        <div class="player-info ${
+          player.connected ? "connected" : "disconnected"
+        } ${warningClass}">
+          <div class="player-name">${player.name}</div>
+          <div class="player-status-indicators">
+            <span class="connection-status">${
+              player.connected ? "🔵" : "🔴"
+            }</span>
+            ${
+              warningIcon
+                ? `<span class="warning-icon">${warningIcon}</span>`
+                : ""
+            }
+          </div>
+        </div>
+      `;
+    });
+    html += "</div>";
+  }
+
+  playersInfo.innerHTML = html;
 }
 
 function updateBoard() {
@@ -533,16 +611,49 @@ function updateBoard() {
     // Build array so that higher ranks appear above 7, lower ranks below
     const lower = (suitObj.down || []).slice(); // 6, 5, 4, 3, 2, A (bottom to top)
     const higher = (suitObj.up || []).slice().reverse(); // K, Q, J, 10, 9, 8 (bottom to top)
-    const ranksForDisplay = [...higher, ...lower]; // Higher cards first, then lower cards
+    const allRanks = [...higher, ...lower]; // Higher cards first, then lower cards
+
+    // Smart overflow handling
+    const MAX_VISIBLE_CARDS = 6; // Show overflow optimization if more than 6 cards
+    let ranksForDisplay = allRanks;
+
+    if (allRanks.length > MAX_VISIBLE_CARDS) {
+      // Overflow mode: show only key cards
+      ranksForDisplay = [];
+
+      // Add highest card (first in higher array if exists)
+      if (higher.length > 0) {
+        ranksForDisplay.push(higher[0]);
+      }
+
+      // Always add 7 (anchor) if it exists
+      if (higher.length > 0 || lower.length > 0) {
+        ranksForDisplay.push(7);
+      }
+
+      // Add lowest card (last in lower array if exists)
+      if (lower.length > 0) {
+        ranksForDisplay.push(lower[lower.length - 1]);
+      }
+    }
 
     cardsDisplay.innerHTML = ranksForDisplay
       .map((rank, idx) => {
         const card = { suit, rank };
+        const isKeyCard = allRanks.length > MAX_VISIBLE_CARDS;
+        const spacing = isKeyCard ? -20 : -40; // Less overlap for key cards
+
         return `<img src="images/cards/${getCardFilename(
           card
-        )}" class="board-card-img" style="margin-top:${
-          idx === 0 ? 0 : -40
-        }px;" />`;
+        )}" class="board-card-img ${
+          isKeyCard ? "key-card" : ""
+        }" style="margin-top:${idx === 0 ? 0 : spacing}px;" title="${
+          isKeyCard
+            ? `${getRankDisplay(rank)} of ${getSuitName(suit)} (${
+                allRanks.length
+              } cards total)`
+            : ""
+        }" />`;
       })
       .join("");
   });
