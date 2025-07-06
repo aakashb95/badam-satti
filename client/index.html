@@ -64,18 +64,26 @@
     <!-- Game Screen -->
     <div id="game-screen" class="screen hidden">
       <div class="game-container">
-        <!-- Game Header -->
-        <div class="game-header">
-          <div class="round-info">
-            <span id="round-display">Round 1/7</span>
+        <!-- Mobile Top Action Bar -->
+        <div class="mobile-top-bar">
+          <button id="pass-btn" class="mobile-pass-btn" onclick="passTurn()" disabled>
+            <span class="btn-icon">⏭️</span>
+            <span class="btn-text">Pass</span>
+          </button>
+          <div class="game-info">
+            <div id="round-display">Round 1/7</div>
+            <div id="turn-display">Your Turn</div>
           </div>
-          <div class="turn-info">
-            <span id="turn-display">Your Turn</span>
-          </div>
+          <button id="leave-game-btn" class="mobile-leave-btn" onclick="leaveGame()">
+            <span class="btn-icon">🚪</span>
+            <span class="btn-text">Leave</span>
+          </button>
         </div>
 
         <!-- Players Info -->
-        <div id="players-info"></div>
+        <div class="players-info-mobile">
+          <div id="players-info"></div>
+        </div>
 
         <!-- Game Board -->
         <div id="game-board">
@@ -101,12 +109,6 @@
         <div class="my-cards-section">
           <h3>Your Cards</h3>
           <div id="my-cards"></div>
-        </div>
-
-        <!-- Game Actions -->
-        <div class="game-actions">
-          <button id="pass-btn" onclick="passTurn()" disabled>Pass Turn</button>
-          <button id="leave-game-btn" onclick="leaveGame()">Leave Game</button>
         </div>
       </div>
     </div>

@@ -454,6 +454,7 @@ function updateGameScreen() {
       const turnDisplay = document.getElementById("turn-display");
       if (turnDisplay && isMyTurn) {
         turnDisplay.textContent = `Your Turn (${timeLeft}s)`;
+        turnDisplay.className = "my-turn";
       }
       if (timeLeft > 0) {
         timeLeft--;
@@ -529,10 +530,10 @@ function updateBoard() {
     const cardsDisplay = document.getElementById(`${suit}-cards`);
     if (!cardsDisplay) return;
 
-    // Build array so that lower ranks appear first (bottom), then 7, then higher ranks
-    const lower = (suitObj.down || []).slice().reverse();
-    const higher = (suitObj.up || []).slice();
-    const ranksForDisplay = [...lower, ...higher];
+    // Build array so that higher ranks appear above 7, lower ranks below
+    const lower = (suitObj.down || []).slice(); // 6, 5, 4, 3, 2, A (bottom to top)
+    const higher = (suitObj.up || []).slice().reverse(); // K, Q, J, 10, 9, 8 (bottom to top)
+    const ranksForDisplay = [...higher, ...lower]; // Higher cards first, then lower cards
 
     cardsDisplay.innerHTML = ranksForDisplay
       .map((rank, idx) => {
