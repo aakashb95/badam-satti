@@ -371,6 +371,37 @@ io.on("connection", (socket) => {
           gameState: room.getState(),
         });
 
+        // Send updated cards to all remaining players if cards were redistributed
+        if (wasGameStarted && !room.gameFinished) {
+          // Check if only one player remains
+          if (room.players.length === 1) {
+            // Notify the last player that all others left and end the game
+            io.to(currentRoom).emit("game_over", {
+              type: "all_players_left",
+              winner: room.players[0].name,
+              message: "All other players have left the game",
+            });
+            room.gameFinished = true;
+          } else {
+            // Notify about card redistribution
+            io.to(currentRoom).emit("cards_redistributed", {
+              message: `${playerName}'s cards have been redistributed`,
+              redistributedCardCount:
+                room.players.length > 0
+                  ? Math.floor(52 / room.players.length)
+                  : 0,
+            });
+
+            // Send updated cards to all remaining players
+            room.players.forEach((player) => {
+              io.to(player.id).emit("your_cards", {
+                cards: room.getPlayerCards(player.id),
+                validMoves: room.getValidMoves(player.id),
+              });
+            });
+          }
+        }
+
         // If the room becomes empty, it will be cleaned up by the interval
       }
     } catch (error) {

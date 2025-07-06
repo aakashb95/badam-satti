@@ -118,7 +118,18 @@ function initializeSocket() {
   socket.on("game_over", (winner) => {
     console.log("Game over:", winner);
     clearTimeout(autoPassTimeout);
-    showGameOver(winner);
+    clearInterval(countdownInterval);
+
+    if (winner.type === "all_players_left") {
+      showGameOverAllPlayersLeft(winner);
+    } else {
+      showGameOver(winner);
+    }
+  });
+
+  socket.on("cards_redistributed", (data) => {
+    console.log("Cards redistributed:", data);
+    showNotification(data.message);
   });
 
   socket.on("reconnected", ({ gameState: state }) => {
@@ -161,6 +172,16 @@ function showScreen(screenId) {
     screen.classList.add("hidden");
   });
   document.getElementById(screenId).classList.remove("hidden");
+
+  // Focus username input when login screen is shown
+  if (screenId === "login-screen") {
+    setTimeout(() => {
+      const usernameInput = document.getElementById("username");
+      if (usernameInput) {
+        usernameInput.focus();
+      }
+    }, 100);
+  }
 }
 
 function showLoading(message = "Loading...") {
@@ -250,6 +271,22 @@ function showGameOver(winner) {
         Scoring: A=1, Numbers=face value, J=11, Q=12, K=13<br>
         Lower scores are better!
       </small>
+    </div>
+  `;
+}
+
+function showGameOverAllPlayersLeft(winner) {
+  showScreen("game-over-screen");
+
+  const winnerDisplay = document.getElementById("winner-display");
+  const finalScores = document.getElementById("final-scores");
+
+  winnerDisplay.innerHTML = `<h3>🎉 ${winner.winner} Wins!</h3><p>${winner.message}</p>`;
+  finalScores.innerHTML = `
+    <div class="all-players-left-message">
+      <h4>Game Ended Early</h4>
+      <p>All other players have disconnected from the game.</p>
+      <p>You are the last player remaining!</p>
     </div>
   `;
 }
@@ -495,7 +532,7 @@ function updateGameScreen() {
       } else {
         console.log("Auto-play timeout but not my turn anymore");
       }
-    }, 10000); // Auto-play/pass after 10 seconds
+    }, 15000); // Auto-play/pass after 10 seconds
   } else {
     clearTimeout(autoPassTimeout);
     clearInterval(countdownInterval);
