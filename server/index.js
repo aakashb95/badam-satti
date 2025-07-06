@@ -351,40 +351,27 @@ io.on("connection", (socket) => {
 
     try {
       if (currentRoom && rooms[currentRoom]) {
-        rooms[currentRoom].setPlayerDisconnected(socket.id);
+        const room = rooms[currentRoom];
+        const wasGameStarted = room.started;
+        const wasCurrentPlayer =
+          room.players[room.currentPlayerIndex]?.id === socket.id;
 
-        // Notify other players
-        socket.to(currentRoom).emit("player_disconnected", {
+        // Remove player and redistribute cards if game has started
+        room.removePlayer(socket.id, wasGameStarted);
+
+        // If the game was started and the disconnected player was the current turn,
+        // move turn to the next appropriate player
+        if (wasGameStarted && wasCurrentPlayer && !room.gameFinished) {
+          room.nextTurn();
+        }
+
+        // Broadcast updated state to remaining players
+        io.to(currentRoom).emit("player_disconnected", {
           playerName,
-          gameState: rooms[currentRoom].getState(),
+          gameState: room.getState(),
         });
 
-        // Auto-play or auto-pass if it's the disconnected player's turn
-        const room = rooms[currentRoom];
-        if (
-          !room.gameFinished &&
-          room.players[room.currentPlayerIndex]?.id === socket.id
-        ) {
-          const validMoves = room.getValidMoves(socket.id);
-          if (validMoves.length > 0) {
-            // Auto-play a random valid move for disconnected player
-            const randomMove =
-              validMoves[Math.floor(Math.random() * validMoves.length)];
-            rooms[currentRoom].playCard(socket.id, randomMove);
-            socket.to(currentRoom).emit("card_played", {
-              playerName: playerName + " (auto)",
-              card: randomMove,
-              gameState: rooms[currentRoom].getState(),
-            });
-          } else if (rooms[currentRoom].canPlayerPlay(socket.id) === false) {
-            // Auto-pass if no valid moves
-            rooms[currentRoom].passTurn(socket.id);
-            socket.to(currentRoom).emit("turn_passed", {
-              playerName: playerName + " (auto)",
-              gameState: rooms[currentRoom].getState(),
-            });
-          }
-        }
+        // If the room becomes empty, it will be cleaned up by the interval
       }
     } catch (error) {
       console.error("Error handling disconnect:", error);

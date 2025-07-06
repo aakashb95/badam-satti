@@ -35,13 +35,38 @@ class GameRoom {
     return true;
   }
 
-  removePlayer(id) {
+  removePlayer(id, redistribute = false) {
     const playerIndex = this.players.findIndex((p) => p.id === id);
     if (playerIndex !== -1) {
-      this.players.splice(playerIndex, 1);
+      const [removed] = this.players.splice(playerIndex, 1);
       delete this.playerScores[id];
 
-      // Adjust current player index if needed
+      // When requested, distribute the removed player's remaining cards
+      if (
+        redistribute &&
+        removed.cards &&
+        removed.cards.length &&
+        this.players.length
+      ) {
+        let idx = 0;
+        const suitOrder = { hearts: 0, diamonds: 1, clubs: 2, spades: 3 };
+        removed.cards.forEach((card) => {
+          this.players[idx % this.players.length].cards.push(card);
+          idx++;
+        });
+
+        // Resort the hands for all players
+        this.players.forEach((player) => {
+          player.cards.sort((a, b) => {
+            if (a.suit !== b.suit) {
+              return suitOrder[a.suit] - suitOrder[b.suit];
+            }
+            return a.rank - b.rank;
+          });
+        });
+      }
+
+      // Adjust current player index in case it now exceeds player count
       if (this.currentPlayerIndex >= this.players.length) {
         this.currentPlayerIndex = 0;
       }

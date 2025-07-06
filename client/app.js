@@ -11,7 +11,6 @@ let reconnectAttempts = 0;
 let maxReconnectAttempts = 5;
 let autoPassTimeout = null;
 let countdownInterval = null;
-let attemptedSessionReconnect = false;
 
 // Initialize socket connection
 function initializeSocket() {
@@ -21,24 +20,8 @@ function initializeSocket() {
   socket.on("connect", () => {
     console.log("Connected to server");
     console.log("Socket ID:", socket.id);
+    // Don't hide loading immediately - wait for specific responses
     reconnectAttempts = 0;
-
-    // Attempt session-based reconnection once per page load
-    if (!attemptedSessionReconnect) {
-      attemptedSessionReconnect = true;
-      const savedSession = JSON.parse(
-        localStorage.getItem("gameSession") || "null"
-      );
-      if (savedSession && savedSession.roomCode && savedSession.username) {
-        myUsername = savedSession.username;
-        currentRoom = savedSession.roomCode;
-        showLoading("Restoring session...");
-        socket.emit("reconnect_player", {
-          roomCode: currentRoom,
-          username: myUsername,
-        });
-      }
-    }
   });
 
   socket.on("disconnect", () => {
@@ -57,10 +40,6 @@ function initializeSocket() {
     console.log("Room created:", roomCode);
     currentRoom = roomCode;
     gameState = state;
-    localStorage.setItem(
-      "gameSession",
-      JSON.stringify({ roomCode: currentRoom, username: myUsername })
-    );
     hideLoading();
     showWaitingRoom();
   });
@@ -69,10 +48,6 @@ function initializeSocket() {
     console.log("Room joined:", roomCode);
     currentRoom = roomCode;
     gameState = state;
-    localStorage.setItem(
-      "gameSession",
-      JSON.stringify({ roomCode: currentRoom, username: myUsername })
-    );
     hideLoading();
     showWaitingRoom();
   });
@@ -149,13 +124,6 @@ function initializeSocket() {
   socket.on("reconnected", ({ gameState: state }) => {
     console.log("Reconnected successfully");
     gameState = state;
-    // Ensure session is persisted (in case it was missing)
-    if (currentRoom && myUsername) {
-      localStorage.setItem(
-        "gameSession",
-        JSON.stringify({ roomCode: currentRoom, username: myUsername })
-      );
-    }
     hideLoading();
     if (gameState.started) {
       showGameScreen();
@@ -183,14 +151,6 @@ function initializeSocket() {
   socket.on("error", (message) => {
     console.error("Server error:", message);
     hideLoading();
-    // Clear invalid saved session if reconnection failed
-    if (
-      message === "Room not found" ||
-      message === "Player not found in room" ||
-      message === "Game already started"
-    ) {
-      localStorage.removeItem("gameSession");
-    }
     showError(message);
   });
 }
@@ -342,7 +302,6 @@ function leaveRoom() {
   validMoves = [];
   clearTimeout(autoPassTimeout);
   clearInterval(countdownInterval);
-  localStorage.removeItem("gameSession");
   socket.disconnect();
   socket.connect();
   showScreen("menu-screen");
@@ -570,16 +529,12 @@ function updateBoard() {
     const cardsDisplay = document.getElementById(`${suit}-cards`);
     if (!cardsDisplay) return;
 
-    // Build list of card ranks in display order (down reversed then up)
-    const allRanks = [];
-    if (suitObj.down && suitObj.down.length > 0) {
-      allRanks.push(...suitObj.down.slice().reverse());
-    }
-    if (suitObj.up && suitObj.up.length > 0) {
-      allRanks.push(...suitObj.up);
-    }
+    // Build array so that lower ranks appear first (bottom), then 7, then higher ranks
+    const lower = (suitObj.down || []).slice().reverse();
+    const higher = (suitObj.up || []).slice();
+    const ranksForDisplay = [...lower, ...higher];
 
-    cardsDisplay.innerHTML = allRanks
+    cardsDisplay.innerHTML = ranksForDisplay
       .map((rank, idx) => {
         const card = { suit, rank };
         return `<img src="images/cards/${getCardFilename(
@@ -611,15 +566,14 @@ function updateMyCards() {
           const isValid = validMoves.some(
             (move) => move.suit === card.suit && move.rank === card.rank
           );
-          const dimClass = !isMyTurn || !isValid ? "dim" : "";
           const playClass = isMyTurn && isValid ? "playable" : "";
           return `<img src="images/cards/${getCardFilename(
             card
           )}" class="hand-card ${
             isValid ? "valid" : ""
-          } ${dimClass} ${playClass}" onclick="playCard({suit:'${
-            card.suit
-          }',rank:${card.rank}})" />`;
+          } ${playClass}" onclick="playCard({suit:'${card.suit}',rank:${
+            card.rank
+          }})" />`;
         })
         .join("");
 
@@ -739,7 +693,6 @@ function continueRound() {
 function exitGame() {
   showLoading("Calculating results...");
   socket.emit("exit_game");
-  localStorage.removeItem("gameSession");
 }
 
 function showSummary(summary) {
