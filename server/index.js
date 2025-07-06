@@ -150,8 +150,8 @@ io.on("connection", (socket) => {
         return;
       }
 
-      if (rooms[currentRoom].players.length < 4) {
-        socket.emit("error", "Need at least 4 players to start");
+      if (rooms[currentRoom].players.length <= 1) {
+        socket.emit("error", "Need at least 2 players to start");
         return;
       }
 

@@ -312,7 +312,7 @@ function leaveGame() {
 }
 
 function startGame() {
-  if (!gameState || gameState.players.length < 2) {
+  if (!gameState || gameState.players.length <= 1) {
     showError("Need at least 2 players to start");
     return;
   }

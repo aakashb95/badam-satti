@@ -74,7 +74,7 @@ class GameRoom {
   }
 
   startGame() {
-    if (this.players.length < 4) return false;
+    if (this.players.length <= 1) return false;
     if (this.started) return false;
 
     this.started = true;
