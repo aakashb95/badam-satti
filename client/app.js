@@ -22,6 +22,15 @@ function initializeSocket() {
     console.log("Socket ID:", socket.id);
     // Don't hide loading immediately - wait for specific responses
     reconnectAttempts = 0;
+    
+    // If we were previously in a room, try to reconnect
+    if (currentRoom && myUsername && reconnectAttempts > 0) {
+      console.log(`Auto-reconnecting to room ${currentRoom} as ${myUsername}`);
+      socket.emit("reconnect_player", {
+        roomCode: currentRoom,
+        username: myUsername
+      });
+    }
   });
 
   socket.on("disconnect", () => {
@@ -59,7 +68,7 @@ function initializeSocket() {
     showNotification(`${playerName} joined the room`);
   });
 
-  socket.on("player_disconnected", ({ playerName, gameState: state }) => {
+  socket.on("player_disconnected", ({ playerName, gameState: state, message }) => {
     console.log("Player disconnected:", playerName);
     gameState = state;
     if (gameState.started) {
@@ -67,7 +76,7 @@ function initializeSocket() {
     } else {
       updateWaitingRoom();
     }
-    showNotification(`${playerName} disconnected`);
+    showNotification(message || `${playerName} disconnected`);
   });
 
   socket.on("player_reconnected", ({ playerName, gameState: state }) => {
@@ -135,11 +144,14 @@ function initializeSocket() {
   socket.on("reconnected", ({ gameState: state }) => {
     console.log("Reconnected successfully");
     gameState = state;
+    reconnectAttempts = 0; // Reset reconnect attempts on successful reconnection
     hideLoading();
     if (gameState.started) {
       showGameScreen();
+      showNotification("Reconnected to game successfully!");
     } else {
       showWaitingRoom();
+      showNotification("Reconnected to room successfully!");
     }
   });
 
@@ -829,6 +841,17 @@ function attemptReconnection() {
   setTimeout(() => {
     if (socket.disconnected) {
       socket.connect();
+      
+      // If we were in a game, try to reconnect to the room
+      if (currentRoom && myUsername) {
+        setTimeout(() => {
+          console.log(`Attempting to reconnect to room ${currentRoom} as ${myUsername}`);
+          socket.emit("reconnect_player", {
+            roomCode: currentRoom,
+            username: myUsername
+          });
+        }, 1000);
+      }
     }
   }, 2000 * reconnectAttempts);
 }
