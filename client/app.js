@@ -664,7 +664,7 @@ function updateBoard() {
 
         return `<img src="images/cards/${getCardFilename(
           card
-        )}" class="board-card-img ${
+        )}" loading="lazy" class="board-card-img ${
           isKeyCard ? "key-card" : ""
         }" style="margin-top:${idx === 0 ? 0 : spacing}px;" title="${
           isKeyCard
@@ -700,7 +700,7 @@ function updateMyCards() {
           const playClass = isMyTurn && isValid ? "playable" : "";
           return `<img src="images/cards/${getCardFilename(
             card
-          )}" class="hand-card ${
+          )}" loading="lazy" class="hand-card ${
             isValid ? "valid" : ""
           } ${playClass}" onclick="playCard({suit:'${card.suit}',rank:${
             card.rank
