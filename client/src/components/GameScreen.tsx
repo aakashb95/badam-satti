@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { GameState, Card } from '../types';
+import React, { useEffect, useState } from 'react';
+import { Card, GameState } from '../types';
 
 interface GameScreenProps {
   gameState: GameState | null;
@@ -23,11 +23,11 @@ const GameScreen: React.FC<GameScreenProps> = ({
   onPassTurn,
   onLeaveGame,
 }) => {
-  const [timeLeft, setTimeLeft] = useState(10);
+  const [timeLeft, setTimeLeft] = useState(15);
 
   useEffect(() => {
     if (isMyTurn) {
-      setTimeLeft(10);
+      setTimeLeft(15);
       const interval = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev > 0) return prev - 1;

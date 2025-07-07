@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import LoginScreen from './components/LoginScreen';
 import MenuScreen from './components/MenuScreen';
@@ -30,7 +30,14 @@ const App: React.FC = () => {
 
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [autoPassTimeout, setAutoPassTimeout] = useState<number | null>(null);
-  const [countdownInterval, setCountdownInterval] = useState<number | null>(null);
+  
+  // Refs to store current state values for auto-play
+  const currentStateRef = useRef(appState);
+  
+  // Update ref whenever appState changes
+  useEffect(() => {
+    currentStateRef.current = appState;
+  }, [appState]);
 
   const maxReconnectAttempts = 5;
 
@@ -103,7 +110,8 @@ const App: React.FC = () => {
     });
 
     newSocket.on('your_cards', ({ cards, validMoves }) => {
-      console.log('Received cards:', cards);
+      console.log('Received cards:', cards.length, 'Valid moves:', validMoves.length);
+      console.log('Valid moves details:', validMoves);
       setAppState(prev => ({
         ...prev,
         myCards: cards,
@@ -169,46 +177,59 @@ const App: React.FC = () => {
 
   // Auto-play logic
   useEffect(() => {
+    console.log('Auto-play useEffect triggered. isMyTurn:', appState.isMyTurn, 'currentPlayer:', appState.gameState?.currentPlayerName, 'username:', appState.username);
+    
     if (appState.gameState && appState.isMyTurn) {
+      console.log('Setting up auto-play timeout');
       clearAutoPlayTimers();
 
-      let timeLeft = 10;
-      const countdownId = setInterval(() => {
-        timeLeft--;
-        if (timeLeft <= 0) {
-          clearInterval(countdownId);
-        }
-      }, 1000);
-
       const timeoutId = setTimeout(() => {
-        if (appState.isMyTurn && appState.gameState?.currentPlayerName === appState.username) {
-          clearInterval(countdownId);
-          if (appState.validMoves.length > 0) {
-            const randomMove = appState.validMoves[Math.floor(Math.random() * appState.validMoves.length)];
+        console.log('Auto-play timeout fired!');
+        const current = currentStateRef.current;
+        console.log('Current state at timeout:');
+        console.log('- isMyTurn:', current.isMyTurn);
+        console.log('- currentPlayer:', current.gameState?.currentPlayerName);
+        console.log('- username:', current.username);
+        console.log('- validMoves:', current.validMoves);
+        console.log('- canPass:', current.canPass);
+        
+        if (current.isMyTurn && current.gameState?.currentPlayerName === current.username) {
+          console.log('Conditions met for auto-play');
+          
+          if (current.validMoves.length > 0) {
+            const randomMove = current.validMoves[Math.floor(Math.random() * current.validMoves.length)];
             console.log('Auto-playing random card:', randomMove);
             showNotification('Auto-playing random card');
             playCard(randomMove);
-          } else if (appState.canPass) {
+          } else if (current.canPass) {
             console.log('Auto-passing turn');
             showNotification('Auto-passing turn');
             passTurn();
+          } else {
+            console.log('Auto-play: No valid moves and cannot pass');
           }
+        } else {
+          console.log('Conditions NOT met for auto-play');
         }
       }, 15000);
 
-      setCountdownInterval(countdownId);
       setAutoPassTimeout(timeoutId);
     } else {
+      console.log('Not setting up auto-play - not my turn or no game state');
       clearAutoPlayTimers();
     }
 
-    return () => clearAutoPlayTimers();
-  }, [appState.isMyTurn, appState.gameState?.currentPlayerName]);
+    return () => {
+      console.log('Auto-play useEffect cleanup');
+      clearAutoPlayTimers();
+    };
+  }, [appState.isMyTurn, appState.gameState?.currentPlayerName, appState.validMoves, appState.canPass]);
 
   // Update isMyTurn based on game state
   useEffect(() => {
     if (appState.gameState) {
       const isMyTurn = appState.gameState.currentPlayerName === appState.username;
+      console.log('Turn detection: currentPlayer =', appState.gameState.currentPlayerName, 'username =', appState.username, 'isMyTurn =', isMyTurn);
       setAppState(prev => ({ ...prev, isMyTurn }));
     }
   }, [appState.gameState?.currentPlayerName, appState.username]);
@@ -217,10 +238,6 @@ const App: React.FC = () => {
     if (autoPassTimeout) {
       clearTimeout(autoPassTimeout);
       setAutoPassTimeout(null);
-    }
-    if (countdownInterval) {
-      clearInterval(countdownInterval);
-      setCountdownInterval(null);
     }
   };
 
