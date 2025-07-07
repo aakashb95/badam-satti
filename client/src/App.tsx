@@ -1,0 +1,444 @@
+import React, { useState, useEffect } from 'react';
+import { io, Socket } from 'socket.io-client';
+import LoginScreen from './components/LoginScreen';
+import MenuScreen from './components/MenuScreen';
+import WaitingRoom from './components/WaitingRoom';
+import GameScreen from './components/GameScreen';
+import GameOverScreen from './components/GameOverScreen';
+import LoadingScreen from './components/LoadingScreen';
+import SummaryScreen from './components/SummaryScreen';
+import ErrorModal from './components/ErrorModal';
+import Notification from './components/Notification';
+import { AppState, Card, Winner, GameSummary } from './types';
+import './App.css';
+
+const App: React.FC = () => {
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [appState, setAppState] = useState<AppState>({
+    currentScreen: 'login',
+    username: '',
+    currentRoom: '',
+    gameState: null,
+    myCards: [],
+    validMoves: [],
+    canPass: false,
+    isMyTurn: false,
+    error: null,
+    notification: null,
+    loading: null,
+  });
+
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const [autoPassTimeout, setAutoPassTimeout] = useState<number | null>(null);
+  const [countdownInterval, setCountdownInterval] = useState<number | null>(null);
+
+  const maxReconnectAttempts = 5;
+
+  // Initialize socket connection
+  useEffect(() => {
+    const newSocket = io();
+    setSocket(newSocket);
+
+    // Connection events
+    newSocket.on('connect', () => {
+      console.log('Connected to server');
+      console.log('Socket ID:', newSocket.id);
+      setReconnectAttempts(0);
+    });
+
+    newSocket.on('disconnect', () => {
+      console.log('Disconnected from server');
+      showLoading('Connection lost. Reconnecting...');
+      attemptReconnection();
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+      showError('Connection failed. Please check your internet connection.');
+    });
+
+    // Room events
+    newSocket.on('room_created', ({ roomCode, gameState }) => {
+      console.log('Room created:', roomCode);
+      setAppState(prev => ({
+        ...prev,
+        currentRoom: roomCode,
+        gameState,
+        currentScreen: 'waiting',
+        loading: null,
+      }));
+    });
+
+    newSocket.on('room_joined', ({ roomCode, gameState }) => {
+      console.log('Room joined:', roomCode);
+      setAppState(prev => ({
+        ...prev,
+        currentRoom: roomCode,
+        gameState,
+        currentScreen: 'waiting',
+        loading: null,
+      }));
+    });
+
+    newSocket.on('player_joined', ({ playerName, gameState }) => {
+      console.log('Player joined:', playerName);
+      setAppState(prev => ({ ...prev, gameState }));
+      showNotification(`${playerName} joined the room`);
+    });
+
+    newSocket.on('player_disconnected', ({ playerName, gameState }) => {
+      console.log('Player disconnected:', playerName);
+      setAppState(prev => ({ ...prev, gameState }));
+      showNotification(`${playerName} disconnected`);
+    });
+
+    // Game events
+    newSocket.on('game_started', ({ gameState }) => {
+      console.log('Game started');
+      setAppState(prev => ({
+        ...prev,
+        gameState,
+        currentScreen: 'game',
+      }));
+    });
+
+    newSocket.on('your_cards', ({ cards, validMoves }) => {
+      console.log('Received cards:', cards);
+      setAppState(prev => ({
+        ...prev,
+        myCards: cards,
+        validMoves,
+        canPass: validMoves.length === 0,
+      }));
+    });
+
+    newSocket.on('card_played', ({ playerName, card, gameState }) => {
+      console.log(`${playerName} played ${card.rank} of ${card.suit}`);
+      setAppState(prev => ({ ...prev, gameState }));
+      showNotification(`${playerName} played ${getRankDisplay(card.rank)} of ${getSuitName(card.suit)}`);
+    });
+
+    newSocket.on('turn_passed', ({ playerName, gameState }) => {
+      console.log(`${playerName} passed`);
+      setAppState(prev => ({ ...prev, gameState }));
+      showNotification(`${playerName} passed`);
+    });
+
+    newSocket.on('game_over', (winner: Winner) => {
+      console.log('Game over:', winner);
+      clearAutoPlayTimers();
+      setAppState(prev => ({
+        ...prev,
+        currentScreen: 'game-over',
+      }));
+    });
+
+    newSocket.on('cards_redistributed', (data) => {
+      console.log('Cards redistributed:', data);
+      showNotification(data.message);
+    });
+
+    newSocket.on('round_continued', ({ gameState }) => {
+      console.log('Round continued');
+      setAppState(prev => ({
+        ...prev,
+        gameState,
+        currentScreen: 'game',
+        loading: null,
+      }));
+    });
+
+    newSocket.on('game_totals', (summary: GameSummary) => {
+      console.log('Received game totals', summary);
+      setAppState(prev => ({
+        ...prev,
+        currentScreen: 'summary',
+        loading: null,
+      }));
+    });
+
+    newSocket.on('error', (message: string) => {
+      console.error('Server error:', message);
+      showError(message);
+    });
+
+    return () => {
+      newSocket.close();
+    };
+  }, []);
+
+  // Auto-play logic
+  useEffect(() => {
+    if (appState.gameState && appState.isMyTurn) {
+      clearAutoPlayTimers();
+
+      let timeLeft = 10;
+      const countdownId = setInterval(() => {
+        timeLeft--;
+        if (timeLeft <= 0) {
+          clearInterval(countdownId);
+        }
+      }, 1000);
+
+      const timeoutId = setTimeout(() => {
+        if (appState.isMyTurn && appState.gameState?.currentPlayerName === appState.username) {
+          clearInterval(countdownId);
+          if (appState.validMoves.length > 0) {
+            const randomMove = appState.validMoves[Math.floor(Math.random() * appState.validMoves.length)];
+            console.log('Auto-playing random card:', randomMove);
+            showNotification('Auto-playing random card');
+            playCard(randomMove);
+          } else if (appState.canPass) {
+            console.log('Auto-passing turn');
+            showNotification('Auto-passing turn');
+            passTurn();
+          }
+        }
+      }, 15000);
+
+      setCountdownInterval(countdownId);
+      setAutoPassTimeout(timeoutId);
+    } else {
+      clearAutoPlayTimers();
+    }
+
+    return () => clearAutoPlayTimers();
+  }, [appState.isMyTurn, appState.gameState?.currentPlayerName]);
+
+  // Update isMyTurn based on game state
+  useEffect(() => {
+    if (appState.gameState) {
+      const isMyTurn = appState.gameState.currentPlayerName === appState.username;
+      setAppState(prev => ({ ...prev, isMyTurn }));
+    }
+  }, [appState.gameState?.currentPlayerName, appState.username]);
+
+  const clearAutoPlayTimers = () => {
+    if (autoPassTimeout) {
+      clearTimeout(autoPassTimeout);
+      setAutoPassTimeout(null);
+    }
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      setCountdownInterval(null);
+    }
+  };
+
+  const attemptReconnection = () => {
+    if (reconnectAttempts >= maxReconnectAttempts) {
+      showError('Connection lost. Please refresh the page to rejoin.');
+      return;
+    }
+
+    setReconnectAttempts(prev => prev + 1);
+    showLoading(`Reconnecting... (${reconnectAttempts + 1}/${maxReconnectAttempts})`);
+
+    setTimeout(() => {
+      if (socket?.disconnected) {
+        socket.connect();
+      }
+    }, 2000 * (reconnectAttempts + 1));
+  };
+
+  const showError = (message: string) => {
+    setAppState(prev => ({ ...prev, error: message, loading: null }));
+  };
+
+  const showNotification = (message: string) => {
+    setAppState(prev => ({ ...prev, notification: message }));
+    setTimeout(() => {
+      setAppState(prev => ({ ...prev, notification: null }));
+    }, 3000);
+  };
+
+  const showLoading = (message: string) => {
+    setAppState(prev => ({ ...prev, loading: message, currentScreen: 'loading' }));
+  };
+
+
+  const closeError = () => {
+    setAppState(prev => ({ ...prev, error: null }));
+  };
+
+  const setUsername = (username: string) => {
+    setAppState(prev => ({ ...prev, username, currentScreen: 'menu' }));
+  };
+
+  const createRoom = () => {
+    if (!appState.username) {
+      showError('Please enter your name first');
+      return;
+    }
+
+    if (!socket?.connected) {
+      showError('Not connected to server. Please refresh the page.');
+      return;
+    }
+
+    showLoading('Creating room...');
+    socket.emit('create_room', appState.username);
+  };
+
+  const joinRoom = (roomCode: string) => {
+    if (!appState.username) {
+      showError('Please enter your name first');
+      return;
+    }
+
+    if (!roomCode || roomCode.length !== 6) {
+      showError('Please enter a valid 6-character room code');
+      return;
+    }
+
+    if (!socket?.connected) {
+      showError('Not connected to server. Please refresh the page.');
+      return;
+    }
+
+    showLoading('Joining room...');
+    socket.emit('join_room', { roomCode: roomCode.toUpperCase(), username: appState.username });
+  };
+
+  const startGame = () => {
+    if (!appState.gameState || appState.gameState.players.length <= 1) {
+      showError('Need at least 2 players to start');
+      return;
+    }
+
+    if (appState.gameState.players.length > 11) {
+      showError('Too many players (max 11)');
+      return;
+    }
+
+    showLoading('Starting game...');
+    socket?.emit('start_game');
+  };
+
+  const playCard = (card: Card) => {
+    if (!appState.isMyTurn) {
+      showError("It's not your turn");
+      return;
+    }
+
+    if (!appState.validMoves.some(move => move.suit === card.suit && move.rank === card.rank)) {
+      showError('Invalid move');
+      return;
+    }
+
+    clearAutoPlayTimers();
+    socket?.emit('play_card', card);
+  };
+
+  const passTurn = () => {
+    if (!appState.isMyTurn) {
+      showError("It's not your turn");
+      return;
+    }
+
+    if (!appState.canPass) {
+      showError('You have valid moves - cannot pass');
+      return;
+    }
+
+    clearAutoPlayTimers();
+    socket?.emit('pass_turn');
+  };
+
+  const leaveRoom = () => {
+    setAppState(prev => ({
+      ...prev,
+      currentRoom: '',
+      gameState: null,
+      myCards: [],
+      validMoves: [],
+      currentScreen: 'menu',
+    }));
+    clearAutoPlayTimers();
+    socket?.disconnect();
+    socket?.connect();
+  };
+
+  const continueRound = () => {
+    showLoading('Starting next round...');
+    socket?.emit('continue_round');
+  };
+
+  const exitGame = () => {
+    showLoading('Calculating results...');
+    socket?.emit('exit_game');
+  };
+
+  const returnToMenu = () => {
+    leaveRoom();
+  };
+
+  // Utility functions
+  const getRankDisplay = (rank: number): string => {
+    if (rank === 1) return 'A';
+    if (rank === 11) return 'J';
+    if (rank === 12) return 'Q';
+    if (rank === 13) return 'K';
+    return rank.toString();
+  };
+
+  const getSuitName = (suit: string): string => {
+    const names: Record<string, string> = {
+      hearts: 'Hearts',
+      diamonds: 'Diamonds',
+      clubs: 'Clubs',
+      spades: 'Spades',
+    };
+    return names[suit] || suit;
+  };
+
+  const renderCurrentScreen = () => {
+    switch (appState.currentScreen) {
+      case 'login':
+        return <LoginScreen onContinue={setUsername} />;
+      case 'menu':
+        return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} />;
+      case 'waiting':
+        return (
+          <WaitingRoom
+            roomCode={appState.currentRoom}
+            gameState={appState.gameState}
+            username={appState.username}
+            onStartGame={startGame}
+            onLeaveRoom={leaveRoom}
+          />
+        );
+      case 'game':
+        return (
+          <GameScreen
+            gameState={appState.gameState}
+            myCards={appState.myCards}
+            validMoves={appState.validMoves}
+            isMyTurn={appState.isMyTurn}
+            canPass={appState.canPass}
+            username={appState.username}
+            onPlayCard={playCard}
+            onPassTurn={passTurn}
+            onLeaveGame={leaveRoom}
+          />
+        );
+      case 'game-over':
+        return <GameOverScreen onContinueRound={continueRound} onExitGame={exitGame} />;
+      case 'loading':
+        return <LoadingScreen message={appState.loading || 'Loading...'} />;
+      case 'summary':
+        return <SummaryScreen onReturnToMenu={returnToMenu} />;
+      default:
+        return <LoginScreen onContinue={setUsername} />;
+    }
+  };
+
+  return (
+    <div className="app">
+      {renderCurrentScreen()}
+      {appState.error && <ErrorModal message={appState.error} onClose={closeError} />}
+      {appState.notification && <Notification message={appState.notification} />}
+    </div>
+  );
+};
+
+export default App;

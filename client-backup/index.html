@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Badam Satti</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+  <meta name="theme-color" content="#4CAF50">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Badam Satti">
+</head>
+<body>
+  <div id="app">
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen">
+      <div class="container glass-panel">
+        <h1>🎴 Badam Satti</h1>
+        <p class="subtitle">Play the classic card game with family</p>
+        <div class="form-group">
+          <input type="text" id="username" placeholder="Enter your name" maxlength="20" autocomplete="off" autofocus>
+          <button id="continue-btn" onclick="showMainMenu()">Continue</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Menu -->
+    <div id="menu-screen" class="screen hidden">
+      <div class="container glass-panel">
+        <h2 id="welcome"></h2>
+        <div class="menu-options">
+          <button class="menu-btn" onclick="createRoom()">Create New Room</button>
+          <div class="divider">OR</div>
+          <div class="join-section">
+            <input type="text" id="room-code" placeholder="Enter Room Code" maxlength="6" autocomplete="off">
+            <button class="menu-btn" onclick="joinRoom()">Join Room</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Waiting Room -->
+    <div id="waiting-screen" class="screen hidden">
+      <div class="container">
+        <h2>Room: <span id="room-display"></span></h2>
+        <div class="room-info">
+          <p id="share-info">Share this code with others to join!</p>
+          <button id="copy-code-btn" onclick="copyRoomCode()">Copy Code</button>
+        </div>
+        
+        <div class="players-section">
+          <h3>Players <span id="player-count">(0/11)</span></h3>
+          <div id="players-list"></div>
+        </div>
+        
+        <div class="waiting-actions">
+          <button id="start-btn" onclick="startGame()" class="hidden">Start Game</button>
+          <button id="leave-btn" onclick="leaveRoom()">Leave Room</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen hidden">
+      <div class="game-container">
+        <!-- Mobile Top Action Bar -->
+        <div class="mobile-top-bar">
+          <button id="pass-btn" class="mobile-pass-btn" onclick="passTurn()" disabled>
+            <span class="btn-icon">⏭️</span>
+            <span class="btn-text">Pass</span>
+          </button>
+          <div class="game-info">
+            <div id="round-display">Round 1/7</div>
+            <div id="turn-display">Your Turn</div>
+          </div>
+          <button id="leave-game-btn" class="mobile-leave-btn" onclick="leaveGame()">
+            <span class="btn-icon">🚪</span>
+            <span class="btn-text">Leave</span>
+          </button>
+        </div>
+
+        <!-- Players Info -->
+        <div class="players-info-mobile">
+          <div id="players-info"></div>
+        </div>
+
+        <!-- Game Board -->
+        <div id="game-board">
+          <div class="suit-area" data-suit="hearts">
+            <div class="suit-header">♥<span class="suit-name">Hearts</span></div>
+            <div class="cards-display" id="hearts-cards"></div>
+          </div>
+          <div class="suit-area" data-suit="diamonds">
+            <div class="suit-header">♦<span class="suit-name">Diamonds</span></div>
+            <div class="cards-display" id="diamonds-cards"></div>
+          </div>
+          <div class="suit-area" data-suit="clubs">
+            <div class="suit-header">♣<span class="suit-name">Clubs</span></div>
+            <div class="cards-display" id="clubs-cards"></div>
+          </div>
+          <div class="suit-area" data-suit="spades">
+            <div class="suit-header">♠<span class="suit-name">Spades</span></div>
+            <div class="cards-display" id="spades-cards"></div>
+          </div>
+        </div>
+
+        <!-- Player's Cards -->
+        <div class="my-cards-section">
+          <h3>Your Cards</h3>
+          <div id="my-cards"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over-screen" class="screen hidden">
+      <div class="container">
+        <h2>🎉 Game Over!</h2>
+        <div id="winner-display"></div>
+        <div id="final-scores"></div>
+        <div class="game-over-actions">
+          <button id="continue-round-btn" onclick="continueRound()">Continue Round</button>
+          <button id="exit-game-btn" onclick="exitGame()">Exit Game</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="screen hidden">
+      <div class="container">
+        <div class="loading-spinner"></div>
+        <p id="loading-message">Connecting...</p>
+      </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div id="error-modal" class="modal hidden">
+      <div class="modal-content">
+        <h3>Error</h3>
+        <p id="error-message"></p>
+        <button onclick="closeError()">OK</button>
+      </div>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification hidden">
+      <span id="notification-text"></span>
+    </div>
+
+    <!-- Summary Screen -->
+    <div id="summary-screen" class="screen hidden">
+      <div class="container">
+        <h2>🏅 Game Summary</h2>
+        <div id="summary-scores"></div>
+        <div class="game-over-actions">
+          <button onclick="returnToMenu()">Return to Menu</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+
+  <!-- PWA Installation -->
+  <script>
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('sw.js')
+          .then(function(registration) {
+            console.log('SW registered: ', registration);
+          })
+          .catch(function(registrationError) {
+            console.log('SW registration failed: ', registrationError);
+          });
+      });
+    }
+
+    // Handle Enter key in input fields
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('username').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          showMainMenu();
+        }
+      });
+
+      document.getElementById('room-code').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          joinRoom();
+        }
+      });
+
+      // Auto-uppercase room code
+      document.getElementById('room-code').addEventListener('input', function(e) {
+        e.target.value = e.target.value.toUpperCase();
+      });
+    });
+
+    // Prevent zoom on iOS
+    document.addEventListener('touchstart', function(event) {
+      if (event.touches.length > 1) {
+        event.preventDefault();
+      }
+    });
+
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', function(event) {
+      const now = (new Date()).getTime();
+      if (now - lastTouchEnd <= 300) {
+        event.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, false);
+  </script>
+</body>
+</html>

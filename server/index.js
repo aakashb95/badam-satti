@@ -75,8 +75,8 @@ setInterval(async () => {
   }
 }, 60000); // Clean up every minute
 
-// Serve static files from client directory
-app.use(express.static(path.join(__dirname, "../client")));
+// Serve static files from client dist directory (React build)
+app.use(express.static(path.join(__dirname, "../client/dist")));
 
 // Health check endpoint
 app.get("/health", async (req, res) => {
@@ -137,10 +137,6 @@ app.get("/health/detailed", async (req, res) => {
   }
 });
 
-// Main route
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "../client/index.html"));
-});
 
 // Socket.io connection handling
 io.on("connection", (socket) => {
@@ -594,6 +590,11 @@ process.on('SIGINT', async () => {
     console.error('❌ Error during shutdown:', error);
     process.exit(1);
   }
+});
+
+// Catch-all route - serve React app for all unmatched routes
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "../client/dist/index.html"));
 });
 
 // Start the server
