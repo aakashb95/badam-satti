@@ -20,25 +20,31 @@ A complete multiplayer Progressive Web App (PWA) implementation of the Indian ca
 ## Game Features
 
 ### Core Gameplay
-- **Players**: 4-11 players per room
-- **Starting Card**: 7 of hearts must be played first
+- **Players**: 2-11 players per room
+- **Starting Card**: 7 of hearts must be played first (auto-played by server)
 - **Sequence Building**: Play adjacent ranks in same suit (6♥ → 7♥ → 8♥)
 - **Passing**: Auto-pass when no valid moves available
-- **Scoring**: Points based on remaining cards when someone wins
+- **Multi-Round System**: 7 rounds maximum with cumulative scoring
+- **Scoring**: Points based on remaining cards (A=1, J=11, Q=12, K=13, numbers=face value)
 
 ### Technical Features
-- **Auto-play**: Random card selection after 10 seconds of inactivity
-- **Disconnection Handling**: Auto-play for disconnected players
-- **Reconnection**: Players can rejoin with same username
+- **Auto-play**: Random card selection after 15 seconds of inactivity (client-side only)
+- **Game Persistence**: SQLite database ensures games survive server restarts
+- **Card Redistribution**: Disconnected players' cards redistributed for fair, fast gameplay
+- **Rate Limiting**: Spam protection (10 rooms/min, 20 joins/min per IP)
+- **Round Continuation**: Players can continue to next round or exit with cumulative scores
 - **Error Handling**: Comprehensive validation and user feedback
-- **PWA Support**: Service worker, manifest, offline capabilities
+- **Health Monitoring**: `/health` and `/health/detailed` endpoints for system monitoring
+- **PWA Support**: Full offline support with cache-first strategy, push notifications, background sync
 
 ## File Structure
 ```
 /server/
-  index.js         - Express server + Socket.io handlers
-  gameLogic.js     - GameRoom class + game logic
-  package.json     - Server dependencies
+  index.js         - Express server + Socket.io handlers + health check
+  gameLogic.js     - GameRoom class + multi-round game logic
+  database.js      - SQLite database layer for game persistence
+  package.json     - Server dependencies (includes SQLite3, rate limiting)
+  badam-satti.db   - SQLite database file (auto-created)
 
 /client/
   index.html       - Multi-screen UI structure
@@ -46,27 +52,46 @@ A complete multiplayer Progressive Web App (PWA) implementation of the Indian ca
   style.css        - Responsive styling
   manifest.json    - PWA configuration
   sw.js           - Service worker for offline support
-  images/         - App icons and assets
+  images/cards/    - Complete SVG card set (52 cards + 2 jokers)
+  images/icon.svg  - App icon source
+  favicon.ico      - Browser favicon
+
+/
+  badam-satti-spec.md - Original specification document
+  card-preview.html   - Development tool for card design preview
 ```
 
 ## Key Implementation Details
 
 ### Socket Events
-- `create_room` / `join_room` - Room management
+**Room Management:**
+- `create_room` / `join_room` - Room creation and joining
+- `get_state` - Request current game state
+
+**Game Actions:**
 - `start_game` - Begin gameplay (creator only)
-- `play_card` / `pass_turn` - Game actions
-- `player_disconnected` / `player_reconnected` - Connection handling
+- `play_card` / `pass_turn` - Game moves
+- `continue_round` - Proceed to next round
+- `exit_game` - Leave game and view cumulative scores
+
+**System Events:**
+- `player_disconnected` - Player removed, cards redistributed
+- `cards_redistributed` - When player disconnects during game
+- `round_continued` - Round transition
+- `game_totals` - Final cumulative scores
 
 ### Auto-play System
-- 10-second countdown timer with visual feedback
-- Random valid move selection
+- 15-second countdown timer with visual feedback
+- Random valid move selection using `Math.random()`
 - Auto-pass when no moves available
-- Applies to both disconnected players and idle players
+- Client-side only (no server-side auto-play)
+- Countdown display shows remaining time in turn indicator
 
 ### Connection Management
 - Socket timeout: 60 seconds ping timeout, 25 seconds ping interval
-- Auto-reconnection with exponential backoff
-- State synchronization on reconnect
+- Auto-reconnection with exponential backoff (up to 5 attempts) for server connection only
+- Disconnected players removed immediately for fair gameplay
+- Fast game continuation via card redistribution
 - Offline/online event handling
 
 ## Game State Management
@@ -76,12 +101,13 @@ A complete multiplayer Progressive Web App (PWA) implementation of the Indian ca
 class GameRoom {
   constructor(roomCode) {
     this.roomCode = roomCode;
-    this.players = [];
-    this.board = { hearts: {up: [], down: []}, ... };
+    this.players = []; // Each player has totalScore, connected status
+    this.board = { hearts: {up: [], down: []}, diamonds: {up: [], down: []}, clubs: {up: [], down: []}, spades: {up: [], down: []} };
     this.currentPlayerIndex = 0;
     this.round = 1;
-    this.maxRounds = 5;
+    this.maxRounds = 7;
     this.started = false;
+    this.roundsPlayed = 0;
   }
 }
 ```
@@ -110,36 +136,56 @@ http://localhost:3000
 ```
 
 ## Recent Enhancements
-1. **Auto-play Feature** - Added 10-second countdown with random card selection
-2. **Increased Timeouts** - Socket ping timeout: 60s, interval: 25s
-3. **Disconnection Auto-play** - Server auto-plays for disconnected players
-4. **Visual Feedback** - Countdown timer shown to players
-5. **Enhanced Error Handling** - Better connection state validation
+1. **Game Persistence** - SQLite database ensures zero data loss on server restart
+2. **Card Redistribution** - Immediate card redistribution maintains fair, fast gameplay
+3. **Rate Limiting** - Spam protection with IP-based throttling
+4. **Health Monitoring** - Comprehensive `/health` and `/health/detailed` endpoints
+5. **Multi-Round System** - Complete 7-round gameplay with cumulative scoring
+6. **Auto-play Feature** - 15-second countdown with random card selection (client-side)
+7. **Round Continuation** - Players can continue or exit after each round
+8. **Enhanced PWA** - Full offline support with cache-first strategy
+9. **Graceful Shutdown** - All active games saved to database on server shutdown
 
 ## Known Working Features
-- ✅ Room creation and joining
-- ✅ 4-11 player support
-- ✅ Complete game logic implementation
+- ✅ Room creation and joining (2-11 players)
+- ✅ Multi-round gameplay (up to 7 rounds)
+- ✅ Complete game logic with auto-start (7♥)
 - ✅ Real-time multiplayer synchronization
-- ✅ Auto-play and auto-pass functionality
+- ✅ Auto-play with 15-second countdown
+- ✅ Game persistence through server restarts
+- ✅ Fast card redistribution on player disconnect
+- ✅ Rate limiting and spam protection
+- ✅ Round continuation and exit system
+- ✅ Cumulative scoring across rounds
 - ✅ Mobile responsive design
-- ✅ PWA offline support
-- ✅ Reconnection handling
+- ✅ Full PWA with offline support
+- ✅ Comprehensive health monitoring
+- ✅ Graceful shutdown handling
 
 ## Development Notes
-- All Socket.io timeout values increased for stability
-- Auto-play triggers after exactly 10 seconds of inactivity
+- Socket.io timeout: 60s ping timeout, 25s ping interval
+- Auto-play triggers after exactly 15 seconds of inactivity (client-side only)
 - Random move selection uses `Math.random()` for fair play
-- Service worker caches all static assets for offline use
+- SQLite database with complete game state persistence
+- Rate limiting: 10 room creates/min, 20 joins/min per IP
+- Service worker implements cache-first strategy for offline support
 - Game state fully synchronized across all connected clients
+- Room cleanup runs every 60 seconds (database + memory)
+- Graceful shutdown saves all active games to database
+- Disconnected players immediately removed with card redistribution
+- Complete SVG card set with custom design
+- Sophisticated card sorting: hearts, diamonds, clubs, spades by rank
+- Server auto-plays 7♥ to start each round
 
 ## File Locations
 - Main server: `/Users/aakash/expts/badam7/server/index.js`
 - Game logic: `/Users/aakash/expts/badam7/server/gameLogic.js`
+- Database layer: `/Users/aakash/expts/badam7/server/database.js`
+- SQLite database: `/Users/aakash/expts/badam7/server/badam-satti.db`
 - Client app: `/Users/aakash/expts/badam7/client/app.js`
 - HTML interface: `/Users/aakash/expts/badam7/client/index.html`
 - Styling: `/Users/aakash/expts/badam7/client/style.css`
 
 ---
-*Last Updated: 2025-07-03*
-*Status: Fully functional, ready for deployment*
+*Last Updated: 2025-07-06*
+*Status: Production-ready with SQLite persistence, rate limiting, and robust reconnection*

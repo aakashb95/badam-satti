@@ -6,7 +6,7 @@
 }
 
 :root {
-  --accent: #2196f3; /* blue accent */
+  --accent: #14b8a6; /* fresh teal accent overriding old */
 }
 
 body {
@@ -116,7 +116,7 @@ input[type="text"]::placeholder {
 
 /* Buttons */
 button {
-  background: linear-gradient(45deg, #444 0%, #666 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, #0d9488 100%);
   color: white;
   border: none;
   padding: 15px 30px;
@@ -337,6 +337,7 @@ button:disabled {
   margin: 10px auto 40px;
   padding: 0;
   max-width: 1000px;
+  perspective: 1400px;
 }
 
 .suit-area {
@@ -399,13 +400,16 @@ button:disabled {
   align-items: center;
   justify-content: center;
   line-height: 1;
+  transform-style: preserve-3d;
+  will-change: transform;
 }
 
 .board-card:hover {
-  transform: scale(1.15) translateY(-2px);
+  transform: scale(1.15) translateY(-2px) rotateX(8deg) rotateY(10deg);
   box-shadow: 
     0 4px 8px rgba(0,0,0,0.3),
-    inset 0 1px 0 rgba(255,255,255,0.8);
+    inset 0 1px 0 rgba(255,255,255,0.8),
+    0 18px 30px rgba(0, 0, 0, 0.45);
   z-index: 10;
 }
 
@@ -465,6 +469,8 @@ button:disabled {
   position: relative;
   border: 1px solid rgba(0,0,0,0.1);
   overflow: hidden;
+  transform-style: preserve-3d;
+  will-change: transform;
 }
 
 .card.red {
@@ -504,11 +510,8 @@ button:disabled {
 }
 
 .card:hover:not([style*="opacity"]) {
-  transform: translateY(-12px) scale(1.05);
-  box-shadow: 
-    0 12px 24px rgba(0,0,0,0.2),
-    0 4px 8px rgba(0,0,0,0.1),
-    inset 0 1px 0 rgba(255,255,255,0.6);
+  transform: translateY(-10px) rotateX(8deg) rotateY(10deg) scale(1.05);
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.45);
   background: linear-gradient(145deg, #ffffff 0%, #fafafa 50%, #ffffff 100%);
   z-index: 10;
 }
@@ -1726,4 +1729,45 @@ button:disabled {
   .hand-card {
     width: 45px;
   }
+}
+
+/* Glassy panel used in login and menu screens */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 35px 25px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+}
+
+/* Add perspective to game board for subtle depth */
+#game-board {
+  perspective: 1400px;
+}
+
+/* 3D card hover tilt animation */
+.card {
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card:hover:not([style*="opacity"]) {
+  transform: translateY(-10px) rotateX(8deg) rotateY(10deg) scale(1.05);
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .card:hover:not([style*="opacity"]) {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* Improve buttons with accent gradient */
+button {
+  background: linear-gradient(135deg, var(--accent) 0%, #0d9488 100%);
 }

@@ -70,16 +70,7 @@ function initializeSocket() {
     showNotification(`${playerName} disconnected`);
   });
 
-  socket.on("player_reconnected", ({ playerName, gameState: state }) => {
-    console.log("Player reconnected:", playerName);
-    gameState = state;
-    if (gameState.started) {
-      updateGameScreen();
-    } else {
-      updateWaitingRoom();
-    }
-    showNotification(`${playerName} reconnected`);
-  });
+  // Removed player_reconnected handler - no reconnection allowed for fair gameplay
 
   // Game events
   socket.on("game_started", ({ gameState: state }) => {
@@ -132,16 +123,7 @@ function initializeSocket() {
     showNotification(data.message);
   });
 
-  socket.on("reconnected", ({ gameState: state }) => {
-    console.log("Reconnected successfully");
-    gameState = state;
-    hideLoading();
-    if (gameState.started) {
-      showGameScreen();
-    } else {
-      showWaitingRoom();
-    }
-  });
+  // Removed reconnected handler - no reconnection allowed for fair gameplay
 
   // Listen for new round
   socket.on("round_continued", ({ gameState: state }) => {
@@ -682,7 +664,7 @@ function updateBoard() {
 
         return `<img src="images/cards/${getCardFilename(
           card
-        )}" class="board-card-img ${
+        )}" loading="lazy" class="board-card-img ${
           isKeyCard ? "key-card" : ""
         }" style="margin-top:${idx === 0 ? 0 : spacing}px;" title="${
           isKeyCard
@@ -718,7 +700,7 @@ function updateMyCards() {
           const playClass = isMyTurn && isValid ? "playable" : "";
           return `<img src="images/cards/${getCardFilename(
             card
-          )}" class="hand-card ${
+          )}" loading="lazy" class="hand-card ${
             isValid ? "valid" : ""
           } ${playClass}" onclick="playCard({suit:'${card.suit}',rank:${
             card.rank
@@ -819,7 +801,7 @@ function returnToMenu() {
 // Reconnection Logic
 function attemptReconnection() {
   if (reconnectAttempts >= maxReconnectAttempts) {
-    showError("Connection lost. Please refresh the page.");
+    showError("Connection lost. Please refresh the page to rejoin.");
     return;
   }
 

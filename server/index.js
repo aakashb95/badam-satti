@@ -1,4 +1,5 @@
 const express = require("express");
+const rateLimit = require("express-rate-limit");
 const app = express();
 const server = require("http").createServer(app);
 const io = require("socket.io")(server, {
@@ -12,30 +13,128 @@ const io = require("socket.io")(server, {
 const path = require("path");
 
 const { GameRoom } = require("./gameLogic");
+const Database = require("./database");
 
-// Store all game rooms
+// Initialize database
+const db = new Database();
+
+// Store all game rooms (in-memory cache + database persistence)
 const rooms = {};
 
-// Cleanup interval to remove empty rooms
-setInterval(() => {
-  Object.keys(rooms).forEach((roomCode) => {
-    if (rooms[roomCode].isRoomEmpty()) {
-      console.log(`Cleaning up empty room: ${roomCode}`);
-      delete rooms[roomCode];
+// Rate limiting middleware
+const createRoomLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 10, // limit each IP to 10 room creations per windowMs
+  message: { error: "Too many room creation attempts, please try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const joinRoomLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 20, // limit each IP to 20 join attempts per windowMs
+  message: { error: "Too many join attempts, please try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Middleware for parsing JSON
+app.use(express.json());
+
+// Apply rate limiting to room creation
+app.use('/api/create-room', createRoomLimiter);
+app.use('/api/join-room', joinRoomLimiter);
+
+// Cleanup interval to remove empty rooms and persist active ones
+setInterval(async () => {
+  try {
+    // Cleanup empty rooms from memory
+    for (const roomCode of Object.keys(rooms)) {
+      if (rooms[roomCode].isRoomEmpty()) {
+        console.log(`Cleaning up empty room: ${roomCode}`);
+        await db.deactivateRoom(roomCode);
+        delete rooms[roomCode];
+      } else {
+        // Persist active rooms to database
+        await db.saveGameRoom(roomCode, rooms[roomCode]);
+      }
     }
-  });
+    
+    // Cleanup old database records
+    const cleanedRooms = await db.cleanupInactiveRooms(24); // 24 hours
+    const cleanedRateLimits = await db.cleanupRateLimits(2); // 2 hours
+    
+    if (cleanedRooms > 0) {
+      console.log(`Cleaned up ${cleanedRooms} old room records from database`);
+    }
+    if (cleanedRateLimits > 0) {
+      console.log(`Cleaned up ${cleanedRateLimits} old rate limit records`);
+    }
+  } catch (error) {
+    console.error('Error during cleanup:', error);
+  }
 }, 60000); // Clean up every minute
 
 // Serve static files from client directory
 app.use(express.static(path.join(__dirname, "../client")));
 
 // Health check endpoint
-app.get("/health", (req, res) => {
-  res.json({
-    status: "ok",
-    rooms: Object.keys(rooms).length,
-    timestamp: new Date().toISOString(),
-  });
+app.get("/health", async (req, res) => {
+  try {
+    const dbHealth = await db.healthCheck();
+    const activeRooms = await db.getAllActiveRooms();
+    
+    res.json({
+      status: "ok",
+      memory_rooms: Object.keys(rooms).length,
+      database_rooms: activeRooms.length,
+      database: dbHealth,
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Health check error:', error);
+    res.status(500).json({
+      status: "error",
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Detailed health endpoint
+app.get("/health/detailed", async (req, res) => {
+  try {
+    const dbHealth = await db.healthCheck();
+    const activeRooms = await db.getAllActiveRooms();
+    
+    res.json({
+      status: "ok",
+      server: {
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        pid: process.pid,
+      },
+      rooms: {
+        memory_count: Object.keys(rooms).length,
+        database_count: activeRooms.length,
+        active_rooms: activeRooms.map(room => ({
+          room_code: room.room_code,
+          created_at: room.created_at,
+          updated_at: room.updated_at
+        })),
+      },
+      database: dbHealth,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Detailed health check error:', error);
+    res.status(500).json({
+      status: "error",
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 // Main route
@@ -51,10 +150,18 @@ io.on("connection", (socket) => {
   let playerName = null;
 
   // Create a new room
-  socket.on("create_room", (username) => {
+  socket.on("create_room", async (username) => {
     try {
       if (!username || username.trim().length === 0) {
         socket.emit("error", "Username is required");
+        return;
+      }
+
+      // Check rate limit
+      const clientIP = socket.handshake.address;
+      const rateLimitCheck = await db.checkRateLimit(clientIP, 10, 1);
+      if (!rateLimitCheck.allowed) {
+        socket.emit("error", "Too many room creation attempts. Please wait.");
         return;
       }
 
@@ -71,6 +178,10 @@ io.on("connection", (socket) => {
       currentRoom = roomCode;
       playerName = username.trim();
 
+      // Save to database
+      await db.saveGameRoom(roomCode, rooms[roomCode]);
+      await db.savePlayer(socket.id, playerName, roomCode, socket.id);
+
       console.log(`Room created: ${roomCode} by ${playerName}`);
       socket.emit("room_created", {
         roomCode,
@@ -83,10 +194,18 @@ io.on("connection", (socket) => {
   });
 
   // Join an existing room
-  socket.on("join_room", ({ roomCode, username }) => {
+  socket.on("join_room", async ({ roomCode, username }) => {
     try {
       if (!roomCode || !username) {
         socket.emit("error", "Room code and username are required");
+        return;
+      }
+
+      // Check rate limit
+      const clientIP = socket.handshake.address;
+      const rateLimitCheck = await db.checkRateLimit(clientIP, 20, 1);
+      if (!rateLimitCheck.allowed) {
+        socket.emit("error", "Too many join attempts. Please wait.");
         return;
       }
 
@@ -119,6 +238,10 @@ io.on("connection", (socket) => {
       currentRoom = cleanRoomCode;
       playerName = cleanUsername;
 
+      // Save to database
+      await db.saveGameRoom(cleanRoomCode, rooms[cleanRoomCode]);
+      await db.savePlayer(socket.id, playerName, cleanRoomCode, socket.id);
+
       console.log(`${playerName} joined room: ${cleanRoomCode}`);
       socket.emit("room_joined", {
         roomCode: cleanRoomCode,
@@ -137,7 +260,7 @@ io.on("connection", (socket) => {
   });
 
   // Start the game
-  socket.on("start_game", () => {
+  socket.on("start_game", async () => {
     try {
       if (!currentRoom || !rooms[currentRoom]) {
         socket.emit("error", "Not in a valid room");
@@ -161,6 +284,9 @@ io.on("connection", (socket) => {
         return;
       }
 
+      // Save game state to database
+      await db.saveGameRoom(currentRoom, rooms[currentRoom]);
+
       console.log(`Game started in room: ${currentRoom}`);
       io.to(currentRoom).emit("game_started", {
         gameState: rooms[currentRoom].getState(),
@@ -180,7 +306,7 @@ io.on("connection", (socket) => {
   });
 
   // Play a card
-  socket.on("play_card", (card) => {
+  socket.on("play_card", async (card) => {
     try {
       if (!currentRoom || !rooms[currentRoom]) {
         socket.emit("error", "Not in a valid room");
@@ -196,6 +322,9 @@ io.on("connection", (socket) => {
       }
 
       console.log(`${playerName} played ${card.rank} of ${card.suit}`);
+
+      // Save game state to database
+      await db.saveGameRoom(currentRoom, room);
 
       // Notify all players about the card played
       io.to(currentRoom).emit("card_played", {
@@ -217,6 +346,8 @@ io.on("connection", (socket) => {
         room.finishGame();
         const winner = room.getWinner();
         console.log(`Game finished in room ${currentRoom}:`, winner);
+        // Save final game state
+        await db.saveGameRoom(currentRoom, room);
         io.to(currentRoom).emit("game_over", winner);
       }
     } catch (error) {
@@ -226,7 +357,7 @@ io.on("connection", (socket) => {
   });
 
   // Pass turn
-  socket.on("pass_turn", () => {
+  socket.on("pass_turn", async () => {
     try {
       if (!currentRoom || !rooms[currentRoom]) {
         socket.emit("error", "Not in a valid room");
@@ -242,6 +373,9 @@ io.on("connection", (socket) => {
       }
 
       console.log(`${playerName} passed their turn`);
+
+      // Save game state to database
+      await db.saveGameRoom(currentRoom, room);
 
       // Notify all players about the pass
       io.to(currentRoom).emit("turn_passed", {
@@ -263,7 +397,7 @@ io.on("connection", (socket) => {
   });
 
   // Continue to the next round while keeping cumulative scores
-  socket.on("continue_round", () => {
+  socket.on("continue_round", async () => {
     try {
       if (!currentRoom || !rooms[currentRoom]) {
         socket.emit("error", "Not in a valid room");
@@ -281,6 +415,9 @@ io.on("connection", (socket) => {
         socket.emit("error", "Unable to start next round");
         return;
       }
+
+      // Save game state to database
+      await db.saveGameRoom(currentRoom, room);
 
       io.to(currentRoom).emit("round_continued", {
         gameState: room.getState(),
@@ -300,7 +437,7 @@ io.on("connection", (socket) => {
   });
 
   // Exit the game and broadcast cumulative results
-  socket.on("exit_game", () => {
+  socket.on("exit_game", async () => {
     try {
       if (!currentRoom || !rooms[currentRoom]) {
         socket.emit("error", "Not in a valid room");
@@ -324,6 +461,9 @@ io.on("connection", (socket) => {
 
       room.started = false;
       room.gameFinished = true;
+      
+      // Save final game state
+      await db.saveGameRoom(currentRoom, room);
     } catch (error) {
       console.error("Error exiting game:", error);
       socket.emit("error", "Failed to exit game");
@@ -346,7 +486,7 @@ io.on("connection", (socket) => {
   });
 
   // Handle disconnection
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
     console.log(`User disconnected: ${socket.id}`);
 
     try {
@@ -365,6 +505,9 @@ io.on("connection", (socket) => {
           room.nextTurn();
         }
 
+        // Save updated game state
+        await db.saveGameRoom(currentRoom, room);
+
         // Broadcast updated state to remaining players
         io.to(currentRoom).emit("player_disconnected", {
           playerName,
@@ -382,6 +525,7 @@ io.on("connection", (socket) => {
               message: "All other players have left the game",
             });
             room.gameFinished = true;
+            await db.saveGameRoom(currentRoom, room);
           } else {
             // Notify about card redistribution
             io.to(currentRoom).emit("cards_redistributed", {
@@ -409,47 +553,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Handle reconnection
-  socket.on("reconnect_player", ({ roomCode, username }) => {
-    try {
-      if (!rooms[roomCode]) {
-        socket.emit("error", "Room not found");
-        return;
-      }
-
-      const room = rooms[roomCode];
-      const player = room.players.find((p) => p.name === username);
-
-      if (!player) {
-        socket.emit("error", "Player not found in room");
-        return;
-      }
-
-      // Update player connection
-      player.id = socket.id;
-      player.connected = true;
-
-      socket.join(roomCode);
-      currentRoom = roomCode;
-      playerName = username;
-
-      console.log(`${playerName} reconnected to room: ${roomCode}`);
-
-      // Send current state to reconnected player
-      socket.emit("reconnected", {
-        gameState: room.getPlayerState(socket.id),
-      });
-
-      // Notify other players
-      socket.to(roomCode).emit("player_reconnected", {
-        playerName,
-        gameState: room.getState(),
-      });
-    } catch (error) {
-      console.error("Error reconnecting player:", error);
-      socket.emit("error", "Failed to reconnect");
-    }
-  });
+  // Removed reconnection logic - players who disconnect are removed for fair gameplay
 });
 
 // Generate a 6-character room code
@@ -468,6 +572,30 @@ function generateRoomCode() {
   return result;
 }
 
+// Graceful shutdown handling
+process.on('SIGINT', async () => {
+  console.log('\n📦 Shutting down gracefully...');
+  
+  try {
+    // Save all active rooms to database
+    for (const [roomCode, room] of Object.entries(rooms)) {
+      await db.saveGameRoom(roomCode, room);
+    }
+    
+    // Close database connection
+    db.close();
+    
+    // Close server
+    server.close(() => {
+      console.log('✅ Server closed gracefully');
+      process.exit(0);
+    });
+  } catch (error) {
+    console.error('❌ Error during shutdown:', error);
+    process.exit(1);
+  }
+});
+
 // Start the server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
@@ -476,4 +604,7 @@ server.listen(PORT, () => {
   console.log(
     `🌐 Or share your IP address with family: http://YOUR_IP:${PORT}`
   );
+  console.log(`📦 SQLite database initialized`);
+  console.log(`🛡️  Rate limiting enabled`);
+  console.log(`🔄 Game persistence enabled`);
 });
