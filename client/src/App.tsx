@@ -26,6 +26,8 @@ const App: React.FC = () => {
     error: null,
     notification: null,
     loading: null,
+    winner: null,
+    summary: null,
   });
 
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
@@ -138,6 +140,7 @@ const App: React.FC = () => {
       setAppState(prev => ({
         ...prev,
         currentScreen: 'game-over',
+        winner,
       }));
     });
 
@@ -162,6 +165,7 @@ const App: React.FC = () => {
         ...prev,
         currentScreen: 'summary',
         loading: null,
+        summary,
       }));
     });
 
@@ -177,9 +181,9 @@ const App: React.FC = () => {
 
   // Auto-play logic
   useEffect(() => {
-    console.log('Auto-play useEffect triggered. isMyTurn:', appState.isMyTurn, 'currentPlayer:', appState.gameState?.currentPlayerName, 'username:', appState.username);
+    console.log('Auto-play useEffect triggered. isMyTurn:', appState.isMyTurn, 'currentPlayer:', appState.gameState?.currentPlayerName, 'username:', appState.username, 'currentScreen:', appState.currentScreen);
     
-    if (appState.gameState && appState.isMyTurn) {
+    if (appState.gameState && appState.isMyTurn && appState.currentScreen === 'game') {
       console.log('Setting up auto-play timeout');
       clearAutoPlayTimers();
 
@@ -192,8 +196,12 @@ const App: React.FC = () => {
         console.log('- username:', current.username);
         console.log('- validMoves:', current.validMoves);
         console.log('- canPass:', current.canPass);
+        console.log('- currentScreen:', current.currentScreen);
         
-        if (current.isMyTurn && current.gameState?.currentPlayerName === current.username) {
+        // Only auto-play if still in game screen and conditions are met
+        if (current.isMyTurn && 
+            current.gameState?.currentPlayerName === current.username && 
+            current.currentScreen === 'game') {
           console.log('Conditions met for auto-play');
           
           if (current.validMoves.length > 0) {
@@ -209,13 +217,13 @@ const App: React.FC = () => {
             console.log('Auto-play: No valid moves and cannot pass');
           }
         } else {
-          console.log('Conditions NOT met for auto-play');
+          console.log('Conditions NOT met for auto-play - game may have ended or screen changed');
         }
       }, 15000);
 
       setAutoPassTimeout(timeoutId);
     } else {
-      console.log('Not setting up auto-play - not my turn or no game state');
+      console.log('Not setting up auto-play - not my turn, no game state, or not in game screen');
       clearAutoPlayTimers();
     }
 
@@ -223,7 +231,7 @@ const App: React.FC = () => {
       console.log('Auto-play useEffect cleanup');
       clearAutoPlayTimers();
     };
-  }, [appState.isMyTurn, appState.gameState?.currentPlayerName, appState.validMoves, appState.canPass]);
+  }, [appState.isMyTurn, appState.gameState?.currentPlayerName, appState.validMoves, appState.canPass, appState.currentScreen]);
 
   // Update isMyTurn based on game state
   useEffect(() => {
@@ -332,6 +340,11 @@ const App: React.FC = () => {
   };
 
   const playCard = (card: Card) => {
+    if (appState.currentScreen !== 'game') {
+      console.log('Preventing play card - not in game screen:', appState.currentScreen);
+      return;
+    }
+
     if (!appState.isMyTurn) {
       showError("It's not your turn");
       return;
@@ -347,6 +360,11 @@ const App: React.FC = () => {
   };
 
   const passTurn = () => {
+    if (appState.currentScreen !== 'game') {
+      console.log('Preventing pass turn - not in game screen:', appState.currentScreen);
+      return;
+    }
+
     if (!appState.isMyTurn) {
       showError("It's not your turn");
       return;
@@ -369,6 +387,8 @@ const App: React.FC = () => {
       myCards: [],
       validMoves: [],
       currentScreen: 'menu',
+      winner: null,
+      summary: null,
     }));
     clearAutoPlayTimers();
     socket?.disconnect();
@@ -439,11 +459,11 @@ const App: React.FC = () => {
           />
         );
       case 'game-over':
-        return <GameOverScreen onContinueRound={continueRound} onExitGame={exitGame} />;
+        return <GameOverScreen winner={appState.winner} onContinueRound={continueRound} onExitGame={exitGame} />;
       case 'loading':
         return <LoadingScreen message={appState.loading || 'Loading...'} />;
       case 'summary':
-        return <SummaryScreen onReturnToMenu={returnToMenu} />;
+        return <SummaryScreen summary={appState.summary} onReturnToMenu={returnToMenu} />;
       default:
         return <LoginScreen onContinue={setUsername} />;
     }

@@ -200,6 +200,7 @@ class GameRoom {
 
   playCard(playerId, card) {
     if (!this.isValidMove(playerId, card)) return false;
+    if (this.gameFinished) return false; // Don't allow moves after game ends
 
     const player = this.players.find((p) => p.id === playerId);
     // Remove the card from player's hand
@@ -226,7 +227,7 @@ class GameRoom {
 
     // Check if player won (first to empty hand)
     if (player.cards.length === 0) {
-      this.gameFinished = true;
+      this.finishGame(); // Call finishGame immediately when someone wins
     } else {
       this.nextTurn();
     }
@@ -271,6 +272,7 @@ class GameRoom {
 
   passTurn(playerId) {
     if (this.players[this.currentPlayerIndex].id !== playerId) return false;
+    if (this.gameFinished) return false; // Don't allow passes after game ends
 
     // Check if player really can't play
     if (this.canPlayerPlay(playerId)) {

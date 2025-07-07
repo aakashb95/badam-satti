@@ -339,7 +339,7 @@ io.on("connection", (socket) => {
 
       // Check for winner
       if (room.checkWinner()) {
-        room.finishGame();
+        // finishGame() is already called in playCard method when someone wins
         const winner = room.getWinner();
         console.log(`Game finished in room ${currentRoom}:`, winner);
         // Save final game state

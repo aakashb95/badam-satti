@@ -639,6 +639,90 @@ button:disabled {
   margin-top: 30px;
 }
 
+/* Game Over Screen Enhancements */
+.winner-info {
+  margin: 20px 0;
+  padding: 15px;
+  background: rgba(255, 215, 0, 0.1);
+  border-radius: 12px;
+  border: 2px solid #ffd700;
+}
+
+.winner-info h3 {
+  color: #ffd700;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.final-scores {
+  margin: 20px 0;
+}
+
+.final-scores h4 {
+  color: #ffffff;
+  margin-bottom: 15px;
+  font-size: 1.2em;
+}
+
+.winner-badge {
+  font-size: 1.2em;
+  margin-left: 8px;
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-5px);
+  }
+  60% {
+    transform: translateY(-3px);
+  }
+}
+
+.rank {
+  font-weight: bold;
+  color: #ffd700;
+  margin-right: 10px;
+  min-width: 30px;
+}
+
+.summary-content {
+  margin: 20px 0;
+}
+
+.game-result {
+  margin-bottom: 25px;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+.game-result h3 {
+  color: #ffd700;
+  margin-bottom: 10px;
+}
+
+.game-result p {
+  color: #ff6b6b;
+  font-size: 1.1em;
+}
+
+.total-scores {
+  margin-top: 20px;
+}
+
+.total-scores h4 {
+  color: #ffffff;
+  margin-bottom: 15px;
+  font-size: 1.2em;
+}
+
 /* Loading Screen */
 .loading-spinner {
   width: 50px;

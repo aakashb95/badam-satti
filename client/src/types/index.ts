@@ -105,4 +105,6 @@ export interface AppState {
   error: string | null;
   notification: string | null;
   loading: string | null;
+  winner: Winner | null;
+  summary: GameSummary | null;
 }

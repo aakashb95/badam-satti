@@ -184,6 +184,7 @@ http://localhost:3000
 12. **Enhanced PWA** - Full offline support with cache-first strategy
 13. **Graceful Shutdown** - All active games saved to database on server shutdown
 14. **Auto-play Fix** - Resolved stale closure issue preventing auto-play from working
+15. **Game Ending Fix** - Fixed multiple game ending triggers and empty score displays
 
 ## Known Working Features
 - ✅ **React Frontend** - Modern component-based architecture with TypeScript
@@ -203,6 +204,7 @@ http://localhost:3000
 - ✅ Comprehensive health monitoring
 - ✅ Graceful shutdown handling
 - ✅ **Type Safety** - Full TypeScript implementation
+- ✅ **Game Ending Logic** - Proper winner/score display and single game termination
 
 ## Development Notes
 - **Frontend**: React 18 + TypeScript with Vite build system
@@ -220,6 +222,7 @@ http://localhost:3000
 - Complete SVG card set with custom design
 - Sophisticated card sorting: hearts, diamonds, clubs, spades by rank
 - Server auto-plays 7♥ to start each round
+- **Game Ending**: Single termination with proper winner/score display
 - **Production**: Server serves React build from `/client/dist/`
 - **Development**: Use `npm run dev` in client for hot reloading
 
@@ -236,4 +239,4 @@ http://localhost:3000
 
 ---
 *Last Updated: 2025-07-07*
-*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection, and working auto-play*
+*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection, working auto-play, and fixed game ending logic*

@@ -23,11 +23,11 @@ const GameScreen: React.FC<GameScreenProps> = ({
   onPassTurn,
   onLeaveGame,
 }) => {
-  const [timeLeft, setTimeLeft] = useState(15);
+  const [timeLeft, setTimeLeft] = useState(5);
 
   useEffect(() => {
     if (isMyTurn) {
-      setTimeLeft(15);
+      setTimeLeft(5);
       const interval = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev > 0) return prev - 1;
