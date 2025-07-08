@@ -1,3 +1,5 @@
+const crypto = require("crypto");
+
 class GameRoom {
   constructor(roomCode) {
     this.roomCode = roomCode;
@@ -89,16 +91,22 @@ class GameRoom {
     this.heartsSevenPlayerIndex = this.players.findIndex((p) =>
       p.cards.some((c) => c.suit === "hearts" && c.rank === 7)
     );
-    
+
     // Set current player to the one with 7♥
     this.currentPlayerIndex = this.heartsSevenPlayerIndex;
-    
+
     // Set game start message
-    this.gameStartMessage = `${this.players[this.heartsSevenPlayerIndex].name} started the game`;
+    this.gameStartMessage = `${
+      this.players[this.heartsSevenPlayerIndex].name
+    } started the game`;
 
     // Auto-play 7 of hearts
     const heartsSevenCard = { suit: "hearts", rank: 7 };
-    this.playCard(this.players[this.heartsSevenPlayerIndex].id, heartsSevenCard, true);
+    this.playCard(
+      this.players[this.heartsSevenPlayerIndex].id,
+      heartsSevenCard,
+      true
+    );
 
     return true;
   }
@@ -128,33 +136,34 @@ class GameRoom {
     for (let pass = 0; pass < 5; pass++) {
       // Fisher-Yates shuffle
       for (let i = this.deck.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = crypto.randomInt(i + 1);
         [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
       }
     }
-    
+
     // Additional riffle shuffle simulation
     const riffleShuffles = 3;
     for (let r = 0; r < riffleShuffles; r++) {
-      const splitPoint = Math.floor(this.deck.length / 2) + Math.floor(Math.random() * 6) - 3;
+      const splitPoint =
+        Math.floor(this.deck.length / 2) + Math.floor(Math.random() * 6) - 3;
       const leftHalf = this.deck.slice(0, splitPoint);
       const rightHalf = this.deck.slice(splitPoint);
-      
+
       this.deck = [];
       let leftIndex = 0;
       let rightIndex = 0;
-      
+
       while (leftIndex < leftHalf.length && rightIndex < rightHalf.length) {
         // Randomly choose which half to take from with slight bias
         const takeFromLeft = Math.random() < 0.5 + (Math.random() - 0.5) * 0.2;
-        
+
         if (takeFromLeft && leftIndex < leftHalf.length) {
           this.deck.push(leftHalf[leftIndex++]);
         } else if (rightIndex < rightHalf.length) {
           this.deck.push(rightHalf[rightIndex++]);
         }
       }
-      
+
       // Add remaining cards
       while (leftIndex < leftHalf.length) {
         this.deck.push(leftHalf[leftIndex++]);
@@ -163,10 +172,10 @@ class GameRoom {
         this.deck.push(rightHalf[rightIndex++]);
       }
     }
-    
+
     // Final Fisher-Yates shuffle
     for (let i = this.deck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = crypto.randomInt(i + 1);
       [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
     }
   }
@@ -195,16 +204,7 @@ class GameRoom {
       playerIndex = (playerIndex + 1) % this.players.length;
     }
 
-    // Sort each player's cards
-    this.players.forEach((player) => {
-      player.cards.sort((a, b) => {
-        if (a.suit !== b.suit) {
-          const suitOrder = { hearts: 0, diamonds: 1, clubs: 2, spades: 3 };
-          return suitOrder[a.suit] - suitOrder[b.suit];
-        }
-        return a.rank - b.rank;
-      });
-    });
+    // Removed per-player sorting to preserve random card order in hands
   }
 
   isValidMove(playerId, card) {
@@ -455,15 +455,21 @@ class GameRoom {
     this.heartsSevenPlayerIndex = this.players.findIndex((p) =>
       p.cards.some((c) => c.suit === "hearts" && c.rank === 7)
     );
-    
+
     // Set current player to the one with 7♥
     this.currentPlayerIndex = this.heartsSevenPlayerIndex;
-    
+
     // Set game start message
-    this.gameStartMessage = `${this.players[this.heartsSevenPlayerIndex].name} started the game`;
+    this.gameStartMessage = `${
+      this.players[this.heartsSevenPlayerIndex].name
+    } started the game`;
 
     const heartsSevenCard = { suit: "hearts", rank: 7 };
-    this.playCard(this.players[this.heartsSevenPlayerIndex].id, heartsSevenCard, true);
+    this.playCard(
+      this.players[this.heartsSevenPlayerIndex].id,
+      heartsSevenCard,
+      true
+    );
 
     return true;
   }

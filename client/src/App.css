@@ -721,6 +721,19 @@ button:disabled {
   font-weight: 700;
 }
 
+/* --- Scoreboard Compact Styling --- */
+.score-item .player-info {
+  background: transparent; /* Remove tile background */
+  padding: 0;              /* Remove extra padding */
+  border-radius: 0;        /* No rounded corners */
+  min-width: 0;            /* Allow to shrink */
+}
+
+.score-item .player-name {
+  font-size: 1.6em; /* Increase font size for visibility */
+  font-weight: 700;
+}
+
 .scoring-info {
   margin-top: 20px;
   padding: 15px;

@@ -217,9 +217,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
         <h3>Your Cards</h3>
         <div id="my-cards">
           {suitOrder.map((suit) => {
-            const cardsOfSuit = myCards
-              .filter(c => c.suit === suit)
-              .sort((a, b) => a.rank - b.rank);
+            const cardsOfSuit = myCards.filter(c => c.suit === suit);
 
             if (cardsOfSuit.length === 0) return null;
 
