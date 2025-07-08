@@ -263,6 +263,11 @@ const GameScreen: React.FC<GameScreenProps> = ({
           </button>
           <div className="game-info">
             <div id="round-display">Round {gameState?.round || 1}/{gameState?.maxRounds || 7}</div>
+            {gameState?.gameStartMessage && (
+              <div id="game-start-message" className="game-start-message">
+                {gameState.gameStartMessage}
+              </div>
+            )}
             <div id="turn-display" className={isMyTurn ? 'my-turn' : 'other-turn'}>
               {isMyTurn ? `Your Turn${timeLeft > 0 ? ` (${timeLeft}s)` : ''}` : `${gameState?.currentPlayerName}'s Turn`}
             </div>

@@ -16,6 +16,8 @@ class GameRoom {
     this.maxRounds = 7;
     this.gameFinished = false;
     this.playerScores = {};
+    this.heartsSevenPlayerIndex = -1; // Track who played 7 of hearts
+    this.gameStartMessage = null; // Message about who started the game
   }
 
   addPlayer(id, name) {
@@ -84,13 +86,19 @@ class GameRoom {
     this.dealCards();
 
     // Find who has 7 of hearts
-    this.currentPlayerIndex = this.players.findIndex((p) =>
+    this.heartsSevenPlayerIndex = this.players.findIndex((p) =>
       p.cards.some((c) => c.suit === "hearts" && c.rank === 7)
     );
+    
+    // Set current player to the one with 7♥
+    this.currentPlayerIndex = this.heartsSevenPlayerIndex;
+    
+    // Set game start message
+    this.gameStartMessage = `${this.players[this.heartsSevenPlayerIndex].name} started the game`;
 
     // Auto-play 7 of hearts
     const heartsSevenCard = { suit: "hearts", rank: 7 };
-    this.playCard(this.players[this.currentPlayerIndex].id, heartsSevenCard);
+    this.playCard(this.players[this.heartsSevenPlayerIndex].id, heartsSevenCard, true);
 
     return true;
   }
@@ -116,6 +124,47 @@ class GameRoom {
   }
 
   shuffleDeck() {
+    // Perform multiple shuffle passes for better randomness
+    for (let pass = 0; pass < 5; pass++) {
+      // Fisher-Yates shuffle
+      for (let i = this.deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
+      }
+    }
+    
+    // Additional riffle shuffle simulation
+    const riffleShuffles = 3;
+    for (let r = 0; r < riffleShuffles; r++) {
+      const splitPoint = Math.floor(this.deck.length / 2) + Math.floor(Math.random() * 6) - 3;
+      const leftHalf = this.deck.slice(0, splitPoint);
+      const rightHalf = this.deck.slice(splitPoint);
+      
+      this.deck = [];
+      let leftIndex = 0;
+      let rightIndex = 0;
+      
+      while (leftIndex < leftHalf.length && rightIndex < rightHalf.length) {
+        // Randomly choose which half to take from with slight bias
+        const takeFromLeft = Math.random() < 0.5 + (Math.random() - 0.5) * 0.2;
+        
+        if (takeFromLeft && leftIndex < leftHalf.length) {
+          this.deck.push(leftHalf[leftIndex++]);
+        } else if (rightIndex < rightHalf.length) {
+          this.deck.push(rightHalf[rightIndex++]);
+        }
+      }
+      
+      // Add remaining cards
+      while (leftIndex < leftHalf.length) {
+        this.deck.push(leftHalf[leftIndex++]);
+      }
+      while (rightIndex < rightHalf.length) {
+        this.deck.push(rightHalf[rightIndex++]);
+      }
+    }
+    
+    // Final Fisher-Yates shuffle
     for (let i = this.deck.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
@@ -198,7 +247,7 @@ class GameRoom {
     return false;
   }
 
-  playCard(playerId, card) {
+  playCard(playerId, card, isHeartsSevenAutoPlay = false) {
     if (!this.isValidMove(playerId, card)) return false;
     if (this.gameFinished) return false; // Don't allow moves after game ends
 
@@ -229,6 +278,7 @@ class GameRoom {
     if (player.cards.length === 0) {
       this.finishGame(); // Call finishGame immediately when someone wins
     } else {
+      // Advance turn normally - if it's 7♥ auto-play, this skips the starter's next turn
       this.nextTurn();
     }
 
@@ -353,6 +403,7 @@ class GameRoom {
       maxRounds: this.maxRounds,
       gameFinished: this.gameFinished,
       currentPlayerName: this.players[this.currentPlayerIndex]?.name,
+      gameStartMessage: this.gameStartMessage,
     };
   }
 
@@ -401,12 +452,18 @@ class GameRoom {
     this.dealCards();
 
     // Determine the player who has 7♥ and make them start
-    this.currentPlayerIndex = this.players.findIndex((p) =>
+    this.heartsSevenPlayerIndex = this.players.findIndex((p) =>
       p.cards.some((c) => c.suit === "hearts" && c.rank === 7)
     );
+    
+    // Set current player to the one with 7♥
+    this.currentPlayerIndex = this.heartsSevenPlayerIndex;
+    
+    // Set game start message
+    this.gameStartMessage = `${this.players[this.heartsSevenPlayerIndex].name} started the game`;
 
     const heartsSevenCard = { suit: "hearts", rank: 7 };
-    this.playCard(this.players[this.currentPlayerIndex].id, heartsSevenCard);
+    this.playCard(this.players[this.heartsSevenPlayerIndex].id, heartsSevenCard, true);
 
     return true;
   }

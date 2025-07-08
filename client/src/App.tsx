@@ -1,16 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import './App.css';
+import ErrorModal from './components/ErrorModal';
+import GameOverScreen from './components/GameOverScreen';
+import GameScreen from './components/GameScreen';
+import LoadingScreen from './components/LoadingScreen';
 import LoginScreen from './components/LoginScreen';
 import MenuScreen from './components/MenuScreen';
-import WaitingRoom from './components/WaitingRoom';
-import GameScreen from './components/GameScreen';
-import GameOverScreen from './components/GameOverScreen';
-import LoadingScreen from './components/LoadingScreen';
-import SummaryScreen from './components/SummaryScreen';
-import ErrorModal from './components/ErrorModal';
 import Notification from './components/Notification';
-import { AppState, Card, Winner, GameSummary } from './types';
-import './App.css';
+import SummaryScreen from './components/SummaryScreen';
+import WaitingRoom from './components/WaitingRoom';
+import { AppState, Card, GameSummary, Winner } from './types';
 
 const App: React.FC = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -34,6 +34,7 @@ const App: React.FC = () => {
 
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [autoPassTimeout, setAutoPassTimeout] = useState<number | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   
   // Refs to store current state values for auto-play
   const currentStateRef = useRef(appState);
@@ -45,9 +46,16 @@ const App: React.FC = () => {
 
   const maxReconnectAttempts = 5;
 
-  // Initialize socket connection
+  // Initialize socket connection (run only once on mount)
   useEffect(() => {
-    const newSocket = io();
+    const newSocket = io({
+      timeout: 60000,
+      forceNew: true,
+      reconnection: true,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: 5,
+    });
     setSocket(newSocket);
 
     // Connection events
@@ -55,17 +63,30 @@ const App: React.FC = () => {
       console.log('Connected to server');
       console.log('Socket ID:', newSocket.id);
       setReconnectAttempts(0);
+      setIsConnected(true);
+      setAppState(prev => ({ ...prev, loading: null }));
     });
 
-    newSocket.on('disconnect', () => {
-      console.log('Disconnected from server');
-      showLoading('Connection lost. Reconnecting...');
-      attemptReconnection();
+    newSocket.on('disconnect', (reason) => {
+      console.log('Disconnected from server. Reason:', reason);
+      setIsConnected(false);
+      
+      // Only attempt manual reconnection for certain disconnect reasons
+      if (reason === 'io server disconnect' || reason === 'transport close' || reason === 'ping timeout') {
+        showLoading('Connection lost. Reconnecting...');
+        attemptReconnection();
+      }
     });
 
     newSocket.on('connect_error', (error) => {
       console.error('Connection error:', error);
-      showError('Connection failed. Please check your internet connection.');
+      setIsConnected(false);
+      if (reconnectAttempts < maxReconnectAttempts) {
+        showLoading(`Connection failed. Retrying... (${reconnectAttempts + 1}/${maxReconnectAttempts})`);
+        attemptReconnection();
+      } else {
+        showError('Connection failed. Please refresh the page.');
+      }
     });
 
     // Room events
@@ -184,7 +205,16 @@ const App: React.FC = () => {
       showError(message);
     });
 
+    // Periodic connection health check
+    const healthCheckInterval = setInterval(() => {
+      if (newSocket && newSocket.connected) {
+        // Send a ping to verify connection health
+        newSocket.emit('ping', Date.now());
+      }
+    }, 30000); // Check every 30 seconds
+
     return () => {
+      clearInterval(healthCheckInterval);
       newSocket.close();
     };
   }, []);
@@ -262,6 +292,7 @@ const App: React.FC = () => {
   const attemptReconnection = () => {
     if (reconnectAttempts >= maxReconnectAttempts) {
       showError('Connection lost. Please refresh the page to rejoin.');
+      setIsConnected(false);
       return;
     }
 
@@ -269,7 +300,8 @@ const App: React.FC = () => {
     showLoading(`Reconnecting... (${reconnectAttempts + 1}/${maxReconnectAttempts})`);
 
     setTimeout(() => {
-      if (socket?.disconnected) {
+      if (socket && (!socket.connected || socket.disconnected)) {
+        console.log('Attempting manual reconnection...');
         socket.connect();
       }
     }, 2000 * (reconnectAttempts + 1));
@@ -305,8 +337,8 @@ const App: React.FC = () => {
       return;
     }
 
-    if (!socket?.connected) {
-      showError('Not connected to server. Please refresh the page.');
+    if (!socket || !isConnected) {
+      showError('Not connected to server. Please wait for reconnection or refresh the page.');
       return;
     }
 
@@ -325,8 +357,8 @@ const App: React.FC = () => {
       return;
     }
 
-    if (!socket?.connected) {
-      showError('Not connected to server. Please refresh the page.');
+    if (!socket || !isConnected) {
+      showError('Not connected to server. Please wait for reconnection or refresh the page.');
       return;
     }
 

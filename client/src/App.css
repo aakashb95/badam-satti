@@ -1273,6 +1273,14 @@ button:disabled {
   color: #ff9800;
 }
 
+.game-start-message {
+  font-size: 11px;
+  color: #FFC107;
+  font-weight: 500;
+  opacity: 0.9;
+  font-style: italic;
+}
+
 /* Players Info Mobile */
 .players-info-mobile {
   background: rgba(0, 0, 0, 0.3);

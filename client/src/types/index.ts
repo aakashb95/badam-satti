@@ -29,6 +29,7 @@ export interface GameState {
   maxRounds: number;
   started: boolean;
   roundsPlayed: number;
+  gameStartMessage?: string;
 }
 
 export interface Winner {

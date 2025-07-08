@@ -185,6 +185,15 @@ http://localhost:3000
 13. **Graceful Shutdown** - All active games saved to database on server shutdown
 14. **Auto-play Fix** - Resolved stale closure issue preventing auto-play from working
 15. **Game Ending Fix** - Fixed multiple game ending triggers and empty score displays
+16. **Game Over UX Improvements** - 2-second delay with animated "Game Over" screen before scoring
+17. **Remaining Cards Display** - Visual mini-cards showing what each player had left
+18. **Enhanced Winner Highlighting** - Clean green gradient with "WINNER" badge (removed bouncing)
+19. **Improved Button Spacing** - Added proper spacing between Continue/Exit game buttons
+20. **Visual Card Display** - Replaced text/emoji with actual SVG card images in scoring
+21. **7♥ Starter Logic Fix** - Player who gets 7♥ auto-played skips their next turn for fairness
+22. **Game Start Message** - Shows "Player X started the game" notification in UI
+23. **Enhanced Card Shuffling** - Multi-pass Fisher-Yates + riffle shuffle simulation for proper randomization
+24. **Connection Stability Fix** - Resolved socket reconnection loop that caused frequent "Not connected to server" pop-ups (implemented by o3)
 
 ## Known Working Features
 - ✅ **React Frontend** - Modern component-based architecture with TypeScript
@@ -205,6 +214,11 @@ http://localhost:3000
 - ✅ Graceful shutdown handling
 - ✅ **Type Safety** - Full TypeScript implementation
 - ✅ **Game Ending Logic** - Proper winner/score display and single game termination
+- ✅ **Enhanced Game Over Flow** - 2-second animation + visual card display + clean winner highlighting
+- ✅ **Professional UI/UX** - Improved spacing, visual cards, and polished game ending experience
+- ✅ **Fair 7♥ Starter** - Auto-played 7♥ player skips next turn to prevent double advantage
+- ✅ **Game Start Notifications** - Clear indication of who started each round
+- ✅ **True Card Randomization** - Multi-pass shuffling eliminates sequence patterns
 
 ## Development Notes
 - **Frontend**: React 18 + TypeScript with Vite build system
@@ -238,5 +252,5 @@ http://localhost:3000
 - **Legacy Backup**: `/Users/aakash/expts/badam7/client-backup/` (original vanilla JS)
 
 ---
-*Last Updated: 2025-07-07*
-*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection, working auto-play, and fixed game ending logic*
+*Last Updated: 2025-07-08*
+*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play, enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, and true card randomization*
