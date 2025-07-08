@@ -22,10 +22,12 @@ const SummaryScreen: React.FC<SummaryScreenProps> = ({ summary, onReturnToMenu }
                 <h4>Final Cumulative Scores:</h4>
                 <div className="scores-list">
                   {summary.totals.map((total, index) => (
-                    <div key={index} className={`score-item ${total.name === summary.winner ? 'winner' : ''}`}>
-                      <span className="rank">#{index + 1}</span>
-                      <span className="player-name">{total.name}</span>
-                      <span className="player-score">{total.totalScore} pts</span>
+                    <div key={index} className="score-row">
+                      <div className={`score-item ${total.name === summary.winner ? 'winner' : ''}`}>
+                        <span className="rank">#{index + 1}</span>
+                        <span className="player-name">{total.name}</span>
+                        <span className="player-score">{total.totalScore} pts</span>
+                      </div>
                       {total.name === summary.winner && <span className="winner-badge">🏆</span>}
                     </div>
                   ))}

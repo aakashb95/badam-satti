@@ -26,9 +26,11 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound
               <h4>Final Scores:</h4>
               <div className="scores-list">
                 {winner.finalScores.map((score, index) => (
-                  <div key={index} className={`score-item ${score.isWinner ? 'winner' : ''}`}>
-                    <span className="player-name">{score.name}</span>
-                    <span className="player-score">{score.score} pts</span>
+                  <div key={index} className="score-row">
+                    <div className={`score-item ${score.isWinner ? 'winner' : ''}`}>
+                      <span className="player-name">{score.name}</span>
+                      <span className="player-score">{score.score} pts</span>
+                    </div>
                     {score.isWinner && <span className="winner-badge">🏆</span>}
                   </div>
                 ))}

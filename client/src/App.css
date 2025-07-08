@@ -547,9 +547,15 @@ button:disabled {
   margin: 20px auto;
 }
 
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+}
+
 .score-item {
   padding: 12px 20px;
-  margin: 8px 0;
   background: linear-gradient(145deg, #333 0%, #2a2a2a 100%);
   border-radius: 8px;
   display: flex;
@@ -557,6 +563,7 @@ button:disabled {
   align-items: center;
   border: 1px solid #444;
   transition: all 0.3s ease;
+  flex: 1;
 }
 
 .score-item:hover {
@@ -591,6 +598,8 @@ button:disabled {
 .player-name {
   font-size: 1.1em;
   font-weight: 600;
+  flex: 1;
+  text-align: left;
 }
 
 .player-score {
@@ -668,9 +677,9 @@ button:disabled {
 }
 
 .winner-badge {
-  font-size: 1.2em;
-  margin-left: 8px;
+  font-size: 1.5em;
   animation: bounce 2s infinite;
+  flex-shrink: 0;
 }
 
 @keyframes bounce {
