@@ -39,6 +39,7 @@ export interface Winner {
     name: string;
     score: number;
     isWinner: boolean;
+    remainingCards?: Card[];
   }>;
 }
 

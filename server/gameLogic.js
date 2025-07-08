@@ -312,6 +312,7 @@ class GameRoom {
         name: p.name,
         score: this.calculatePlayerScore(p.cards),
         isWinner: p.cards.length === 0,
+        remainingCards: p.cards.length > 0 ? p.cards : [],
       }))
       .sort((a, b) => a.score - b.score); // Sort by score (lowest first)
 

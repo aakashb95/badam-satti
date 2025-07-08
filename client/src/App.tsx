@@ -30,6 +30,8 @@ const App: React.FC = () => {
     summary: null,
   });
 
+  const [showingGameOverDelay, setShowingGameOverDelay] = useState(false);
+
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [autoPassTimeout, setAutoPassTimeout] = useState<number | null>(null);
   
@@ -137,11 +139,19 @@ const App: React.FC = () => {
     newSocket.on('game_over', (winner: Winner) => {
       console.log('Game over:', winner);
       clearAutoPlayTimers();
+      
+      // Show initial "Game Over" message for 2 seconds
+      setShowingGameOverDelay(true);
       setAppState(prev => ({
         ...prev,
         currentScreen: 'game-over',
         winner,
       }));
+      
+      // After 2 seconds, show the actual scoring screen
+      setTimeout(() => {
+        setShowingGameOverDelay(false);
+      }, 2000);
     });
 
     newSocket.on('cards_redistributed', (data) => {
@@ -459,7 +469,7 @@ const App: React.FC = () => {
           />
         );
       case 'game-over':
-        return <GameOverScreen winner={appState.winner} onContinueRound={continueRound} onExitGame={exitGame} />;
+        return <GameOverScreen winner={appState.winner} onContinueRound={continueRound} onExitGame={exitGame} showingDelay={showingGameOverDelay} />;
       case 'loading':
         return <LoadingScreen message={appState.loading || 'Loading...'} />;
       case 'summary':
