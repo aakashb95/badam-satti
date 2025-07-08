@@ -757,6 +757,10 @@ button:disabled {
 
 .game-over-actions {
   margin-top: 30px;
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 /* Game Over Screen Enhancements */
