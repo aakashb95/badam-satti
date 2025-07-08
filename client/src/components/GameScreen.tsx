@@ -105,7 +105,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
           const higher = (suitObj.up || []).slice().reverse();
           const allRanks = [...higher, ...lower];
 
-          const MAX_VISIBLE_CARDS = 6;
+          const MAX_VISIBLE_CARDS = 3;
           let ranksForDisplay = allRanks;
 
           if (allRanks.length > MAX_VISIBLE_CARDS) {

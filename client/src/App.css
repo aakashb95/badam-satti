@@ -1607,7 +1607,7 @@ button:disabled {
 }
 
 .hand-suit .hand-card:not(:first-child) {
-  margin-left: -35px;
+  margin-left: -45px;
 }
 
 @keyframes cardGlow {
@@ -1717,7 +1717,7 @@ button:disabled {
   }
 
   .hand-suit .hand-card:not(:first-child) {
-    margin-left: -30px;
+    margin-left: -40px;
   }
 }
 
@@ -1823,7 +1823,7 @@ button:disabled {
   }
 
   .hand-suit .hand-card:not(:first-child) {
-    margin-left: -25px;
+    margin-left: -35px;
   }
 
   .my-cards-section {

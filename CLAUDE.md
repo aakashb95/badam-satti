@@ -194,6 +194,17 @@ http://localhost:3000
 22. **Game Start Message** - Shows "Player X started the game" notification in UI
 23. **Enhanced Card Shuffling** - Multi-pass Fisher-Yates + riffle shuffle simulation for proper randomization
 24. **Connection Stability Fix** - Resolved socket reconnection loop that caused frequent "Not connected to server" pop-ups (implemented by o3)
+25. **Mobile UX Improvements** - Enhanced card display for mobile devices:
+    - Removed horizontal scrolling to prevent left swipe back button conflicts
+    - Implemented 2x2 grid layout for card suits (hearts/diamonds top, clubs/spades bottom)
+    - Moved card count from header to cards section for better information hierarchy
+    - Increased card overlap for space efficiency while maintaining readability
+    - Consolidated .board-card-img styles to consistent 50px width across all screen sizes
+26. **Board Card Stacking Optimization** - Improved board space efficiency:
+    - Reduced MAX_VISIBLE_CARDS from 6 to 3 to trigger stacking earlier
+    - Board cards now stack immediately when 8/6 are played (3+ cards in sequence)
+    - Prevents board overlap with player's hand area on mobile devices
+    - Maintains key card visibility with ellipsis indicator for hidden cards
 
 ## Known Working Features
 - ✅ **React Frontend** - Modern component-based architecture with TypeScript
@@ -219,6 +230,8 @@ http://localhost:3000
 - ✅ **Fair 7♥ Starter** - Auto-played 7♥ player skips next turn to prevent double advantage
 - ✅ **Game Start Notifications** - Clear indication of who started each round
 - ✅ **True Card Randomization** - Multi-pass shuffling eliminates sequence patterns
+- ✅ **Optimized Mobile Card Display** - 2x2 grid layout with no scrolling, increased overlap, responsive design
+- ✅ **Compact Board Layout** - Early card stacking (3+ cards) prevents overlap with player hands
 
 ## Development Notes
 - **Frontend**: React 18 + TypeScript with Vite build system
@@ -253,4 +266,4 @@ http://localhost:3000
 
 ---
 *Last Updated: 2025-07-08*
-*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play, enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, and true card randomization*
+*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play, enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, and compact board stacking*
