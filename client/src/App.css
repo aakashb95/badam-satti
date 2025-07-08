@@ -1180,8 +1180,8 @@ button:disabled {
   overflow-y: auto;
 }
 
-/* Mobile Top Action Bar */
-.mobile-top-bar {
+/* Game Top Action Bar */
+.game-top-bar {
   position: fixed;
   top: 0;
   left: 0;
@@ -1195,6 +1195,51 @@ button:disabled {
   padding: 8px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+/* Desktop enhancements for top bar */
+@media (min-width: 769px) {
+  .game-top-bar {
+    padding: 12px 24px;
+    height: 70px;
+    z-index: 9999;
+    position: fixed;
+    top: 0;
+    background: rgba(30, 30, 30, 0.98);
+    backdrop-filter: blur(15px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+  
+  .mobile-pass-btn,
+  .mobile-leave-btn {
+    padding: 10px 16px;
+    min-width: 90px;
+    font-size: 14px;
+  }
+  
+  .btn-text {
+    font-size: 14px;
+  }
+  
+  .game-info {
+    font-size: 16px;
+  }
+  
+  #round-display {
+    font-size: 16px;
+  }
+  
+  #turn-display {
+    font-size: 14px;
+  }
+  
+  .players-info-mobile {
+    margin-top: 80px;
+  }
+  
+  .game-container {
+    padding-top: 70px;
+  }
 }
 
 .mobile-pass-btn,
@@ -1621,7 +1666,7 @@ button:disabled {
     padding: 16px;
   }
 
-  .mobile-top-bar {
+  .game-top-bar {
     padding: 10px 16px;
     height: 60px;
   }
@@ -1722,7 +1767,7 @@ button:disabled {
 }
 
 @media (max-width: 480px) {
-  .mobile-top-bar {
+  .game-top-bar {
     padding: 8px 12px;
     height: 55px;
   }
@@ -1839,7 +1884,7 @@ button:disabled {
 
 /* Landscape Mobile Optimization */
 @media (orientation: landscape) and (max-height: 600px) {
-  .mobile-top-bar {
+  .game-top-bar {
     height: 50px;
     padding: 6px 12px;
   }

@@ -103,22 +103,23 @@ const GameScreen: React.FC<GameScreenProps> = ({
           const suitObj = gameState.board[suit as keyof typeof gameState.board];
           const lower = (suitObj.down || []).slice();
           const higher = (suitObj.up || []).slice().reverse();
-          const allRanks = [...higher, ...lower];
+          // Combine higher and lower sequences (7 is already included in higher when played)
+          const allRanks = higher.length > 0 || lower.length > 0 
+            ? [...higher, ...lower] 
+            : [];
 
           const MAX_VISIBLE_CARDS = 3;
           let ranksForDisplay = allRanks;
 
           if (allRanks.length > MAX_VISIBLE_CARDS) {
             ranksForDisplay = [];
-            if (higher.length > 0) {
-              ranksForDisplay.push(higher[0]);
-            }
-            if (higher.length > 0 || lower.length > 0) {
-              ranksForDisplay.push(7);
-            }
-            if (lower.length > 0) {
-              ranksForDisplay.push(lower[lower.length - 1]);
-            }
+            // Show first card (highest)
+            ranksForDisplay.push(allRanks[0]);
+            // Show middle card (around 7)
+            const middleIndex = Math.floor(allRanks.length / 2);
+            ranksForDisplay.push(allRanks[middleIndex]);
+            // Show last card (lowest)
+            ranksForDisplay.push(allRanks[allRanks.length - 1]);
           }
 
           return (
@@ -249,8 +250,8 @@ const GameScreen: React.FC<GameScreenProps> = ({
   return (
     <div className="screen" id="game-screen">
       <div className="game-container">
-        {/* Mobile Top Action Bar */}
-        <div className="mobile-top-bar">
+        {/* Game Top Action Bar */}
+        <div className="game-top-bar">
           <button
             className="mobile-pass-btn"
             onClick={onPassTurn}
