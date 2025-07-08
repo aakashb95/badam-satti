@@ -214,8 +214,8 @@ const GameScreen: React.FC<GameScreenProps> = ({
 
     return (
       <div className="my-cards-section">
-        <h3>Your Cards</h3>
-        <div id="my-cards">
+        <div className="cards-count">Your Cards: {myCards.length}</div>
+        <div id="my-cards" className="my-cards-grid">
           {suitOrder.map((suit) => {
             const cardsOfSuit = myCards.filter(c => c.suit === suit);
 

@@ -432,18 +432,6 @@ button:disabled {
   text-align: center;
 }
 
-#my-cards {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px;
-  background: linear-gradient(145deg, #2a2a2a 0%, #1e1e1e 100%);
-  border-radius: 8px;
-  min-height: 70px;
-  align-items: center;
-  border: 1px solid #444;
-}
 
 .card {
   background: linear-gradient(145deg, #ffffff 0%, #f8f8f8 50%, #ffffff 100%);
@@ -1085,7 +1073,7 @@ button:disabled {
     margin: 10px 0;
   }
   
-  #my-cards {
+  .my-cards-grid {
     padding: 10px;
   }
 }
@@ -1117,7 +1105,7 @@ button:disabled {
 }
 
 .board-card-img {
-  width: 60px;
+  width: 50px;
   height: auto;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
@@ -1284,6 +1272,13 @@ button:disabled {
 
 #turn-display.other-turn {
   color: #ff9800;
+}
+
+.cards-count {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+  margin-top: 2px;
 }
 
 .game-start-message {
@@ -1544,17 +1539,6 @@ button:disabled {
   min-height: 80px;
 }
 
-.board-card-img {
-  width: 50px;
-  height: auto;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  transition: transform 0.2s ease;
-}
-
-.board-card-img:hover {
-  transform: scale(1.05);
-}
 
 /* My Cards Section Mobile */
 .my-cards-section {
@@ -1572,16 +1556,16 @@ button:disabled {
   color: #ffffff;
 }
 
-#my-cards {
-  display: flex;
-  justify-content: center;
-  align-items: end;
-  gap: 16px;
-  flex-wrap: wrap;
+.my-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
   padding: 16px 8px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 12px;
   min-height: 140px;
+  align-items: end;
 }
 
 .hand-suit {
@@ -1589,6 +1573,7 @@ button:disabled {
   align-items: end;
   position: relative;
   margin-right: 8px;
+  flex-shrink: 0;
 }
 
 .hand-card {
@@ -1645,6 +1630,12 @@ button:disabled {
   .mobile-leave-btn {
     padding: 8px 12px;
     min-width: 70px;
+  }
+
+  .my-cards-grid {
+    gap: 6px;
+    padding: 12px 8px;
+    min-height: 120px;
   }
 
   .btn-text {
@@ -1711,10 +1702,6 @@ button:disabled {
 
   .suit-header {
     font-size: 12px;
-  }
-
-    .board-card-img {
-    width: 45px;
   }
 
   .board-card-img.key-card::after {
@@ -1823,10 +1810,6 @@ button:disabled {
     font-size: 11px;
   }
 
-  .board-card-img {
-    width: 40px;
-  }
-
   .board-card-img.key-card::after {
     font-size: 10px;
     width: 16px;
@@ -1847,8 +1830,8 @@ button:disabled {
     padding: 12px;
   }
 
-  #my-cards {
-    gap: 12px;
+  .my-cards-grid {
+    gap: 6px;
     padding: 12px 4px;
     min-height: 120px;
   }
@@ -1938,9 +1921,10 @@ button:disabled {
     padding: 8px;
   }
 
-  #my-cards {
-    min-height: 100px;
+  .my-cards-grid {
+    gap: 4px;
     padding: 8px 4px;
+    min-height: 100px;
   }
 
   .hand-card {
