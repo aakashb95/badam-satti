@@ -7,8 +7,8 @@ const io = require("socket.io")(server, {
     origin: "*",
     methods: ["GET", "POST"],
   },
-  pingTimeout: 60000,
-  pingInterval: 25000,
+  pingTimeout: 120000,  // 2 minutes - allow for mobile app switching
+  pingInterval: 30000,  // 30 seconds - more lenient for mobile
 });
 const path = require("path");
 
@@ -48,12 +48,27 @@ app.use('/api/join-room', joinRoomLimiter);
 // Cleanup interval to remove empty rooms and persist active ones
 setInterval(async () => {
   try {
-    // Cleanup empty rooms from memory
+    // Cleanup expired reconnection opportunities
+    const cleanedReconnections = await db.cleanupExpiredReconnections();
+    if (cleanedReconnections > 0) {
+      console.log(`Cleaned up ${cleanedReconnections} expired reconnection opportunities`);
+    }
+    
+    // Cleanup empty rooms from memory (check for reconnectable players)
     for (const roomCode of Object.keys(rooms)) {
       if (rooms[roomCode].isRoomEmpty()) {
-        console.log(`Cleaning up empty room: ${roomCode}`);
-        await db.deactivateRoom(roomCode);
-        delete rooms[roomCode];
+        // Check if there are any players who can still reconnect
+        const reconnectablePlayers = await db.getReconnectablePlayersInRoom(roomCode);
+        
+        if (reconnectablePlayers.length === 0) {
+          console.log(`Cleaning up empty room: ${roomCode}`);
+          await db.deactivateRoom(roomCode);
+          delete rooms[roomCode];
+        } else {
+          console.log(`Room ${roomCode} empty but has ${reconnectablePlayers.length} reconnectable players`);
+          // Persist room to database but keep it in memory
+          await db.saveGameRoom(roomCode, rooms[roomCode]);
+        }
       } else {
         // Persist active rooms to database
         await db.saveGameRoom(roomCode, rooms[roomCode]);
@@ -252,6 +267,72 @@ io.on("connection", (socket) => {
     } catch (error) {
       console.error("Error joining room:", error);
       socket.emit("error", "Failed to join room");
+    }
+  });
+
+  // Attempt to reconnect to a room
+  socket.on("reconnect_to_room", async ({ roomCode, username }) => {
+    try {
+      if (!roomCode || !username) {
+        socket.emit("error", "Room code and username are required");
+        return;
+      }
+
+      const cleanRoomCode = roomCode.toUpperCase().trim();
+      const cleanUsername = username.trim();
+
+      // Check if room exists
+      if (!rooms[cleanRoomCode]) {
+        socket.emit("error", "Room not found");
+        return;
+      }
+
+      // Attempt reconnection through database
+      const reconnectionResult = await db.attemptPlayerReconnection(
+        cleanUsername, 
+        cleanRoomCode, 
+        socket.id
+      );
+
+      if (!reconnectionResult.canReconnect) {
+        socket.emit("error", "Cannot reconnect - reconnection period expired or you were not in this room");
+        return;
+      }
+
+      // Update room state
+      const success = rooms[cleanRoomCode].reconnectPlayer(
+        reconnectionResult.playerId, 
+        socket.id, 
+        socket.id
+      );
+
+      if (!success) {
+        socket.emit("error", "Failed to reconnect to room");
+        return;
+      }
+
+      socket.join(cleanRoomCode);
+      currentRoom = cleanRoomCode;
+      playerName = cleanUsername;
+
+      // Save updated game state
+      await db.saveGameRoom(cleanRoomCode, rooms[cleanRoomCode]);
+
+      console.log(`${playerName} reconnected to room: ${cleanRoomCode}`);
+      
+      socket.emit("room_reconnected", {
+        roomCode: cleanRoomCode,
+        gameState: rooms[cleanRoomCode].getPlayerState(socket.id),
+      });
+
+      // Notify all players in the room
+      io.to(cleanRoomCode).emit("player_reconnected", {
+        playerName: cleanUsername,
+        gameState: rooms[cleanRoomCode].getState(),
+      });
+    } catch (error) {
+      console.error("Error reconnecting to room:", error);
+      socket.emit("error", "Failed to reconnect to room");
     }
   });
 
@@ -492,54 +573,74 @@ io.on("connection", (socket) => {
         const wasCurrentPlayer =
           room.players[room.currentPlayerIndex]?.id === socket.id;
 
-        // Remove player and redistribute cards if game has started
-        room.removePlayer(socket.id, wasGameStarted);
+        if (wasGameStarted) {
+          // Game has started - remove player immediately and redistribute cards
+          room.removePlayer(socket.id, true);
 
-        // If the game was started and the disconnected player was the current turn,
-        // move turn to the next appropriate player
-        if (wasGameStarted && wasCurrentPlayer && !room.gameFinished) {
-          room.nextTurn();
-        }
-
-        // Save updated game state
-        await db.saveGameRoom(currentRoom, room);
-
-        // Broadcast updated state to remaining players
-        io.to(currentRoom).emit("player_disconnected", {
-          playerName,
-          gameState: room.getState(),
-        });
-
-        // Send updated cards to all remaining players if cards were redistributed
-        if (wasGameStarted && !room.gameFinished) {
-          // Check if only one player remains
-          if (room.players.length === 1) {
-            // Notify the last player that all others left and end the game
-            io.to(currentRoom).emit("game_over", {
-              type: "all_players_left",
-              winner: room.players[0].name,
-              message: "All other players have left the game",
-            });
-            room.gameFinished = true;
-            await db.saveGameRoom(currentRoom, room);
-          } else {
-            // Notify about card redistribution
-            io.to(currentRoom).emit("cards_redistributed", {
-              message: `${playerName}'s cards have been redistributed`,
-              redistributedCardCount:
-                room.players.length > 0
-                  ? Math.floor(52 / room.players.length)
-                  : 0,
-            });
-
-            // Send updated cards to all remaining players
-            room.players.forEach((player) => {
-              io.to(player.id).emit("your_cards", {
-                cards: room.getPlayerCards(player.id),
-                validMoves: room.getValidMoves(player.id),
-              });
-            });
+          // If the disconnected player was the current turn, move to next player
+          if (wasCurrentPlayer && !room.gameFinished) {
+            room.nextTurn();
           }
+
+          // Save updated game state
+          await db.saveGameRoom(currentRoom, room);
+
+          // Broadcast updated state to remaining players
+          io.to(currentRoom).emit("player_disconnected", {
+            playerName,
+            gameState: room.getState(),
+          });
+
+          // Send updated cards to all remaining players if cards were redistributed
+          if (!room.gameFinished) {
+            // Check if only one player remains
+            if (room.players.length === 1) {
+              // Notify the last player that all others left and end the game
+              io.to(currentRoom).emit("game_over", {
+                type: "all_players_left",
+                winner: room.players[0].name,
+                message: "All other players have left the game",
+              });
+              room.gameFinished = true;
+              await db.saveGameRoom(currentRoom, room);
+            } else {
+              // Notify about card redistribution
+              io.to(currentRoom).emit("cards_redistributed", {
+                message: `${playerName}'s cards have been redistributed`,
+                redistributedCardCount:
+                  room.players.length > 0
+                    ? Math.floor(52 / room.players.length)
+                    : 0,
+              });
+
+              // Send updated cards to all remaining players
+              room.players.forEach((player) => {
+                io.to(player.id).emit("your_cards", {
+                  cards: room.getPlayerCards(player.id),
+                  validMoves: room.getValidMoves(player.id),
+                });
+              });
+            }
+          }
+        } else {
+          // Game hasn't started - allow reconnection
+          console.log(`Player ${playerName} disconnected from waiting room - allowing reconnection`);
+          
+          // Mark player as disconnected but don't remove them yet
+          room.setPlayerDisconnected(socket.id);
+          
+          // Set reconnection opportunity in database (10 minutes for waiting room)
+          await db.setPlayerDisconnected(socket.id, true, 10);
+          
+          // Save updated game state
+          await db.saveGameRoom(currentRoom, room);
+
+          // Broadcast updated state to remaining players
+          io.to(currentRoom).emit("player_temporarily_disconnected", {
+            playerName,
+            gameState: room.getState(),
+            message: `${playerName} disconnected but can reconnect`,
+          });
         }
 
         // If the room becomes empty, it will be cleaned up by the interval

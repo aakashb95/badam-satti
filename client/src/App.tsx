@@ -49,12 +49,12 @@ const App: React.FC = () => {
   // Initialize socket connection (run only once on mount)
   useEffect(() => {
     const newSocket = io({
-      timeout: 60000,
+      timeout: 120000,  // Match server timeout
       forceNew: true,
       reconnection: true,
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 10000,
-      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 10,  // More attempts for mobile
     });
     setSocket(newSocket);
 
@@ -65,14 +65,22 @@ const App: React.FC = () => {
       setReconnectAttempts(0);
       setIsConnected(true);
       setAppState(prev => ({ ...prev, loading: null }));
+      
+      // Try to recover room state if we were in a room
+      if (currentStateRef.current.currentRoom) {
+        console.log('Attempting to recover room state for:', currentStateRef.current.currentRoom);
+        newSocket.emit('get_state');
+      }
     });
 
     newSocket.on('disconnect', (reason) => {
       console.log('Disconnected from server. Reason:', reason);
       setIsConnected(false);
       
-      // Only attempt manual reconnection for certain disconnect reasons
-      if (reason === 'io server disconnect' || reason === 'transport close' || reason === 'ping timeout') {
+      // Don't show connection lost immediately - might be app switching
+      if (reason === 'ping timeout' || reason === 'transport close') {
+        console.log('Likely app switching - will reconnect when app becomes visible');
+      } else if (reason === 'io server disconnect') {
         showLoading('Connection lost. Reconnecting...');
         attemptReconnection();
       }
@@ -122,6 +130,30 @@ const App: React.FC = () => {
       console.log('Player disconnected:', playerName);
       setAppState(prev => ({ ...prev, gameState }));
       showNotification(`${playerName} disconnected`);
+    });
+
+    newSocket.on('player_temporarily_disconnected', ({ playerName, gameState }) => {
+      console.log('Player temporarily disconnected:', playerName);
+      setAppState(prev => ({ ...prev, gameState }));
+      showNotification(`${playerName} disconnected but can reconnect`);
+    });
+
+    newSocket.on('player_reconnected', ({ playerName, gameState }) => {
+      console.log('Player reconnected:', playerName);
+      setAppState(prev => ({ ...prev, gameState }));
+      showNotification(`${playerName} reconnected`);
+    });
+
+    newSocket.on('room_reconnected', ({ roomCode, gameState }) => {
+      console.log('Successfully reconnected to room:', roomCode);
+      setAppState(prev => ({
+        ...prev,
+        currentRoom: roomCode,
+        gameState,
+        currentScreen: gameState.started ? 'game' : 'waiting',
+        loading: null,
+      }));
+      showNotification('Successfully reconnected to room');
     });
 
     // Game events
@@ -200,10 +232,56 @@ const App: React.FC = () => {
       }));
     });
 
+    newSocket.on('game_state', (playerState) => {
+      console.log('Received game state recovery:', playerState);
+      if (playerState) {
+        setAppState(prev => ({
+          ...prev,
+          gameState: playerState.gameState,
+          myCards: playerState.myCards || [],
+          validMoves: playerState.validMoves || [],
+          canPass: playerState.canPass || false,
+          currentScreen: playerState.gameState?.started ? 'game' : 'waiting',
+        }));
+      }
+    });
+
     newSocket.on('error', (message: string) => {
       console.error('Server error:', message);
       showError(message);
     });
+
+    // Handle page visibility changes (app switching)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('App became visible - checking connection');
+        const currentState = currentStateRef.current;
+        
+        if (newSocket && !newSocket.connected) {
+          console.log('Reconnecting after app switch');
+          newSocket.connect();
+          
+          // If we were in a room and it's not a game, try to reconnect
+          if (currentState.currentRoom && 
+              currentState.username && 
+              currentState.currentScreen === 'waiting') {
+            console.log('Attempting to reconnect to waiting room:', currentState.currentRoom);
+            setTimeout(() => {
+              if (newSocket.connected) {
+                newSocket.emit('reconnect_to_room', {
+                  roomCode: currentState.currentRoom,
+                  username: currentState.username
+                });
+              }
+            }, 1000); // Wait 1 second for connection to establish
+          }
+        }
+      } else {
+        console.log('App became hidden - connection will be maintained');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Periodic connection health check
     const healthCheckInterval = setInterval(() => {
@@ -214,6 +292,7 @@ const App: React.FC = () => {
     }, 30000); // Check every 30 seconds
 
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(healthCheckInterval);
       newSocket.close();
     };
@@ -366,6 +445,26 @@ const App: React.FC = () => {
     socket.emit('join_room', { roomCode: roomCode.toUpperCase(), username: appState.username });
   };
 
+  const reconnectToRoom = (roomCode: string) => {
+    if (!appState.username) {
+      showError('Please enter your name first');
+      return;
+    }
+
+    if (!roomCode || roomCode.length !== 6) {
+      showError('Please enter a valid 6-character room code');
+      return;
+    }
+
+    if (!socket || !isConnected) {
+      showError('Not connected to server. Please wait for reconnection or refresh the page.');
+      return;
+    }
+
+    showLoading('Reconnecting to room...');
+    socket.emit('reconnect_to_room', { roomCode: roomCode.toUpperCase(), username: appState.username });
+  };
+
   const startGame = () => {
     if (!appState.gameState || appState.gameState.players.length <= 1) {
       showError('Need at least 2 players to start');
@@ -475,7 +574,7 @@ const App: React.FC = () => {
       case 'login':
         return <LoginScreen onContinue={setUsername} />;
       case 'menu':
-        return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} />;
+        return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} onReconnectToRoom={reconnectToRoom} />;
       case 'waiting':
         return (
           <WaitingRoom

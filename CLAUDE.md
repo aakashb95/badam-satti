@@ -219,6 +219,30 @@ http://localhost:3000
     - Removed manual addition of 7 to card sequences in GameScreen.tsx:107
     - Server already includes 7 in board state when auto-played at game start
     - Fixed frontend from duplicating the 7 card in board display logic
+30. **SVG Card Optimization** - Optimized card assets for faster loading:
+    - Reduced total card size from 8.0MB to 5.2MB (35% reduction)
+    - Optimized face cards from 400KB-1.1MB to 260KB-742KB each
+    - Used svgo with multipass optimization to remove metadata
+    - Maintained visual quality while improving performance
+31. **CDN Integration** - Implemented Cloudflare CDN for global asset delivery:
+    - Added badam7.aakashb.xyz domain to Cloudflare with proxied DNS
+    - Configured Page Rules for /images/* with Cache Everything and 1-year TTL
+    - Enabled HTTP/2 and global edge caching for card images
+    - Achieved faster loading for international users and reduced server load
+32. **Mobile App Switching Persistence** - Enhanced connection stability for mobile:
+    - Increased socket timeout from 60s to 120s for mobile app switching
+    - Added Page Visibility API to detect app switching and reconnect automatically
+    - Improved disconnect handling to not show errors during app switching
+    - Added room state recovery when reconnecting after app switch
+    - More lenient reconnection attempts (10 vs 5) for mobile networks
+33. **Pre-Game Reconnection System** - Complete reconnection solution for waiting rooms:
+    - Added SQLite-based player session tracking with reconnection timeouts
+    - Players can reconnect to waiting rooms for 10 minutes after disconnect
+    - Automatic reconnection attempts when returning to app during waiting phase
+    - Manual reconnection UI with "Reconnect to Room" button in menu
+    - Phase-aware disconnect handling: reconnection in waiting, immediate removal in game
+    - Database schema enhancement with `disconnected_at`, `can_reconnect`, `reconnect_timeout`
+    - Room cleanup preservation for reconnectable players
 
 ## Known Working Features
 - ✅ **React Frontend** - Modern component-based architecture with TypeScript
@@ -249,6 +273,10 @@ http://localhost:3000
 - ✅ **Cross-Platform Interface** - Responsive design with optimized mobile and desktop experiences
 - ✅ **Accurate Card Stacking** - Fixed duplicate card display in compressed board view
 - ✅ **Clean Board Display** - Eliminated duplicate 7♥ rendering on game board
+- ✅ **Optimized Card Assets** - 35% smaller SVG files (8.0MB → 5.2MB) with maintained quality
+- ✅ **CDN Performance** - Cloudflare global edge caching with 1-year TTL for instant loading
+- ✅ **Mobile App Switching** - Persistent connections when switching between apps/tabs
+- ✅ **Pre-Game Reconnection** - 10-minute reconnection window for waiting room disconnections
 
 ## Development Notes
 - **Frontend**: React 18 + TypeScript with Vite build system
@@ -263,7 +291,7 @@ http://localhost:3000
 - Room cleanup runs every 60 seconds (database + memory)
 - Graceful shutdown saves all active games to database
 - Disconnected players immediately removed with card redistribution
-- Complete SVG card set with custom design
+- Complete SVG card set with custom design (optimized to 5.2MB total)
 - Sophisticated card sorting: hearts, diamonds, clubs, spades by rank
 - Server auto-plays 7♥ to start each round
 - **Game Ending**: Single termination with proper winner/score display
@@ -282,5 +310,5 @@ http://localhost:3000
 - **Legacy Backup**: `/Users/aakash/expts/badam7/client-backup/` (original vanilla JS)
 
 ---
-*Last Updated: 2025-07-08*
-*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play, enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, and clean board rendering without duplicate 7♥*
+*Last Updated: 2025-07-09*
+*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play, enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), and Cloudflare CDN integration for global performance*

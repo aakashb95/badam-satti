@@ -39,6 +39,9 @@ class Database {
         room_code TEXT NOT NULL,
         socket_id TEXT,
         connected BOOLEAN DEFAULT 1,
+        disconnected_at DATETIME,
+        can_reconnect BOOLEAN DEFAULT 0,
+        reconnect_timeout DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (room_code) REFERENCES game_rooms(room_code) ON DELETE CASCADE
@@ -58,6 +61,42 @@ class Database {
       this.db.run(createGameRoomsTable);
       this.db.run(createPlayersTable);
       this.db.run(createRateLimitTable);
+      
+      // Add migration for existing databases
+      this.migratePlayersTable();
+    });
+  }
+
+  migratePlayersTable() {
+    // Check if new columns exist and add them if they don't
+    this.db.all("PRAGMA table_info(players)", (err, columns) => {
+      if (err) {
+        console.error('Error checking table structure:', err);
+        return;
+      }
+
+      const columnNames = columns.map(col => col.name);
+      
+      if (!columnNames.includes('disconnected_at')) {
+        this.db.run('ALTER TABLE players ADD COLUMN disconnected_at DATETIME', (err) => {
+          if (err) console.error('Error adding disconnected_at column:', err);
+          else console.log('✅ Added disconnected_at column to players table');
+        });
+      }
+      
+      if (!columnNames.includes('can_reconnect')) {
+        this.db.run('ALTER TABLE players ADD COLUMN can_reconnect BOOLEAN DEFAULT 0', (err) => {
+          if (err) console.error('Error adding can_reconnect column:', err);
+          else console.log('✅ Added can_reconnect column to players table');
+        });
+      }
+      
+      if (!columnNames.includes('reconnect_timeout')) {
+        this.db.run('ALTER TABLE players ADD COLUMN reconnect_timeout DATETIME', (err) => {
+          if (err) console.error('Error adding reconnect_timeout column:', err);
+          else console.log('✅ Added reconnect_timeout column to players table');
+        });
+      }
     });
   }
 
@@ -206,6 +245,91 @@ class Database {
     return new Promise((resolve, reject) => {
       this.db.all(
         'SELECT * FROM players WHERE room_code = ?',
+        [roomCode],
+        (err, rows) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(rows);
+          }
+        }
+      );
+    });
+  }
+
+  async setPlayerDisconnected(playerId, canReconnect = false, reconnectTimeoutMinutes = 10) {
+    return new Promise((resolve, reject) => {
+      const reconnectTimeout = canReconnect ? 
+        new Date(Date.now() + reconnectTimeoutMinutes * 60 * 1000) : null;
+      
+      this.db.run(
+        'UPDATE players SET connected = 0, disconnected_at = CURRENT_TIMESTAMP, can_reconnect = ?, reconnect_timeout = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [canReconnect ? 1 : 0, reconnectTimeout?.toISOString(), playerId],
+        (err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        }
+      );
+    });
+  }
+
+  async attemptPlayerReconnection(username, roomCode, newSocketId) {
+    return new Promise((resolve, reject) => {
+      // Check if player can reconnect
+      this.db.get(
+        'SELECT * FROM players WHERE username = ? AND room_code = ? AND can_reconnect = 1 AND reconnect_timeout > CURRENT_TIMESTAMP',
+        [username, roomCode],
+        (err, row) => {
+          if (err) {
+            reject(err);
+          } else if (row) {
+            // Player can reconnect - update their socket ID and connection status
+            this.db.run(
+              'UPDATE players SET socket_id = ?, connected = 1, can_reconnect = 0, reconnect_timeout = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+              [newSocketId, row.id],
+              (err) => {
+                if (err) {
+                  reject(err);
+                } else {
+                  resolve({
+                    canReconnect: true,
+                    playerId: row.id,
+                    player: row
+                  });
+                }
+              }
+            );
+          } else {
+            resolve({ canReconnect: false });
+          }
+        }
+      );
+    });
+  }
+
+  async cleanupExpiredReconnections() {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'UPDATE players SET can_reconnect = 0, reconnect_timeout = NULL WHERE reconnect_timeout < CURRENT_TIMESTAMP',
+        [],
+        function(err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(this.changes);
+          }
+        }
+      );
+    });
+  }
+
+  async getReconnectablePlayersInRoom(roomCode) {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        'SELECT * FROM players WHERE room_code = ? AND can_reconnect = 1 AND reconnect_timeout > CURRENT_TIMESTAMP',
         [roomCode],
         (err, rows) => {
           if (err) {

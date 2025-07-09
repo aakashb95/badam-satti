@@ -4,13 +4,20 @@ interface MenuScreenProps {
   username: string;
   onCreateRoom: () => void;
   onJoinRoom: (roomCode: string) => void;
+  onReconnectToRoom?: (roomCode: string) => void;
 }
 
-const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinRoom }) => {
+const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinRoom, onReconnectToRoom }) => {
   const [roomCode, setRoomCode] = useState('');
 
   const handleJoinRoom = () => {
     onJoinRoom(roomCode);
+  };
+
+  const handleReconnectRoom = () => {
+    if (onReconnectToRoom) {
+      onReconnectToRoom(roomCode);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -45,6 +52,11 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinR
             <button className="menu-btn" onClick={handleJoinRoom}>
               Join Room
             </button>
+            {onReconnectToRoom && (
+              <button className="menu-btn secondary" onClick={handleReconnectRoom}>
+                Reconnect to Room
+              </button>
+            )}
           </div>
         </div>
       </div>

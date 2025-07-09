@@ -77,6 +77,26 @@ class GameRoom {
     }
   }
 
+  setPlayerDisconnected(id) {
+    const player = this.players.find((p) => p.id === id);
+    if (player) {
+      player.connected = false;
+    }
+  }
+
+  reconnectPlayer(oldId, newId, newSocketId) {
+    const player = this.players.find((p) => p.id === oldId);
+    if (player) {
+      player.id = newId;
+      player.connected = true;
+      // Update score tracking
+      this.playerScores[newId] = this.playerScores[oldId] || 0;
+      delete this.playerScores[oldId];
+      return true;
+    }
+    return false;
+  }
+
   startGame() {
     if (this.players.length <= 1) return false;
     if (this.started) return false;
@@ -434,6 +454,11 @@ class GameRoom {
   }
 
   isRoomEmpty() {
+    return this.getConnectedPlayersCount() === 0;
+  }
+
+  // Check if room is truly empty (no connected players and no reconnectable players)
+  isRoomEmptyForCleanup() {
     return this.getConnectedPlayersCount() === 0;
   }
 
