@@ -1,3 +1,5 @@
+const crypto = require("crypto");
+
 class GameRoom {
   constructor(roomCode) {
     this.roomCode = roomCode;
@@ -16,6 +18,8 @@ class GameRoom {
     this.maxRounds = 7;
     this.gameFinished = false;
     this.playerScores = {};
+    this.heartsSevenPlayerIndex = -1; // Track who played 7 of hearts
+    this.gameStartMessage = null; // Message about who started the game
   }
 
   addPlayer(id, name) {
@@ -73,6 +77,26 @@ class GameRoom {
     }
   }
 
+  setPlayerDisconnected(id) {
+    const player = this.players.find((p) => p.id === id);
+    if (player) {
+      player.connected = false;
+    }
+  }
+
+  reconnectPlayer(oldId, newId, newSocketId) {
+    const player = this.players.find((p) => p.id === oldId);
+    if (player) {
+      player.id = newId;
+      player.connected = true;
+      // Update score tracking
+      this.playerScores[newId] = this.playerScores[oldId] || 0;
+      delete this.playerScores[oldId];
+      return true;
+    }
+    return false;
+  }
+
   startGame() {
     if (this.players.length <= 1) return false;
     if (this.started) return false;
@@ -84,13 +108,25 @@ class GameRoom {
     this.dealCards();
 
     // Find who has 7 of hearts
-    this.currentPlayerIndex = this.players.findIndex((p) =>
+    this.heartsSevenPlayerIndex = this.players.findIndex((p) =>
       p.cards.some((c) => c.suit === "hearts" && c.rank === 7)
     );
 
+    // Set current player to the one with 7♥
+    this.currentPlayerIndex = this.heartsSevenPlayerIndex;
+
+    // Set game start message
+    this.gameStartMessage = `${
+      this.players[this.heartsSevenPlayerIndex].name
+    } started the game`;
+
     // Auto-play 7 of hearts
     const heartsSevenCard = { suit: "hearts", rank: 7 };
-    this.playCard(this.players[this.currentPlayerIndex].id, heartsSevenCard);
+    this.playCard(
+      this.players[this.heartsSevenPlayerIndex].id,
+      heartsSevenCard,
+      true
+    );
 
     return true;
   }
@@ -116,8 +152,50 @@ class GameRoom {
   }
 
   shuffleDeck() {
+    // Perform multiple shuffle passes for better randomness
+    for (let pass = 0; pass < 5; pass++) {
+      // Fisher-Yates shuffle
+      for (let i = this.deck.length - 1; i > 0; i--) {
+        const j = crypto.randomInt(i + 1);
+        [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
+      }
+    }
+
+    // Additional riffle shuffle simulation
+    const riffleShuffles = 3;
+    for (let r = 0; r < riffleShuffles; r++) {
+      const splitPoint =
+        Math.floor(this.deck.length / 2) + Math.floor(Math.random() * 6) - 3;
+      const leftHalf = this.deck.slice(0, splitPoint);
+      const rightHalf = this.deck.slice(splitPoint);
+
+      this.deck = [];
+      let leftIndex = 0;
+      let rightIndex = 0;
+
+      while (leftIndex < leftHalf.length && rightIndex < rightHalf.length) {
+        // Randomly choose which half to take from with slight bias
+        const takeFromLeft = Math.random() < 0.5 + (Math.random() - 0.5) * 0.2;
+
+        if (takeFromLeft && leftIndex < leftHalf.length) {
+          this.deck.push(leftHalf[leftIndex++]);
+        } else if (rightIndex < rightHalf.length) {
+          this.deck.push(rightHalf[rightIndex++]);
+        }
+      }
+
+      // Add remaining cards
+      while (leftIndex < leftHalf.length) {
+        this.deck.push(leftHalf[leftIndex++]);
+      }
+      while (rightIndex < rightHalf.length) {
+        this.deck.push(rightHalf[rightIndex++]);
+      }
+    }
+
+    // Final Fisher-Yates shuffle
     for (let i = this.deck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = crypto.randomInt(i + 1);
       [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
     }
   }
@@ -146,16 +224,7 @@ class GameRoom {
       playerIndex = (playerIndex + 1) % this.players.length;
     }
 
-    // Sort each player's cards
-    this.players.forEach((player) => {
-      player.cards.sort((a, b) => {
-        if (a.suit !== b.suit) {
-          const suitOrder = { hearts: 0, diamonds: 1, clubs: 2, spades: 3 };
-          return suitOrder[a.suit] - suitOrder[b.suit];
-        }
-        return a.rank - b.rank;
-      });
-    });
+    // Removed per-player sorting to preserve random card order in hands
   }
 
   isValidMove(playerId, card) {
@@ -198,8 +267,9 @@ class GameRoom {
     return false;
   }
 
-  playCard(playerId, card) {
+  playCard(playerId, card, isHeartsSevenAutoPlay = false) {
     if (!this.isValidMove(playerId, card)) return false;
+    if (this.gameFinished) return false; // Don't allow moves after game ends
 
     const player = this.players.find((p) => p.id === playerId);
     // Remove the card from player's hand
@@ -226,8 +296,9 @@ class GameRoom {
 
     // Check if player won (first to empty hand)
     if (player.cards.length === 0) {
-      this.gameFinished = true;
+      this.finishGame(); // Call finishGame immediately when someone wins
     } else {
+      // Advance turn normally - if it's 7♥ auto-play, this skips the starter's next turn
       this.nextTurn();
     }
 
@@ -271,6 +342,7 @@ class GameRoom {
 
   passTurn(playerId) {
     if (this.players[this.currentPlayerIndex].id !== playerId) return false;
+    if (this.gameFinished) return false; // Don't allow passes after game ends
 
     // Check if player really can't play
     if (this.canPlayerPlay(playerId)) {
@@ -310,6 +382,7 @@ class GameRoom {
         name: p.name,
         score: this.calculatePlayerScore(p.cards),
         isWinner: p.cards.length === 0,
+        remainingCards: p.cards.length > 0 ? p.cards : [],
       }))
       .sort((a, b) => a.score - b.score); // Sort by score (lowest first)
 
@@ -333,6 +406,63 @@ class GameRoom {
     return player.cards.filter((card) => this.isValidMove(playerId, card));
   }
 
+  isCardPlayableOnBoard(card) {
+    const suitBoard = this.board[card.suit];
+
+    // If suit not started, must be 7
+    if (suitBoard.up.length === 0 && suitBoard.down.length === 0) {
+      return card.rank === 7;
+    }
+
+    // Check if we can play above the highest card
+    if (suitBoard.up.length > 0) {
+      const highestCard = suitBoard.up[suitBoard.up.length - 1];
+      if (card.rank === highestCard + 1 && card.rank <= 13) {
+        return true;
+      }
+    }
+
+    // Check if we can play below the lowest card
+    if (suitBoard.down.length > 0) {
+      const lowestCard = suitBoard.down[suitBoard.down.length - 1];
+      if (card.rank === lowestCard - 1 && card.rank >= 1) {
+        return true;
+      }
+    }
+
+    // If 7 has been played but no lower cards yet, allow 6
+    if (suitBoard.down.length === 0 && suitBoard.up.includes(7)) {
+      return card.rank === 6;
+    }
+
+    return false;
+  }
+
+  getPlayableCardsOnBoard(cards) {
+    return cards.filter(card => this.isCardPlayableOnBoard(card));
+  }
+
+  analyzePlayerPosition(player) {
+    const cardCount = player.cards.length;
+    
+    if (cardCount === 0) return 'none';
+    if (cardCount > 3) return 'none';
+
+    // Check if ALL cards are immediately playable on current board (turn-agnostic)
+    const playableCards = this.getPlayableCardsOnBoard(player.cards);
+    const allCardsPlayable = cardCount > 0 && playableCards.length === cardCount;
+    
+    if (allCardsPlayable) {
+      return 'critical'; // All cards can be played on current board
+    }
+    
+    if (cardCount <= 3) {
+      return 'warning'; // Few cards but not all playable
+    }
+    
+    return 'none';
+  }
+
   getState() {
     return {
       roomCode: this.roomCode,
@@ -342,6 +472,7 @@ class GameRoom {
         connected: p.connected,
         isCurrentPlayer: this.players[this.currentPlayerIndex]?.id === p.id,
         totalScore: p.totalScore,
+        indicator: this.started && !this.gameFinished ? this.analyzePlayerPosition(p) : 'none',
       })),
       board: this.board,
       started: this.started,
@@ -350,6 +481,7 @@ class GameRoom {
       maxRounds: this.maxRounds,
       gameFinished: this.gameFinished,
       currentPlayerName: this.players[this.currentPlayerIndex]?.name,
+      gameStartMessage: this.gameStartMessage,
     };
   }
 
@@ -383,6 +515,11 @@ class GameRoom {
     return this.getConnectedPlayersCount() === 0;
   }
 
+  // Check if room is truly empty (no connected players and no reconnectable players)
+  isRoomEmptyForCleanup() {
+    return this.getConnectedPlayersCount() === 0;
+  }
+
   continueRound() {
     if (!this.gameFinished) return false;
 
@@ -398,12 +535,24 @@ class GameRoom {
     this.dealCards();
 
     // Determine the player who has 7♥ and make them start
-    this.currentPlayerIndex = this.players.findIndex((p) =>
+    this.heartsSevenPlayerIndex = this.players.findIndex((p) =>
       p.cards.some((c) => c.suit === "hearts" && c.rank === 7)
     );
 
+    // Set current player to the one with 7♥
+    this.currentPlayerIndex = this.heartsSevenPlayerIndex;
+
+    // Set game start message
+    this.gameStartMessage = `${
+      this.players[this.heartsSevenPlayerIndex].name
+    } started the game`;
+
     const heartsSevenCard = { suit: "hearts", rank: 7 };
-    this.playCard(this.players[this.currentPlayerIndex].id, heartsSevenCard);
+    this.playCard(
+      this.players[this.heartsSevenPlayerIndex].id,
+      heartsSevenCard,
+      true
+    );
 
     return true;
   }
