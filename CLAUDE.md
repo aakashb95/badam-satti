@@ -251,6 +251,12 @@ http://localhost:3000
     - Server-side calculation ensures consistent, accurate indicators for all players
     - Real-time analysis based on actual player cards and current board state
     - Enhanced strategic visibility with animated visual effects
+35. **Pre-Game Help System** - User-friendly help access from menu screen:
+    - **📋 Help Button**: Blue "How to Play" button in MenuScreen (join room screen)
+    - **Distinct Styling**: Blue (#2196F3) button with hover effects for clear differentiation
+    - **Strategic Placement**: Positioned prominently in menu after welcome message
+    - **Modal Integration**: Uses existing HelpModal component for consistent UI/UX
+    - **Accessibility**: Easy access to game rules before joining or creating rooms
 
 ## Known Working Features
 - ✅ **React Frontend** - Modern component-based architecture with TypeScript
@@ -286,6 +292,7 @@ http://localhost:3000
 - ✅ **Mobile App Switching** - Persistent connections when switching between apps/tabs
 - ✅ **Pre-Game Reconnection** - 10-minute reconnection window for waiting room disconnections
 - ✅ **Server-Side Player Indicators** - Clean turn-agnostic color warnings (yellow/red) with optimal UX
+- ✅ **Pre-Game Help System** - Blue "How to Play" button in menu screen with modal integration
 
 ## Development Notes
 - **Frontend**: React 18 + TypeScript with Vite build system
@@ -314,6 +321,7 @@ http://localhost:3000
 - SQLite database: `/Users/aakash/expts/badam7/server/badam-satti.db`
 - **React App**: `/Users/aakash/expts/badam7/client/src/App.tsx`
 - **React Components**: `/Users/aakash/expts/badam7/client/src/components/`
+- **Menu Screen**: `/Users/aakash/expts/badam7/client/src/components/MenuScreen.tsx`
 - **TypeScript Types**: `/Users/aakash/expts/badam7/client/src/types/index.ts`
 - **Build Output**: `/Users/aakash/expts/badam7/client/dist/`
 - **Legacy Backup**: `/Users/aakash/expts/badam7/client-backup/` (original vanilla JS)
@@ -333,4 +341,4 @@ http://localhost:3000
 
 ---
 *Last Updated: 2025-07-09*
-*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play, enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), Cloudflare CDN integration for global performance, and clean turn-agnostic server-side player position indicators (optimal UX)*
+*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play, enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), Cloudflare CDN integration for global performance, clean turn-agnostic server-side player position indicators (optimal UX), and pre-game help system with blue "How to Play" button*
