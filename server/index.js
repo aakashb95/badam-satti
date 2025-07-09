@@ -91,7 +91,27 @@ setInterval(async () => {
 }, 60000); // Clean up every minute
 
 // Serve static files from client dist directory (React build)
-app.use(express.static(path.join(__dirname, "../client/dist")));
+// Add no-cache headers for HTML, JS, CSS to ensure latest UI
+app.use(express.static(path.join(__dirname, "../client/dist"), {
+  setHeaders: (res, path) => {
+    // No cache for HTML files
+    if (path.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+    // No cache for JS and CSS files (they have hashed names from Vite)
+    else if (path.endsWith('.js') || path.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+    // Allow caching for images and other assets
+    else {
+      res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year
+    }
+  }
+}));
 
 // Health check endpoint
 app.get("/health", async (req, res) => {
@@ -695,6 +715,10 @@ process.on('SIGINT', async () => {
 
 // Catch-all route - serve React app for all unmatched routes
 app.get("*", (req, res) => {
+  // Always serve fresh HTML with no-cache headers
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(__dirname, "../client/dist/index.html"));
 });
 

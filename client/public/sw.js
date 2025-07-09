@@ -1,4 +1,4 @@
-const CACHE_NAME = 'badam-satti-v1.0.0';
+const CACHE_NAME = 'badam-satti-v' + Date.now(); // Dynamic cache name for version control
 const urlsToCache = [
   '/',
   '/index.html',
@@ -41,7 +41,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - serve from cache when offline
+// Fetch event - network-first for HTML/JS/CSS, cache-first for images
 self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (event.request.method !== 'GET') {
@@ -53,41 +53,71 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Return cached version if available
-        if (response) {
-          return response;
-        }
+  const url = new URL(event.request.url);
+  const isAppFile = url.pathname.endsWith('.html') || 
+                   url.pathname.endsWith('.js') || 
+                   url.pathname.endsWith('.css') ||
+                   url.pathname === '/' ||
+                   !url.pathname.includes('.');
 
-        // Otherwise, fetch from network
-        return fetch(event.request)
-          .then((response) => {
-            // Don't cache if not a valid response
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-
-            // Clone the response
-            const responseToCache = response.clone();
-
-            // Add to cache
+  if (isAppFile) {
+    // Network-first strategy for app files (HTML, JS, CSS)
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          // Clone response before caching
+          const responseToCache = response.clone();
+          
+          // Only cache valid responses
+          if (response && response.status === 200 && response.type === 'basic') {
             caches.open(CACHE_NAME)
               .then((cache) => {
                 cache.put(event.request, responseToCache);
               });
-
+          }
+          
+          return response;
+        })
+        .catch(() => {
+          // Fallback to cache if network fails
+          return caches.match(event.request)
+            .then((cachedResponse) => {
+              if (cachedResponse) {
+                return cachedResponse;
+              }
+              // Final fallback for documents
+              if (event.request.destination === 'document') {
+                return caches.match('/index.html');
+              }
+            });
+        })
+    );
+  } else {
+    // Cache-first strategy for images and other assets
+    event.respondWith(
+      caches.match(event.request)
+        .then((response) => {
+          if (response) {
             return response;
-          })
-          .catch(() => {
-            // If both cache and network fail, return offline page
-            if (event.request.destination === 'document') {
-              return caches.match('/index.html');
-            }
-          });
-      })
-  );
+          }
+
+          return fetch(event.request)
+            .then((response) => {
+              if (!response || response.status !== 200 || response.type !== 'basic') {
+                return response;
+              }
+
+              const responseToCache = response.clone();
+              caches.open(CACHE_NAME)
+                .then((cache) => {
+                  cache.put(event.request, responseToCache);
+                });
+
+              return response;
+            });
+        })
+    );
+  }
 });
 
 // Background sync for offline actions
