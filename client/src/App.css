@@ -2206,3 +2206,124 @@ button {
     font-size: 0.9em;
   }
 }
+
+/* Sound Controls */
+.sound-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.sound-toggle-btn, .volume-btn, .test-sound-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+}
+
+.sound-toggle-btn:hover, .volume-btn:hover, .test-sound-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  transform: scale(1.1);
+}
+
+.volume-control {
+  position: relative;
+}
+
+.volume-slider-container {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 4px;
+  background: rgba(30, 30, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.volume-slider {
+  width: 60px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  border-radius: 50%;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+.test-sound-btn {
+  font-size: 14px;
+  min-width: 24px;
+  height: 24px;
+}
+
+/* Sound controls in game top bar */
+.game-top-bar .sound-controls {
+  margin-left: auto;
+  margin-right: 8px;
+}
+
+/* Mobile responsiveness for sound controls */
+@media (max-width: 480px) {
+  .sound-controls {
+    gap: 4px;
+    padding: 2px;
+  }
+  
+  .sound-toggle-btn, .volume-btn, .test-sound-btn {
+    font-size: 14px;
+    min-width: 24px;
+    height: 24px;
+    padding: 4px;
+  }
+  
+  .volume-slider-container {
+    margin-top: 2px;
+    padding: 6px;
+  }
+  
+  .volume-slider {
+    width: 50px;
+  }
+}

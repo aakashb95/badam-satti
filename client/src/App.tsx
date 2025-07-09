@@ -11,6 +11,7 @@ import Notification from './components/Notification';
 import SummaryScreen from './components/SummaryScreen';
 import WaitingRoom from './components/WaitingRoom';
 import { AppState, Card, GameSummary, Winner } from './types';
+import { audioManager } from './utils/AudioManager';
 
 const App: React.FC = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -159,6 +160,7 @@ const App: React.FC = () => {
     // Game events
     newSocket.on('game_started', ({ gameState }) => {
       console.log('Game started');
+      audioManager.playGameStart();
       setAppState(prev => ({
         ...prev,
         gameState,
@@ -179,18 +181,21 @@ const App: React.FC = () => {
 
     newSocket.on('card_played', ({ playerName, card, gameState }) => {
       console.log(`${playerName} played ${card.rank} of ${card.suit}`);
+      audioManager.playCardPlayed();
       setAppState(prev => ({ ...prev, gameState }));
       showNotification(`${playerName} played ${getRankDisplay(card.rank)} of ${getSuitName(card.suit)}`);
     });
 
     newSocket.on('turn_passed', ({ playerName, gameState }) => {
       console.log(`${playerName} passed`);
+      audioManager.playPassTurn();
       setAppState(prev => ({ ...prev, gameState }));
       showNotification(`${playerName} passed`);
     });
 
     newSocket.on('game_over', (winner: Winner) => {
       console.log('Game over:', winner);
+      audioManager.playGameEnd();
       clearAutoPlayTimers();
       
       // Show initial "Game Over" message for 2 seconds
@@ -606,7 +611,6 @@ const App: React.FC = () => {
             validMoves={appState.validMoves}
             isMyTurn={appState.isMyTurn}
             canPass={appState.canPass}
-            username={appState.username}
             onPlayCard={playCard}
             onPassTurn={passTurn}
             onLeaveGame={leaveRoom}

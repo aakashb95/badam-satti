@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Card, GameState } from '../types';
 import HelpModal from './HelpModal';
+import SoundControls from './SoundControls';
+import { audioManager } from '../utils/AudioManager';
 
 interface GameScreenProps {
   gameState: GameState | null;
@@ -8,7 +10,6 @@ interface GameScreenProps {
   validMoves: Card[];
   isMyTurn: boolean;
   canPass: boolean;
-  username: string;
   onPlayCard: (card: Card) => void;
   onPassTurn: () => void;
   onLeaveGame: () => void;
@@ -26,6 +27,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
 }) => {
   const [timeLeft, setTimeLeft] = useState(5);
   const [showHelp, setShowHelp] = useState(false);
+  const prevWarningLevels = useRef<{[key: string]: string}>({});
 
   useEffect(() => {
     if (isMyTurn) {
@@ -40,6 +42,28 @@ const GameScreen: React.FC<GameScreenProps> = ({
       return () => clearInterval(interval);
     }
   }, [isMyTurn]);
+
+  // Monitor warning level changes and play sounds
+  useEffect(() => {
+    if (!gameState || !gameState.players) return;
+
+    gameState.players.forEach((player) => {
+      const currentWarningLevel = getWarningLevel(player);
+      const prevWarningLevel = prevWarningLevels.current[player.name] || 'none';
+
+      // Play sound when warning level changes
+      if (prevWarningLevel !== currentWarningLevel) {
+        if (currentWarningLevel === 'warning') {
+          audioManager.playWarning();
+        } else if (currentWarningLevel === 'critical') {
+          audioManager.playSure();
+        }
+      }
+
+      // Update previous warning level
+      prevWarningLevels.current[player.name] = currentWarningLevel;
+    });
+  }, [gameState]);
 
   const getRankDisplay = (rank: number): string => {
     if (rank === 1) return 'A';
@@ -269,6 +293,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
           <button className="help-icon-btn" onClick={() => setShowHelp(true)} title="Help">
             ℹ️
           </button>
+          <SoundControls />
           <button className="mobile-leave-btn" onClick={onLeaveGame}>
             <span className="btn-icon">🚪</span>
             <span className="btn-text">Leave</span>

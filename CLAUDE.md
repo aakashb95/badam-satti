@@ -251,6 +251,13 @@ http://localhost:3000
     - Server-side calculation ensures consistent, accurate indicators for all players
     - Real-time analysis based on actual player cards and current board state
     - Enhanced strategic visibility with animated visual effects
+35. **In-Game Help System** - User-friendly help modal for gameplay guidance:
+    - **ℹ️ Help Icon**: Positioned in game-top-bar between game info and leave button
+    - **Modal Interface**: Clean, overlay-style modal with grandma-friendly explanations
+    - **Simple Content**: Covers game goal, how to play, card colors, and player warnings
+    - **Mobile Responsive**: Optimized for phones and tablets with appropriate sizing
+    - **Strategic Placement**: Available during gameplay when users need it most
+    - **Accessibility**: Clear visual indicators and simple language for all users
 
 ## Known Working Features
 - ✅ **React Frontend** - Modern component-based architecture with TypeScript
@@ -286,6 +293,7 @@ http://localhost:3000
 - ✅ **Mobile App Switching** - Persistent connections when switching between apps/tabs
 - ✅ **Pre-Game Reconnection** - 10-minute reconnection window for waiting room disconnections
 - ✅ **Server-Side Player Indicators** - Clean turn-agnostic color warnings (yellow/red) with optimal UX
+- ✅ **In-Game Help System** - User-friendly help modal accessible during gameplay with simple explanations
 
 ## Development Notes
 - **Frontend**: React 18 + TypeScript with Vite build system
@@ -314,6 +322,7 @@ http://localhost:3000
 - SQLite database: `/Users/aakash/expts/badam7/server/badam-satti.db`
 - **React App**: `/Users/aakash/expts/badam7/client/src/App.tsx`
 - **React Components**: `/Users/aakash/expts/badam7/client/src/components/`
+- **Help Modal**: `/Users/aakash/expts/badam7/client/src/components/HelpModal.tsx`
 - **TypeScript Types**: `/Users/aakash/expts/badam7/client/src/types/index.ts`
 - **Build Output**: `/Users/aakash/expts/badam7/client/dist/`
 - **Legacy Backup**: `/Users/aakash/expts/badam7/client-backup/` (original vanilla JS)
@@ -333,4 +342,4 @@ http://localhost:3000
 
 ---
 *Last Updated: 2025-07-09*
-*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play, enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), Cloudflare CDN integration for global performance, and clean turn-agnostic server-side player position indicators (optimal UX)*
+*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play, enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), Cloudflare CDN integration for global performance, clean turn-agnostic server-side player position indicators (optimal UX), and in-game help system with user-friendly modal interface*
