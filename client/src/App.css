@@ -2047,3 +2047,162 @@ button:disabled {
 button {
   background: linear-gradient(135deg, var(--accent) 0%, #0d9488 100%);
 }
+
+/* Help Modal Styles */
+.help-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.help-modal-content {
+  background: rgba(30, 30, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  padding: 0;
+  max-width: 400px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+}
+
+.help-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.help-modal-header h3 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 1.4em;
+}
+
+.help-close-btn {
+  background: none;
+  border: none;
+  color: #ffffff;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.help-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.help-modal-body {
+  padding: 20px 24px 24px;
+}
+
+.help-section {
+  margin-bottom: 20px;
+}
+
+.help-section:last-child {
+  margin-bottom: 0;
+}
+
+.help-section h4 {
+  margin: 0 0 8px 0;
+  color: #ffffff;
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+.help-section p {
+  margin: 4px 0;
+  color: #e0e0e0;
+  font-size: 0.95em;
+  line-height: 1.4;
+}
+
+.help-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.help-indicator.green {
+  color: var(--accent);
+}
+
+.help-indicator.yellow {
+  color: #fbbf24;
+}
+
+.help-indicator.red {
+  color: #ef4444;
+}
+
+.help-indicator.normal {
+  color: #9ca3af;
+}
+
+/* Help Icon Button */
+.help-icon-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+}
+
+.help-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  transform: scale(1.1);
+}
+
+/* Mobile responsiveness for help modal */
+@media (max-width: 480px) {
+  .help-modal-content {
+    max-width: 95%;
+    margin: 0 10px;
+  }
+  
+  .help-modal-header {
+    padding: 16px 20px 12px;
+  }
+  
+  .help-modal-body {
+    padding: 16px 20px 20px;
+  }
+  
+  .help-section h4 {
+    font-size: 1.05em;
+  }
+  
+  .help-section p {
+    font-size: 0.9em;
+  }
+}

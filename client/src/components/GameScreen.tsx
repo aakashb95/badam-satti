@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, GameState } from '../types';
+import HelpModal from './HelpModal';
 
 interface GameScreenProps {
   gameState: GameState | null;
@@ -24,6 +25,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
   onLeaveGame,
 }) => {
   const [timeLeft, setTimeLeft] = useState(5);
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     if (isMyTurn) {
@@ -264,6 +266,9 @@ const GameScreen: React.FC<GameScreenProps> = ({
               {isMyTurn ? `Your Turn${timeLeft > 0 ? ` (${timeLeft}s)` : ''}` : `${gameState?.currentPlayerName}'s Turn`}
             </div>
           </div>
+          <button className="help-icon-btn" onClick={() => setShowHelp(true)} title="Help">
+            ℹ️
+          </button>
           <button className="mobile-leave-btn" onClick={onLeaveGame}>
             <span className="btn-icon">🚪</span>
             <span className="btn-text">Leave</span>
@@ -279,6 +284,9 @@ const GameScreen: React.FC<GameScreenProps> = ({
         {/* Player's Cards */}
         {renderMyCards()}
       </div>
+      
+      {/* Help Modal */}
+      <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
     </div>
   );
 };
