@@ -406,6 +406,63 @@ class GameRoom {
     return player.cards.filter((card) => this.isValidMove(playerId, card));
   }
 
+  isCardPlayableOnBoard(card) {
+    const suitBoard = this.board[card.suit];
+
+    // If suit not started, must be 7
+    if (suitBoard.up.length === 0 && suitBoard.down.length === 0) {
+      return card.rank === 7;
+    }
+
+    // Check if we can play above the highest card
+    if (suitBoard.up.length > 0) {
+      const highestCard = suitBoard.up[suitBoard.up.length - 1];
+      if (card.rank === highestCard + 1 && card.rank <= 13) {
+        return true;
+      }
+    }
+
+    // Check if we can play below the lowest card
+    if (suitBoard.down.length > 0) {
+      const lowestCard = suitBoard.down[suitBoard.down.length - 1];
+      if (card.rank === lowestCard - 1 && card.rank >= 1) {
+        return true;
+      }
+    }
+
+    // If 7 has been played but no lower cards yet, allow 6
+    if (suitBoard.down.length === 0 && suitBoard.up.includes(7)) {
+      return card.rank === 6;
+    }
+
+    return false;
+  }
+
+  getPlayableCardsOnBoard(cards) {
+    return cards.filter(card => this.isCardPlayableOnBoard(card));
+  }
+
+  analyzePlayerPosition(player) {
+    const cardCount = player.cards.length;
+    
+    if (cardCount === 0) return 'none';
+    if (cardCount > 3) return 'none';
+
+    // Check if ALL cards are immediately playable on current board (turn-agnostic)
+    const playableCards = this.getPlayableCardsOnBoard(player.cards);
+    const allCardsPlayable = cardCount > 0 && playableCards.length === cardCount;
+    
+    if (allCardsPlayable) {
+      return 'critical'; // All cards can be played on current board
+    }
+    
+    if (cardCount <= 3) {
+      return 'warning'; // Few cards but not all playable
+    }
+    
+    return 'none';
+  }
+
   getState() {
     return {
       roomCode: this.roomCode,
@@ -415,6 +472,7 @@ class GameRoom {
         connected: p.connected,
         isCurrentPlayer: this.players[this.currentPlayerIndex]?.id === p.id,
         totalScore: p.totalScore,
+        indicator: this.started && !this.gameFinished ? this.analyzePlayerPosition(p) : 'none',
       })),
       board: this.board,
       started: this.started,

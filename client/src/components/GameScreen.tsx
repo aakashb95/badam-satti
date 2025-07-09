@@ -79,18 +79,10 @@ const GameScreen: React.FC<GameScreenProps> = ({
   };
 
   const getWarningLevel = (player: any) => {
-    if (player.cardCount >= 3) return 'none';
-
-    if (player.isCurrentPlayer) {
-      const allCardsPlayable = myCards.length > 0 && myCards.length === validMoves.length;
-      if (allCardsPlayable) {
-        return 'critical';
-      }
-      return 'warning';
-    }
-
-    return 'warning';
+    // Use server-provided indicator data
+    return player.indicator || 'none';
   };
+
 
   const renderBoard = () => {
     if (!gameState) return null;
@@ -191,13 +183,14 @@ const GameScreen: React.FC<GameScreenProps> = ({
                     key={player.name}
                     className={`player-info ${
                       player.connected ? 'connected' : 'disconnected'
-                    } ${warningLevel === 'warning' ? 'warning-indicator' : ''}`}
+                    } ${warningLevel === 'critical' ? 'critical-warning' : ''} ${warningLevel === 'warning' ? 'warning-indicator' : ''}`}
                   >
                     <div className="player-name">{player.name}</div>
                     <div className="player-status-indicators">
                       <span className="connection-status">
                         {player.connected ? '🔵' : '🔴'}
                       </span>
+                      {warningLevel === 'critical' && <span className="warning-icon critical">🔴</span>}
                       {warningLevel === 'warning' && <span className="warning-icon">🟡</span>}
                     </div>
                   </div>

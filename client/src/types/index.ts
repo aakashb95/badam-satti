@@ -10,6 +10,7 @@ export interface Player {
   cardCount: number;
   isCurrentPlayer: boolean;
   totalScore?: number;
+  indicator?: 'none' | 'warning' | 'critical';
 }
 
 export interface GameBoard {

@@ -248,7 +248,20 @@ const App: React.FC = () => {
 
     newSocket.on('error', (message: string) => {
       console.error('Server error:', message);
-      showError(message);
+      
+      // If room not found, redirect to menu and preserve username
+      if (message.toLowerCase().includes('room not found') || message.toLowerCase().includes('room does not exist')) {
+        setAppState(prev => ({
+          ...prev,
+          currentScreen: 'menu',
+          loading: null,
+          error: message,
+          currentRoom: '',
+          gameState: null,
+        }));
+      } else {
+        showError(message);
+      }
     });
 
     // Handle page visibility changes (app switching)

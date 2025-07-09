@@ -243,6 +243,14 @@ http://localhost:3000
     - Phase-aware disconnect handling: reconnection in waiting, immediate removal in game
     - Database schema enhancement with `disconnected_at`, `can_reconnect`, `reconnect_timeout`
     - Room cleanup preservation for reconnectable players
+34. **Server-Side Player Indicators** - Clean turn-agnostic position analysis system:
+    - **🟡 Yellow Warning**: Players with 3 cards or less (risky position)
+    - **🔴 Red Critical**: Players where ALL remaining cards are immediately playable on current board (sure win)
+    - **Turn-Agnostic Logic**: Red indicators show instantly when cards become playable, regardless of whose turn it is
+    - **Clean UI**: Color-only indicators without cluttered text for optimal UX
+    - Server-side calculation ensures consistent, accurate indicators for all players
+    - Real-time analysis based on actual player cards and current board state
+    - Enhanced strategic visibility with animated visual effects
 
 ## Known Working Features
 - ✅ **React Frontend** - Modern component-based architecture with TypeScript
@@ -277,6 +285,7 @@ http://localhost:3000
 - ✅ **CDN Performance** - Cloudflare global edge caching with 1-year TTL for instant loading
 - ✅ **Mobile App Switching** - Persistent connections when switching between apps/tabs
 - ✅ **Pre-Game Reconnection** - 10-minute reconnection window for waiting room disconnections
+- ✅ **Server-Side Player Indicators** - Clean turn-agnostic color warnings (yellow/red) with optimal UX
 
 ## Development Notes
 - **Frontend**: React 18 + TypeScript with Vite build system
@@ -309,6 +318,19 @@ http://localhost:3000
 - **Build Output**: `/Users/aakash/expts/badam7/client/dist/`
 - **Legacy Backup**: `/Users/aakash/expts/badam7/client-backup/` (original vanilla JS)
 
+## TODO/Deferred
+
+### Error Handling Improvements (2025-07-09)
+**Issue**: Current "room not found" error handling uses brittle text matching
+- **Current**: `message.toLowerCase().includes('room not found')`
+- **Problems**: Case sensitivity, exact wording dependency, i18n issues, false positives
+- **Better Solutions**: 
+  - Error codes: `{ type: 'ROOM_NOT_FOUND', message: '...' }`
+  - Separate events: `socket.emit('room_not_found', { roomCode, message })`
+  - HTTP-style status codes for error categorization
+- **Risk**: Server message changes break error handling, causing infinite loading
+- **Priority**: Medium (works for now, but fragile)
+
 ---
 *Last Updated: 2025-07-09*
-*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play, enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), and Cloudflare CDN integration for global performance*
+*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play, enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), Cloudflare CDN integration for global performance, and clean turn-agnostic server-side player position indicators (optimal UX)*
