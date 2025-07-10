@@ -64,6 +64,22 @@ h1 {
   font-weight: 800;
 }
 
+.logo-section {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 15px;
+  margin-bottom: 10px;
+}
+
+.logo-card {
+  height: 2.2em;
+  width: auto;
+  border-radius: 2px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.2));
+}
+
 h2 {
   font-size: 2em;
   margin-bottom: 15px;
@@ -1099,9 +1115,12 @@ button:disabled {
   box-shadow: 0 0 15px rgba(33, 150, 243, 0.4);
 }
 
-.hand-card:hover:not([style*="opacity"]) {
-  transform: translateY(-12px) scale(1.05);
-  cursor: pointer;
+/* Fix for stuck hover states on touch devices */
+@media (hover: hover) and (pointer: fine) {
+  .hand-card:hover:not([style*="opacity"]) {
+    transform: translateY(-12px) scale(1.05);
+    cursor: pointer;
+  }
 }
 
 .board-card-img {
@@ -1681,6 +1700,25 @@ button:disabled {
   transform: translateY(-8px) scale(1.05);
 }
 
+/* Fix for stuck hover states on touch devices */
+@media (hover: hover) and (pointer: fine) {
+  .hand-card:hover:not([style*="opacity"]) {
+    transform: translateY(-12px) scale(1.1);
+    z-index: 10;
+  }
+}
+
+/* Ensure transform resets for non-interactive states */
+.hand-card:not(.playable):not(:hover):not(:active) {
+  transform: none;
+}
+
+/* Force reset transforms for stuck hover states */
+.hand-card.reset-transform {
+  transform: none !important;
+  transition: none !important;
+}
+
 .hand-suit .hand-card:not(:first-child) {
   margin-left: -45px;
 }
@@ -1688,6 +1726,111 @@ button:disabled {
 @keyframes cardGlow {
   0%, 100% { box-shadow: 0 0 20px rgba(76, 175, 80, 0.5); }
   50% { box-shadow: 0 0 30px rgba(76, 175, 80, 0.8); }
+}
+
+/* Desktop Responsive Design */
+@media (min-width: 769px) {
+  .players-info-mobile {
+    margin-top: 90px; /* Increased margin for desktop to prevent overlap with top bar */
+  }
+  
+  .game-container {
+    padding-top: 80px; /* Increased padding for desktop */
+  }
+  
+  /* Compact players info for desktop */
+  .players-info-mobile {
+    padding: 6px 12px;
+    margin: 4px 12px;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  .current-player-indicator {
+    padding: 6px 10px;
+    border-radius: 6px;
+  }
+  
+  .current-player-name {
+    font-size: 14px;
+  }
+  
+  .current-player-turn {
+    font-size: 11px;
+  }
+  
+  .current-player-cards {
+    font-size: 12px;
+  }
+  
+  .other-players-list {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  
+  .player-info {
+    padding: 4px 8px;
+    border-radius: 4px;
+    min-width: 100px;
+    font-size: 12px;
+  }
+  
+  /* Enhanced game board for desktop */
+  #game-board {
+    max-height: 280px; /* Reduced from 400px */
+    min-height: 240px; /* Reduced from 300px */
+    gap: 12px;
+    padding: 16px;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  
+  .suit-area {
+    min-height: 200px; /* Reduced from 280px */
+    padding: 8px;
+  }
+  
+  .board-card-img {
+    width: 60px; /* Reduced from 80px */
+  }
+  
+  /* Enhanced hand cards for desktop */
+  .my-cards-section {
+    max-width: 1000px;
+    margin: 8px auto 0;
+    padding: 16px;
+  }
+  
+  .my-cards-grid {
+    gap: 8px;
+    padding: 12px 8px;
+    min-height: 120px; /* Reduced from 180px */
+  }
+  
+  .hand-card {
+    width: 70px; /* Reduced from 90px */
+  }
+  
+  .hand-suit .hand-card:not(:first-child) {
+    margin-left: -50px; /* Adjusted for smaller cards */
+  }
+  
+  /* Better typography for desktop */
+  .cards-count {
+    font-size: 18px;
+    font-weight: 600;
+  }
+  
+  .suit-header {
+    font-size: 18px;
+  }
+  
+  .suit-name {
+    font-size: 14px;
+  }
 }
 
 /* Enhanced Mobile Responsive Design */
