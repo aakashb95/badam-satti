@@ -1,11 +1,26 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
+const helmet = require("helmet");
+const cors = require("cors");
+const crypto = require("crypto");
 const app = express();
 const server = require("http").createServer(app);
+
+// Security configuration
+const ALLOWED_ORIGINS = [
+  "http://localhost:3000",
+  "https://localhost:3000",
+  "http://localhost:5173", // Vite dev server
+  "https://localhost:5173",
+  "https://badam7.aakashb.xyz",
+  "https://www.badam7.aakashb.xyz"
+];
+
 const io = require("socket.io")(server, {
   cors: {
-    origin: "*",
+    origin: ALLOWED_ORIGINS,
     methods: ["GET", "POST"],
+    credentials: true
   },
   pingTimeout: 120000,  // 2 minutes - allow for mobile app switching
   pingInterval: 30000,  // 30 seconds - more lenient for mobile
@@ -15,19 +30,68 @@ const path = require("path");
 const { GameRoom } = require("./gameLogic");
 const Database = require("./database");
 
+// Security utility functions
+function hashIP(ip) {
+  // Create a consistent hash of the IP address for privacy
+  return crypto.createHash('sha256').update(ip + process.env.IP_HASH_SALT || 'default-salt').digest('hex').substring(0, 16);
+}
+
+function sanitizeError(error) {
+  // Remove sensitive information from error messages
+  if (typeof error === 'string') {
+    return error.replace(/\/[^\s]+/g, '[PATH]').replace(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, '[IP]');
+  }
+  return 'Internal server error';
+}
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "wss:", "ws:"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"]
+    }
+  },
+  crossOriginEmbedderPolicy: false // Allow for PWA features
+}));
+
+app.use(cors({
+  origin: ALLOWED_ORIGINS,
+  credentials: true,
+  optionsSuccessStatus: 200
+}));
+
+// HTTPS enforcement (except for localhost development)
+app.use((req, res, next) => {
+  if (req.header('x-forwarded-proto') !== 'https' && 
+      !req.hostname.includes('localhost') && 
+      process.env.NODE_ENV === 'production') {
+    return res.redirect(`https://${req.hostname}${req.url}`);
+  }
+  next();
+});
+
 // Initialize database
 const db = new Database();
 
 // Store all game rooms (in-memory cache + database persistence)
 const rooms = {};
 
-// Rate limiting middleware
+// Rate limiting middleware with IP hashing
 const createRoomLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 10, // limit each IP to 10 room creations per windowMs
   message: { error: "Too many room creation attempts, please try again later" },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => hashIP(req.ip || req.connection.remoteAddress || 'unknown'),
 });
 
 const joinRoomLimiter = rateLimit({
@@ -36,6 +100,7 @@ const joinRoomLimiter = rateLimit({
   message: { error: "Too many join attempts, please try again later" },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => hashIP(req.ip || req.connection.remoteAddress || 'unknown'),
 });
 
 // Middleware for parsing JSON
@@ -113,60 +178,58 @@ app.use(express.static(path.join(__dirname, "../client/dist"), {
   }
 }));
 
-// Health check endpoint
+// Secure health check endpoint - minimal information exposure
 app.get("/health", async (req, res) => {
   try {
-    const dbHealth = await db.healthCheck();
-    const activeRooms = await db.getAllActiveRooms();
+    // Simple health check without exposing sensitive data
+    await db.healthCheck();
     
     res.json({
       status: "ok",
-      memory_rooms: Object.keys(rooms).length,
-      database_rooms: activeRooms.length,
-      database: dbHealth,
-      uptime: process.uptime(),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Health check error:', error);
+    console.error('Health check error:', sanitizeError(error.message));
     res.status(500).json({
       status: "error",
-      error: error.message,
       timestamp: new Date().toISOString(),
     });
   }
 });
 
-// Detailed health endpoint
-app.get("/health/detailed", async (req, res) => {
+// Admin-only detailed health endpoint (requires authentication)
+app.get("/health/admin", async (req, res) => {
   try {
+    // Check for admin authentication
+    const adminKey = req.headers['x-admin-key'];
+    if (!adminKey || adminKey !== process.env.ADMIN_KEY) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    
     const dbHealth = await db.healthCheck();
     const activeRooms = await db.getAllActiveRooms();
     
     res.json({
       status: "ok",
       server: {
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        pid: process.pid,
+        uptime: Math.floor(process.uptime()), // Rounded for less precision
+        memory_usage_mb: Math.floor(process.memoryUsage().heapUsed / 1024 / 1024),
+        node_env: process.env.NODE_ENV || 'development'
       },
       rooms: {
-        memory_count: Object.keys(rooms).length,
-        database_count: activeRooms.length,
-        active_rooms: activeRooms.map(room => ({
-          room_code: room.room_code,
-          created_at: room.created_at,
-          updated_at: room.updated_at
-        })),
+        active_count: activeRooms.length,
+        memory_count: Object.keys(rooms).length
       },
-      database: dbHealth,
+      database: {
+        status: dbHealth.database,
+        active_rooms: dbHealth.active_rooms
+      },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Detailed health check error:', error);
+    console.error('Admin health check error:', sanitizeError(error.message));
     res.status(500).json({
       status: "error",
-      error: error.message,
       timestamp: new Date().toISOString(),
     });
   }
@@ -188,8 +251,8 @@ io.on("connection", (socket) => {
         return;
       }
 
-      // Check rate limit
-      const clientIP = socket.handshake.address;
+      // Check rate limit using hashed IP
+      const clientIP = hashIP(socket.handshake.address || 'unknown');
       const rateLimitCheck = await db.checkRateLimit(clientIP, 10, 1);
       if (!rateLimitCheck.allowed) {
         socket.emit("error", "Too many room creation attempts. Please wait.");
@@ -232,8 +295,8 @@ io.on("connection", (socket) => {
         return;
       }
 
-      // Check rate limit
-      const clientIP = socket.handshake.address;
+      // Check rate limit using hashed IP
+      const clientIP = hashIP(socket.handshake.address || 'unknown');
       const rateLimitCheck = await db.checkRateLimit(clientIP, 20, 1);
       if (!rateLimitCheck.allowed) {
         socket.emit("error", "Too many join attempts. Please wait.");

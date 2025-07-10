@@ -283,6 +283,40 @@ http://localhost:3000
     - **Context-Aware Labels**: "Your Turn" vs "Current Turn" based on player perspective
     - **Single Source of Truth**: Current player indicator is primary turn information
     - **Reduced Cognitive Load**: Clear, non-duplicated turn status throughout interface
+41. **Enhanced Card Playability Detection** - Fixed server-side indicator logic for red critical warnings:
+    - **Fixed Edge Cases**: Corrected `isCardPlayableOnBoard()` logic to properly detect all playable cards
+    - **7-Based Sequences**: Added special handling for 6 and 8 cards when 7 is the only card played
+    - **Accurate Critical Indicators**: Red warnings now correctly appear when all remaining cards are playable
+    - **Turn-Agnostic Analysis**: Real-time position analysis updates instantly as board state changes
+42. **Toast Notification System** - Replaced alert popups with clean toast notifications:
+    - **Copy Room Code**: Replaced browser alert with elegant toast notification
+    - **Consistent UX**: Uses existing notification system for seamless user experience
+    - **Non-Intrusive**: Toast notifications don't interrupt gameplay flow
+    - **Cross-Platform**: Works consistently across all devices and browsers
+43. **Simplified Player Card Display** - Clean numeric-only card counts for non-active players:
+    - **Minimalist Design**: Removed "cards" suffix for other players, showing just numbers
+    - **Context-Aware**: Current player still shows "X cards" for clarity
+    - **Reduced Clutter**: Cleaner UI with essential information only
+    - **Visual Hierarchy**: Clear distinction between active and inactive players
+44. **Refined Visual Indicators** - Streamlined warning system with color-only approach:
+    - **Removed Emoji Dots**: Eliminated redundant 🟡/🔴 emojis from player indicators
+    - **Background Color Focus**: Warning levels shown through background colors only
+    - **Clean Aesthetic**: Reduced visual noise while maintaining functionality
+    - **Consistent Design**: Uniform indicator system across all player displays
+45. **Fixed Card Stacking Edge Cases** - Corrected sequence detection for proper 7-centered stacking:
+    - **Downward-Only Fix**: Properly detects 7,6,5,4 sequences as downward-only (not mixed)
+    - **Upward-Only Logic**: Correctly handles 7,8,9,10 sequences with proper card display
+    - **7-Centered Display**: Ensures 7 always appears in center position for both sequence types
+    - **Edge Case Handling**: Fixed logic to distinguish between mixed and single-direction sequences
+46. **Critical Security Hardening** - Comprehensive security vulnerability fixes (2025-07-10):
+    - **CORS Protection**: Restricted origins to specific allowed domains (localhost, production domain)
+    - **IP Privacy**: Implemented IP address hashing with crypto.createHash() for user privacy
+    - **Security Headers**: Added Helmet.js with CSP, HSTS, and anti-clickjacking protection
+    - **HTTPS Enforcement**: Automatic HTTPS redirection in production environment
+    - **Health Endpoint Security**: Removed sensitive data exposure (PID, memory details, room codes)
+    - **Admin Authentication**: Added `/health/admin` endpoint with API key authentication
+    - **Error Sanitization**: Implemented error message sanitization to prevent information disclosure
+    - **Rate Limiting Enhancement**: Updated rate limiting to use hashed IPs instead of raw addresses
 
 ## Known Working Features
 - ✅ **React Frontend** - Modern component-based architecture with TypeScript
@@ -323,6 +357,12 @@ http://localhost:3000
 - ✅ **Enhanced Auto-Play Timing** - 20-second countdown with visual feedback and touch-friendly card states
 - ✅ **Optimized Desktop Layout** - Balanced proportions with proper card visibility and space distribution
 - ✅ **Clean Turn Information UX** - Simplified interface eliminating information overload
+- ✅ **Enhanced Card Playability Detection** - Fixed server-side red indicator logic for accurate critical warnings
+- ✅ **Toast Notification System** - Replaced alert popups with elegant toast notifications for room code copying
+- ✅ **Simplified Player Card Display** - Clean numeric-only counts for non-active players with context-aware labeling
+- ✅ **Refined Visual Indicators** - Streamlined color-only warning system without redundant emoji dots
+- ✅ **Fixed Card Stacking Edge Cases** - Proper 7-centered stacking with accurate sequence direction detection
+- ✅ **Critical Security Hardening** - CORS protection, IP hashing, security headers, HTTPS enforcement, secure health endpoints
 
 ## Development Notes
 - **Frontend**: React 18 + TypeScript with Vite build system
@@ -369,6 +409,33 @@ http://localhost:3000
 - **Risk**: Server message changes break error handling, causing infinite loading
 - **Priority**: Medium (works for now, but fragile)
 
+### Additional Security Enhancements (Future)
+**Medium Priority Security Items:**
+- **Database File Permissions**: Set restrictive permissions on `badam-satti.db` (600 or 640)
+- **Input Sanitization**: Add comprehensive input validation for all user inputs
+- **Socket Event Rate Limiting**: Implement rate limiting on socket events (play_card, etc.)
+- **Session Management**: Implement proper session tokens instead of socket IDs
+- **Logging Security**: Implement secure logging with log rotation and sanitization
+- **Dependency Scanning**: Regular automated dependency vulnerability scanning
+- **Environment Variables**: Move sensitive config to environment variables (.env file)
+
+**Low Priority Security Items:**
+- **Content Security Policy Enhancement**: Fine-tune CSP for tighter security
+- **Request Size Limiting**: Add body parser limits for DoS protection
+- **Brute Force Protection**: Enhanced protection for repeated invalid requests
+- **Security Headers Testing**: Regular security header validation testing
+- **Penetration Testing**: Professional security assessment
+- **SSL Certificate Automation**: Automated certificate renewal (Let's Encrypt)
+
+### Development Environment Security
+**Items to Consider:**
+- **Development HTTPS**: Local HTTPS setup for development environment
+- **Environment Separation**: Ensure dev/staging/prod environment isolation
+- **Secret Management**: Implement proper secret management system
+- **Access Control**: Role-based access control for admin functions
+- **Audit Logging**: Comprehensive audit trail for admin actions
+- **Backup Security**: Encrypted database backups with secure storage
+
 ---
 *Last Updated: 2025-07-10*
-*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play (20s), enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), Cloudflare CDN integration for global performance, clean turn-agnostic server-side player position indicators (optimal UX), pre-game help system with blue "How to Play" button, smart 7-centered card stacking with proper edge case handling, fixed touch device card hover states, optimized desktop layout with balanced proportions, and clean turn information UX eliminating information overload*
+*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play (20s), enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), Cloudflare CDN integration for global performance, clean turn-agnostic server-side player position indicators with fixed red critical detection, pre-game help system with blue "How to Play" button, smart 7-centered card stacking with proper edge case handling, fixed touch device card hover states, optimized desktop layout with balanced proportions, clean turn information UX eliminating information overload, toast notification system replacing alert popups, simplified numeric-only player card displays, refined color-only visual indicators, and fixed card stacking edge cases for accurate sequence direction detection*
