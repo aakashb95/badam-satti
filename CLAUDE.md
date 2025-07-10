@@ -257,6 +257,32 @@ http://localhost:3000
     - **Strategic Placement**: Positioned prominently in menu after welcome message
     - **Modal Integration**: Uses existing HelpModal component for consistent UI/UX
     - **Accessibility**: Easy access to game rules before joining or creating rooms
+36. **Smart Card Stacking Logic** - Intelligent board space optimization with proper sequence display:
+    - **Edge Case Handling**: Correctly handles one-direction sequences (only up/down from 7)
+    - **7-Centered Stacking**: 7 card always appears in center position when 3+ cards stacked
+    - **Sequence-Aware Display**: Shows 7+highest for upward-only, 7+lowest for downward-only
+    - **Mixed Sequence Logic**: Displays highest+7+lowest for bidirectional sequences
+    - **Visual Accuracy**: Eliminates confusion by showing actual card positions in stacks
+37. **Enhanced Auto-Play Timing** - Extended countdown for better user experience:
+    - **20-Second Timer**: Increased from 15 seconds to provide more thinking time
+    - **Visual Countdown**: Real-time timer display in both top bar and game UI
+    - **Auto-Pass Integration**: Seamless transition to auto-pass when no valid moves available
+    - **Consistent Timing**: Server and client-side timing perfectly synchronized
+38. **Fixed Card Hover States** - Resolved stuck card highlighting on touch devices:
+    - **Touch Device Detection**: CSS media queries prevent hover states on touch screens
+    - **Programmatic Reset**: Click-outside handler resets stuck card transforms
+    - **Cross-Platform Compatibility**: Proper hover behavior on desktop, clean touch on mobile
+    - **Visual Feedback**: Smooth transitions without persistent highlighting issues
+39. **Optimized Desktop Layout** - Balanced proportions for desktop gaming experience:
+    - **Responsive Card Sizing**: Larger cards (70px) for desktop visibility without overwhelming
+    - **Compact Players Info**: Horizontal layout with reduced padding for space efficiency
+    - **Proper Space Distribution**: Game board (280px) and hand cards (120px) fit viewport
+    - **Typography Scaling**: Enhanced readability with appropriate font sizes for desktop
+40. **Clean Turn Information UX** - Eliminated information overload in game interface:
+    - **Simplified Top Bar**: Removed redundant turn display, shows only timer when active
+    - **Context-Aware Labels**: "Your Turn" vs "Current Turn" based on player perspective
+    - **Single Source of Truth**: Current player indicator is primary turn information
+    - **Reduced Cognitive Load**: Clear, non-duplicated turn status throughout interface
 
 ## Known Working Features
 - ✅ **React Frontend** - Modern component-based architecture with TypeScript
@@ -265,7 +291,7 @@ http://localhost:3000
 - ✅ Multi-round gameplay (up to 7 rounds)
 - ✅ Complete game logic with auto-start (7♥)
 - ✅ Real-time multiplayer synchronization
-- ✅ Auto-play with 15-second countdown
+- ✅ Auto-play with 20-second countdown
 - ✅ Game persistence through server restarts
 - ✅ Fast card redistribution on player disconnect
 - ✅ Rate limiting and spam protection
@@ -293,12 +319,16 @@ http://localhost:3000
 - ✅ **Pre-Game Reconnection** - 10-minute reconnection window for waiting room disconnections
 - ✅ **Server-Side Player Indicators** - Clean turn-agnostic color warnings (yellow/red) with optimal UX
 - ✅ **Pre-Game Help System** - Blue "How to Play" button in menu screen with modal integration
+- ✅ **Smart Card Stacking Logic** - Intelligent 7-centered stacking with proper edge case handling
+- ✅ **Enhanced Auto-Play Timing** - 20-second countdown with visual feedback and touch-friendly card states
+- ✅ **Optimized Desktop Layout** - Balanced proportions with proper card visibility and space distribution
+- ✅ **Clean Turn Information UX** - Simplified interface eliminating information overload
 
 ## Development Notes
 - **Frontend**: React 18 + TypeScript with Vite build system
 - **Backend**: Node.js + Express + Socket.io (unchanged)
 - Socket.io timeout: 60s ping timeout, 25s ping interval
-- Auto-play triggers after exactly 15 seconds of inactivity (client-side only)
+- Auto-play triggers after exactly 20 seconds of inactivity (client-side only)
 - Random move selection uses `Math.random()` for fair play
 - SQLite database with complete game state persistence
 - Rate limiting: 10 room creates/min, 20 joins/min per IP
@@ -340,5 +370,5 @@ http://localhost:3000
 - **Priority**: Medium (works for now, but fragile)
 
 ---
-*Last Updated: 2025-07-09*
-*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play, enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), Cloudflare CDN integration for global performance, clean turn-agnostic server-side player position indicators (optimal UX), and pre-game help system with blue "How to Play" button*
+*Last Updated: 2025-07-10*
+*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play (20s), enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), Cloudflare CDN integration for global performance, clean turn-agnostic server-side player position indicators (optimal UX), pre-game help system with blue "How to Play" button, smart 7-centered card stacking with proper edge case handling, fixed touch device card hover states, optimized desktop layout with balanced proportions, and clean turn information UX eliminating information overload*

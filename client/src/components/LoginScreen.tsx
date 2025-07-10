@@ -41,7 +41,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue }) => {
   return (
     <div className="screen">
       <div className="container glass-panel">
-        <h1>🎴 Badam Satti</h1>
+        <div className="logo-section">
+          <img 
+            src="/images/cards/7H.svg" 
+            alt="7 of Hearts" 
+            className="logo-card"
+          />
+          <h1>Badam Satti</h1>
+        </div>
         <p className="subtitle">Play the classic card game with family</p>
         <div className="form-group">
           <input

@@ -351,7 +351,7 @@ const App: React.FC = () => {
         } else {
           console.log('Conditions NOT met for auto-play - game may have ended or screen changed');
         }
-      }, 15000);
+      }, 20000);
 
       setAutoPassTimeout(timeoutId);
     } else {
@@ -596,6 +596,7 @@ const App: React.FC = () => {
             username={appState.username}
             onStartGame={startGame}
             onLeaveRoom={leaveRoom}
+            onShowNotification={showNotification}
           />
         );
       case 'game':

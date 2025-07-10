@@ -7,6 +7,7 @@ interface WaitingRoomProps {
   username: string;
   onStartGame: () => void;
   onLeaveRoom: () => void;
+  onShowNotification: (message: string) => void;
 }
 
 const WaitingRoom: React.FC<WaitingRoomProps> = ({
@@ -15,12 +16,13 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
   username,
   onStartGame,
   onLeaveRoom,
+  onShowNotification,
 }) => {
   const copyRoomCode = async () => {
     try {
       if (navigator.clipboard) {
         await navigator.clipboard.writeText(roomCode);
-        alert('Room code copied to clipboard!');
+        onShowNotification('Room code copied to clipboard!');
       } else {
         // Fallback for older browsers
         const textArea = document.createElement('textarea');
@@ -29,16 +31,16 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
         textArea.select();
         try {
           document.execCommand('copy');
-          alert('Room code copied to clipboard!');
+          onShowNotification('Room code copied to clipboard!');
         } catch (err) {
           console.error('Failed to copy: ', err);
-          alert('Failed to copy room code');
+          onShowNotification('Failed to copy room code');
         }
         document.body.removeChild(textArea);
       }
     } catch (err) {
       console.error('Failed to copy: ', err);
-      alert('Failed to copy room code');
+      onShowNotification('Failed to copy room code');
     }
   };
 

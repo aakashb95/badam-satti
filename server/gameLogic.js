@@ -430,9 +430,18 @@ class GameRoom {
       }
     }
 
-    // If 7 has been played but no lower cards yet, allow 6
-    if (suitBoard.down.length === 0 && suitBoard.up.includes(7)) {
-      return card.rank === 6;
+    // Special case: if 7 has been played but no up/down cards yet
+    // Check if 7 is in either array (it starts in up array when played)
+    const has7 = suitBoard.up.length > 0 || suitBoard.down.length > 0;
+    if (has7) {
+      // If no up cards beyond 7, allow 8
+      if (suitBoard.up.length === 1 && suitBoard.up[0] === 7 && card.rank === 8) {
+        return true;
+      }
+      // If no down cards, allow 6
+      if (suitBoard.down.length === 0 && card.rank === 6) {
+        return true;
+      }
     }
 
     return false;

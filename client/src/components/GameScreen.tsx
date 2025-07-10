@@ -24,12 +24,12 @@ const GameScreen: React.FC<GameScreenProps> = ({
   onPassTurn,
   onLeaveGame,
 }) => {
-  const [timeLeft, setTimeLeft] = useState(5);
+  const [timeLeft, setTimeLeft] = useState(20);
   const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     if (isMyTurn) {
-      setTimeLeft(5);
+      setTimeLeft(20);
       const interval = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev > 0) return prev - 1;
@@ -40,6 +40,24 @@ const GameScreen: React.FC<GameScreenProps> = ({
       return () => clearInterval(interval);
     }
   }, [isMyTurn]);
+
+  // Reset card hover states when clicking outside
+  useEffect(() => {
+    const handleBodyClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.hand-card')) {
+        // Reset any stuck hover states by briefly adding a reset class
+        const cards = document.querySelectorAll('.hand-card');
+        cards.forEach(card => {
+          card.classList.add('reset-transform');
+          setTimeout(() => card.classList.remove('reset-transform'), 10);
+        });
+      }
+    };
+
+    document.body.addEventListener('click', handleBodyClick);
+    return () => document.body.removeEventListener('click', handleBodyClick);
+  }, []);
 
   const getRankDisplay = (rank: number): string => {
     if (rank === 1) return 'A';
@@ -109,11 +127,14 @@ const GameScreen: React.FC<GameScreenProps> = ({
             ranksForDisplay = [];
             
             // Handle edge cases for one-direction sequences
-            if (higher.length > 0 && lower.length === 0) {
+            // Upward-only: higher.length > 1 (more than just 7) and lower.length === 0
+            if (higher.length > 1 && lower.length === 0) {
               // Only upward sequence (7,8,9,10...) - show 7 and highest
               ranksForDisplay.push(7);
               ranksForDisplay.push(allRanks[0]); // highest card
-            } else if (lower.length > 0 && higher.length === 0) {
+            } 
+            // Downward-only: higher.length === 1 (just 7) and lower.length > 0
+            else if (higher.length === 1 && higher[0] === 7 && lower.length > 0) {
               // Only downward sequence (7,6,5,4...) - show 7 and lowest
               ranksForDisplay.push(7);
               ranksForDisplay.push(allRanks[allRanks.length - 1]); // lowest card
@@ -175,12 +196,10 @@ const GameScreen: React.FC<GameScreenProps> = ({
             }`}>
               <div className="current-player-info">
                 <span className="current-player-name">{currentPlayer.name}</span>
-                <span className="current-player-turn">Current Turn</span>
+                <span className="current-player-turn">{isMyTurn ? "Your Turn" : "Current Turn"}</span>
               </div>
               <div className="current-player-details">
                 <span className="current-player-cards">{currentPlayer.cardCount} cards</span>
-                {getWarningLevel(currentPlayer) === 'critical' && <span className="warning-icon">🔴</span>}
-                {getWarningLevel(currentPlayer) === 'warning' && <span className="warning-icon">🟡</span>}
               </div>
             </div>
           )}
@@ -198,11 +217,10 @@ const GameScreen: React.FC<GameScreenProps> = ({
                   >
                     <div className="player-name">{player.name}</div>
                     <div className="player-status-indicators">
-                      <span className="connection-status">
-                        {player.connected ? '🔵' : '🔴'}
+                      <span className="card-count">
+                        {player.cardCount}
                       </span>
-                      {warningLevel === 'critical' && <span className="warning-icon critical">🔴</span>}
-                      {warningLevel === 'warning' && <span className="warning-icon">🟡</span>}
+                      {!player.connected && <span className="disconnected-icon">🔴</span>}
                     </div>
                   </div>
                 );
@@ -239,6 +257,11 @@ const GameScreen: React.FC<GameScreenProps> = ({
                       loading="lazy"
                       className={`hand-card ${isValid ? 'valid' : ''} ${playClass}`}
                       onClick={() => isMyTurn && isValid && onPlayCard(card)}
+                      onTouchStart={() => {
+                        // Reset hover states on touch devices
+                        const element = document.activeElement as HTMLElement;
+                        if (element) element.blur();
+                      }}
                       alt={`${getRankDisplay(card.rank)} of ${getSuitName(card.suit)}`}
                     />
                   );
@@ -271,9 +294,11 @@ const GameScreen: React.FC<GameScreenProps> = ({
                 {gameState.gameStartMessage}
               </div>
             )}
-            <div id="turn-display" className={isMyTurn ? 'my-turn' : 'other-turn'}>
-              {isMyTurn ? `Your Turn${timeLeft > 0 ? ` (${timeLeft}s)` : ''}` : `${gameState?.currentPlayerName}'s Turn`}
-            </div>
+            {isMyTurn && (
+              <div id="turn-display" className="my-turn">
+                {timeLeft > 0 ? `(${timeLeft}s)` : 'Your Turn'}
+              </div>
+            )}
           </div>
           <button className="help-icon-btn" onClick={() => setShowHelp(true)} title="Help">
             ℹ️
