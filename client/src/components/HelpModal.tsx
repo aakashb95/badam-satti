@@ -31,7 +31,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
 
           <div className="help-section">
             <h4>🔍 Card Colors</h4>
-            <p><span className="help-indicator green">🟢 Green border</span> = You can play this card</p>
+            <p><span className="help-indicator green">🟢 Green border</span> = Tap the card to play it</p>
             <p><span className="help-indicator normal">⚪ No border</span> = Can't play yet</p>
           </div>
 
