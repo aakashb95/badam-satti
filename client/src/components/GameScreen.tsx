@@ -107,13 +107,22 @@ const GameScreen: React.FC<GameScreenProps> = ({
 
           if (allRanks.length > MAX_VISIBLE_CARDS) {
             ranksForDisplay = [];
-            // Show first card (highest)
-            ranksForDisplay.push(allRanks[0]);
-            // Show middle card (around 7)
-            const middleIndex = Math.floor(allRanks.length / 2);
-            ranksForDisplay.push(allRanks[middleIndex]);
-            // Show last card (lowest)
-            ranksForDisplay.push(allRanks[allRanks.length - 1]);
+            
+            // Handle edge cases for one-direction sequences
+            if (higher.length > 0 && lower.length === 0) {
+              // Only upward sequence (7,8,9,10...) - show 7 and highest
+              ranksForDisplay.push(7);
+              ranksForDisplay.push(allRanks[0]); // highest card
+            } else if (lower.length > 0 && higher.length === 0) {
+              // Only downward sequence (7,6,5,4...) - show 7 and lowest
+              ranksForDisplay.push(7);
+              ranksForDisplay.push(allRanks[allRanks.length - 1]); // lowest card
+            } else {
+              // Mixed sequence - show highest, 7 (center), and lowest
+              ranksForDisplay.push(allRanks[0]); // highest
+              ranksForDisplay.push(7); // center (always present)
+              ranksForDisplay.push(allRanks[allRanks.length - 1]); // lowest
+            }
           }
 
           return (
