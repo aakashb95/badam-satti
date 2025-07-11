@@ -317,6 +317,20 @@ http://localhost:3000
     - **Admin Authentication**: Added `/health/admin` endpoint with API key authentication
     - **Error Sanitization**: Implemented error message sanitization to prevent information disclosure
     - **Rate Limiting Enhancement**: Updated rate limiting to use hashed IPs instead of raw addresses
+47. **Critical Mobile Viewport Fixes** - Comprehensive mobile display optimization (2025-07-11):
+    - **Dynamic Viewport Height**: Implemented `100dvh` for proper mobile browser UI handling
+    - **iOS Safe Area Support**: Added `env(safe-area-inset-*)` with `viewport-fit=cover` for iPhone notch/home indicator
+    - **iPhone Model-Specific Optimization**: Tailored card container heights for iPhone SE, iPhone 14 Pro, landscape modes
+    - **Mobile-Only CSS Targeting**: Used `@media (hover: none) and (pointer: coarse)` to preserve desktop experience
+    - **Card Visibility Guarantee**: Ensured cards are always visible above safe areas with proper flex-shrink controls
+    - **Flexible Game Board**: Made board height responsive to prevent card cutoff on small screens
+48. **Fixed Card Stacking Logic** - Completely resolved board sequence display issues (2025-07-11):
+    - **Proper Sequence Building**: Fixed server data parsing to correctly combine up/down card arrays
+    - **Visual Card Hierarchy**: Higher-ranked cards always display above lower-ranked cards
+    - **Sequence-Aware Stacking**: Upward-only (7,8,9,10) shows 10→7, downward-only (7,6,5,4) shows 7→4
+    - **Mixed Sequence Logic**: Bidirectional sequences (5,6,7,8,9) display as 9→7→5 with proper centering
+    - **Eliminated Wrong Cards**: Fixed phantom card display and incorrect sequence representation
+    - **Consistent 7-Card Position**: 7 maintains logical position in all sequence types
 
 ## Known Working Features
 - ✅ **React Frontend** - Modern component-based architecture with TypeScript
@@ -363,6 +377,8 @@ http://localhost:3000
 - ✅ **Refined Visual Indicators** - Streamlined color-only warning system without redundant emoji dots
 - ✅ **Fixed Card Stacking Edge Cases** - Proper 7-centered stacking with accurate sequence direction detection
 - ✅ **Critical Security Hardening** - CORS protection, IP hashing, security headers, HTTPS enforcement, secure health endpoints
+- ✅ **Critical Mobile Viewport Fixes** - Dynamic viewport height (100dvh), iOS safe area support, iPhone model-specific optimization
+- ✅ **Fixed Card Stacking Logic** - Completely resolved board sequence display with proper visual hierarchy and accurate card positioning
 
 ## Development Notes
 - **Frontend**: React 18 + TypeScript with Vite build system
@@ -437,5 +453,5 @@ http://localhost:3000
 - **Backup Security**: Encrypted database backups with secure storage
 
 ---
-*Last Updated: 2025-07-10*
-*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play (20s), enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), Cloudflare CDN integration for global performance, clean turn-agnostic server-side player position indicators with fixed red critical detection, pre-game help system with blue "How to Play" button, smart 7-centered card stacking with proper edge case handling, fixed touch device card hover states, optimized desktop layout with balanced proportions, clean turn information UX eliminating information overload, toast notification system replacing alert popups, simplified numeric-only player card displays, refined color-only visual indicators, fixed card stacking edge cases for accurate sequence direction detection, and critical security hardening with CORS protection, IP privacy, security headers, HTTPS enforcement, and secure health endpoints*
+*Last Updated: 2025-07-11*
+*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play (20s), enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), Cloudflare CDN integration for global performance, clean turn-agnostic server-side player position indicators with fixed red critical detection, pre-game help system with blue "How to Play" button, smart 7-centered card stacking with proper edge case handling, fixed touch device card hover states, optimized desktop layout with balanced proportions, clean turn information UX eliminating information overload, toast notification system replacing alert popups, simplified numeric-only player card displays, refined color-only visual indicators, fixed card stacking edge cases for accurate sequence direction detection, critical security hardening with CORS protection, IP privacy, security headers, HTTPS enforcement, and secure health endpoints, critical mobile viewport fixes with dynamic viewport height and iOS safe area support for all iPhone models, and completely fixed card stacking logic with proper visual hierarchy and accurate sequence representation*
