@@ -121,38 +121,35 @@ const GameScreen: React.FC<GameScreenProps> = ({
           let allRanks: number[] = [];
           
           if (upCards.length > 0 || downCards.length > 0) {
-            // Build complete sequence: [highest...8, 7, 6...lowest]
-            const upSequence = upCards.slice().sort((a, b) => b - a); // Sort descending: [10,9,8]
+            // Build complete sequence from server data
+            // Server stores 7 in up array, so don't manually add it
+            const upSequence = upCards.slice().sort((a, b) => b - a); // Sort descending: [10,9,8,7]
             const downSequence = downCards.slice().sort((a, b) => b - a); // Sort descending: [6,5]
             
-            allRanks = [...upSequence, 7, ...downSequence];
+            allRanks = [...upSequence, ...downSequence];
           }
 
           const MAX_VISIBLE_CARDS = 3;
           let ranksForDisplay = allRanks;
 
           if (allRanks.length > MAX_VISIBLE_CARDS) {
+            // Always show 7 (the base card) plus the extremes
             ranksForDisplay = [];
             
-            // Determine sequence type
-            const hasUpward = upCards.length > 0;
-            const hasDownward = downCards.length > 0;
+            // Always include 7 as it's the crucial base card
+            const has7 = allRanks.includes(7);
             
-            if (hasUpward && !hasDownward) {
-              // Upward-only sequence (7,8,9,10...) - show highest at top, then 7 (base)
-              ranksForDisplay.push(allRanks[0]); // Highest card at top
-              ranksForDisplay.push(7); // Base card below
-            } 
-            else if (!hasUpward && hasDownward) {
-              // Downward-only sequence (7,6,5,4...) - show 7 (base) at top, then lowest
-              ranksForDisplay.push(7); // Base card at top
-              ranksForDisplay.push(allRanks[allRanks.length - 1]); // Lowest card below
-            } 
-            else {
-              // Mixed sequence - show highest, 7 (center), lowest
-              ranksForDisplay.push(allRanks[0]); // Highest at top
-              ranksForDisplay.push(7); // 7 in center
-              ranksForDisplay.push(allRanks[allRanks.length - 1]); // Lowest at bottom
+            if (has7) {
+              if (allRanks.length === 4) {
+                // For 4 cards, show highest, 7, lowest
+                ranksForDisplay = [allRanks[0], 7, allRanks[allRanks.length - 1]];
+              } else {
+                // For 5+ cards, show highest, 7, lowest
+                ranksForDisplay = [allRanks[0], 7, allRanks[allRanks.length - 1]];
+              }
+            } else {
+              // Fallback if somehow 7 is not in sequence
+              ranksForDisplay = [allRanks[0], allRanks[Math.floor(allRanks.length / 2)], allRanks[allRanks.length - 1]];
             }
           }
 
