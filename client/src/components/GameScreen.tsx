@@ -133,23 +133,23 @@ const GameScreen: React.FC<GameScreenProps> = ({
           let ranksForDisplay = allRanks;
 
           if (allRanks.length > MAX_VISIBLE_CARDS) {
-            // Always show 7 (the base card) plus the extremes
-            ranksForDisplay = [];
+            // Show key cards ensuring 7 is always visible when present
+            const sevenIndex = allRanks.indexOf(7);
             
-            // Always include 7 as it's the crucial base card
-            const has7 = allRanks.includes(7);
-            
-            if (has7) {
-              if (allRanks.length === 4) {
-                // For 4 cards, show highest, 7, lowest
-                ranksForDisplay = [allRanks[0], 7, allRanks[allRanks.length - 1]];
-              } else {
-                // For 5+ cards, show highest, 7, lowest
-                ranksForDisplay = [allRanks[0], 7, allRanks[allRanks.length - 1]];
-              }
+            if (sevenIndex !== -1) {
+              // 7 is in sequence - always show it as the middle card
+              ranksForDisplay = [
+                allRanks[0], // Highest
+                allRanks[sevenIndex], // 7 (the key base card)
+                allRanks[allRanks.length - 1] // Lowest
+              ];
             } else {
-              // Fallback if somehow 7 is not in sequence
-              ranksForDisplay = [allRanks[0], allRanks[Math.floor(allRanks.length / 2)], allRanks[allRanks.length - 1]];
+              // 7 not in sequence - use regular middle
+              ranksForDisplay = [
+                allRanks[0], // Highest
+                allRanks[Math.floor(allRanks.length / 2)], // Middle
+                allRanks[allRanks.length - 1] // Lowest
+              ];
             }
           }
 
