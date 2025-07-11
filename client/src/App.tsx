@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import './App.css';
 import ErrorModal from './components/ErrorModal';
 import GameOverScreen from './components/GameOverScreen';
 import GameScreen from './components/GameScreen';
+import JoinRoomScreen from './components/JoinRoomScreen';
 import LoadingScreen from './components/LoadingScreen';
 import LoginScreen from './components/LoginScreen';
 import MenuScreen from './components/MenuScreen';
@@ -12,7 +14,66 @@ import SummaryScreen from './components/SummaryScreen';
 import WaitingRoom from './components/WaitingRoom';
 import { AppState, Card, GameSummary, Winner } from './types';
 
+// Main App component with routing
 const App: React.FC = () => {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/r/:roomCode" element={<JoinRoomRoute />} />
+        <Route path="/*" element={<MainApp />} />
+      </Routes>
+    </Router>
+  );
+};
+
+// Component for handling room join links
+const JoinRoomRoute: React.FC = () => {
+  const { roomCode } = useParams<{ roomCode: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Extract error from location state if returning from failed join attempt
+  const error = (location.state as any)?.error || null;
+  
+  const handleJoinRoom = (roomCode: string, username: string) => {
+    // Navigate to main app with room joining logic
+    navigate('/', { 
+      state: { 
+        joinRoom: { roomCode, username } 
+      } 
+    });
+  };
+  
+  const handleBackToMenu = () => {
+    navigate('/');
+  };
+  
+  const handleClearError = () => {
+    // Clear error by replacing current state
+    navigate(`/r/${roomCode}`, { replace: true });
+  };
+  
+  if (!roomCode) {
+    return <div>Invalid room code</div>;
+  }
+  
+  return (
+    <div className="app">
+      <JoinRoomScreen 
+        roomCode={roomCode.toUpperCase()} 
+        onJoinRoom={handleJoinRoom}
+        onBackToMenu={handleBackToMenu}
+        error={error}
+        onClearError={handleClearError}
+      />
+    </div>
+  );
+};
+
+// Main app component (existing logic)
+const MainApp: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [appState, setAppState] = useState<AppState>({
     currentScreen: 'login',
@@ -249,8 +310,23 @@ const App: React.FC = () => {
     newSocket.on('error', (message: string) => {
       console.error('Server error:', message);
       
-      // If room not found, redirect to menu and preserve username
-      if (message.toLowerCase().includes('room not found') || message.toLowerCase().includes('room does not exist')) {
+      // Check if this is a join room error and if we came from a URL join
+      const isJoinRoomError = message.toLowerCase().includes('room not found') || 
+                             message.toLowerCase().includes('room is full') ||
+                             message.toLowerCase().includes('game already started');
+      
+      const locationState = location.state as any;
+      const cameFromJoinRoom = locationState?.joinRoom;
+      
+      if (isJoinRoomError && cameFromJoinRoom) {
+        // Redirect back to join room screen with error
+        const { roomCode } = cameFromJoinRoom;
+        navigate(`/r/${roomCode}`, { 
+          state: { error: message },
+          replace: true 
+        });
+      } else if (isJoinRoomError) {
+        // Regular error handling for non-URL joins
         setAppState(prev => ({
           ...prev,
           currentScreen: 'menu',
@@ -310,6 +386,24 @@ const App: React.FC = () => {
       newSocket.close();
     };
   }, []);
+
+  // Handle join room from URL route
+  useEffect(() => {
+    const locationState = location.state as any;
+    if (locationState?.joinRoom && socket && isConnected) {
+      const { roomCode, username } = locationState.joinRoom;
+      console.log('Joining room from URL:', roomCode, username);
+      
+      // Set username and attempt to join room
+      setAppState(prev => ({ ...prev, username, currentScreen: 'menu' }));
+      
+      // Clear the location state
+      navigate('/', { replace: true });
+      
+      // Join the room immediately with the username parameter (no race condition)
+      joinRoom(roomCode, username);
+    }
+  }, [location.state, socket, isConnected]);
 
   // Auto-play logic
   useEffect(() => {
@@ -438,8 +532,10 @@ const App: React.FC = () => {
     socket.emit('create_room', appState.username);
   };
 
-  const joinRoom = (roomCode: string) => {
-    if (!appState.username) {
+  const joinRoom = (roomCode: string, username?: string) => {
+    const usernameToUse = username || appState.username;
+    
+    if (!usernameToUse) {
       showError('Please enter your name first');
       return;
     }
@@ -455,7 +551,7 @@ const App: React.FC = () => {
     }
 
     showLoading('Joining room...');
-    socket.emit('join_room', { roomCode: roomCode.toUpperCase(), username: appState.username });
+    socket.emit('join_room', { roomCode: roomCode.toUpperCase(), username: usernameToUse });
   };
 
   const reconnectToRoom = (roomCode: string) => {
