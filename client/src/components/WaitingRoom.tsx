@@ -104,7 +104,12 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
                 key={player.name}
                 className={`player-item ${player.connected ? 'connected' : 'disconnected'}`}
               >
-                <span className="player-name">{player.name}</span>
+                <span className="player-name">
+                  {player.name}
+                  {player.isDealer && (
+                    <span className="dealer-badge" title="Dealer">D</span>
+                  )}
+                </span>
                 <span className="player-status">{player.connected ? '🔵' : '🔴'}</span>
               </div>
             ))}

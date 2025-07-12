@@ -11,6 +11,7 @@ class GameRoom {
       spades: { up: [], down: [] },
     };
     this.currentPlayerIndex = 0;
+    this.dealerIndex = 0; // Track who deals cards (room creator starts as dealer)
     this.started = false;
     this.deck = [];
     this.round = 1;
@@ -68,6 +69,15 @@ class GameRoom {
             return a.rank - b.rank;
           });
         });
+      }
+
+      // Adjust dealer index if the removed player was at or before the dealer position
+      if (playerIndex <= this.dealerIndex && this.players.length > 0) {
+        this.dealerIndex = Math.max(0, this.dealerIndex - 1);
+      }
+      // Ensure dealer index doesn't exceed player count
+      if (this.dealerIndex >= this.players.length && this.players.length > 0) {
+        this.dealerIndex = 0;
       }
 
       // Adjust current player index in case it now exceeds player count
@@ -208,20 +218,25 @@ class GameRoom {
     const cardsPerPlayer = Math.floor(totalCards / this.players.length);
     let cardIndex = 0;
 
-    // Deal equal number of cards to each player
+    // Deal clockwise starting from the player after the dealer
+    const startPlayerIndex = (this.dealerIndex + 1) % this.players.length;
+
+    // Deal equal number of cards to each player, starting clockwise from dealer
     for (let i = 0; i < cardsPerPlayer; i++) {
-      for (let player of this.players) {
+      for (let j = 0; j < this.players.length; j++) {
         if (cardIndex < this.deck.length) {
-          player.cards.push(this.deck[cardIndex++]);
+          const playerIndex = (startPlayerIndex + j) % this.players.length;
+          this.players[playerIndex].cards.push(this.deck[cardIndex++]);
         }
       }
     }
 
-    // Deal remaining cards one by one
-    let playerIndex = 0;
+    // Deal remaining cards one by one, continuing clockwise from where we left off
+    let playerOffset = 0;
     while (cardIndex < this.deck.length) {
+      const playerIndex = (startPlayerIndex + playerOffset) % this.players.length;
       this.players[playerIndex].cards.push(this.deck[cardIndex++]);
-      playerIndex = (playerIndex + 1) % this.players.length;
+      playerOffset = (playerOffset + 1) % this.players.length;
     }
 
     // Removed per-player sorting to preserve random card order in hands
@@ -308,12 +323,23 @@ class GameRoom {
   finishGame() {
     // Game is finished when one player empties their hand
     // Calculate final scores for all remaining cards
-    this.players.forEach((player) => {
-      const finalScore = this.calculatePlayerScore(player.cards);
-      player.totalScore += finalScore; // Accumulate across rounds
+    let highestRoundScore = -1;
+    let highestScorerIndex = this.dealerIndex; // Default to current dealer in case of ties
+    
+    this.players.forEach((player, index) => {
+      const roundScore = this.calculatePlayerScore(player.cards);
+      player.totalScore += roundScore; // Accumulate across rounds
       this.playerScores[player.id] = player.totalScore;
+      
+      // Track highest scorer for next dealer (highest remaining cards = highest score)
+      if (roundScore > highestRoundScore) {
+        highestRoundScore = roundScore;
+        highestScorerIndex = index;
+      }
     });
 
+    // Set the highest scorer as the dealer for the next round
+    this.dealerIndex = highestScorerIndex;
     this.gameFinished = true;
   }
 
@@ -475,11 +501,12 @@ class GameRoom {
   getState() {
     return {
       roomCode: this.roomCode,
-      players: this.players.map((p) => ({
+      players: this.players.map((p, index) => ({
         name: p.name,
         cardCount: p.cards.length,
         connected: p.connected,
         isCurrentPlayer: this.players[this.currentPlayerIndex]?.id === p.id,
+        isDealer: index === this.dealerIndex,
         totalScore: p.totalScore,
         indicator: this.started && !this.gameFinished ? this.analyzePlayerPosition(p) : 'none',
       })),
@@ -490,6 +517,7 @@ class GameRoom {
       maxRounds: this.maxRounds,
       gameFinished: this.gameFinished,
       currentPlayerName: this.players[this.currentPlayerIndex]?.name,
+      dealerName: this.players[this.dealerIndex]?.name,
       gameStartMessage: this.gameStartMessage,
     };
   }

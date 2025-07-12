@@ -445,6 +445,75 @@ class Database {
     });
   }
 
+  // Set reconnection timeout for a player
+  async setPlayerReconnectionTimeout(playerId, roomCode, timeoutMinutes) {
+    return new Promise((resolve, reject) => {
+      const timeoutDate = new Date(Date.now() + timeoutMinutes * 60 * 1000);
+      this.db.run(
+        'UPDATE players SET can_reconnect = 1, reconnect_timeout = ?, disconnected_at = CURRENT_TIMESTAMP WHERE socket_id = ? AND room_code = ?',
+        [timeoutDate.toISOString(), playerId, roomCode],
+        function(err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(this.changes > 0);
+          }
+        }
+      );
+    });
+  }
+
+  // Update player socket ID during reconnection
+  async updatePlayerSocketId(playerId, newSocketId) {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'UPDATE players SET socket_id = ?, connected = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [newSocketId, playerId],
+        function(err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(this.changes > 0);
+          }
+        }
+      );
+    });
+  }
+
+  // Clear reconnection data after successful reconnection
+  async clearPlayerReconnectionData(playerId) {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'UPDATE players SET can_reconnect = 0, reconnect_timeout = NULL, disconnected_at = NULL WHERE id = ?',
+        [playerId],
+        function(err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(this.changes > 0);
+          }
+        }
+      );
+    });
+  }
+
+  // Remove player from room (both game and database)
+  async removePlayerFromRoom(playerId, roomCode) {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'DELETE FROM players WHERE socket_id = ? AND room_code = ?',
+        [playerId, roomCode],
+        function(err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(this.changes > 0);
+          }
+        }
+      );
+    });
+  }
+
   // Health check
   async healthCheck() {
     return new Promise((resolve, reject) => {

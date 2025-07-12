@@ -44,6 +44,64 @@ function sanitizeError(error) {
   return 'Internal server error';
 }
 
+// Room validation and restoration utility
+async function ensureRoomExists(roomCode) {
+  // If room exists in memory, return it
+  if (rooms[roomCode]) {
+    return rooms[roomCode];
+  }
+
+  // Try to restore room from database
+  try {
+    console.log(`Attempting to restore room ${roomCode} from database`);
+    const dbRoom = await db.getGameRoom(roomCode);
+    
+    if (dbRoom && dbRoom.is_active) {
+      // Recreate room in memory from stored game state
+      const room = new GameRoom(roomCode);
+      const storedState = dbRoom.game_state;
+      
+      // Restore all properties from stored state
+      Object.assign(room, storedState);
+      
+      // Ensure players array is properly structured with current socket connections
+      const players = await db.getPlayersInRoom(roomCode);
+      room.players = [];
+      room.playerScores = {};
+      
+      players.forEach(player => {
+        room.players.push({
+          id: player.socket_id,
+          name: player.username,
+          cards: player.cards ? JSON.parse(player.cards) : [],
+          connected: player.connected,
+          totalScore: player.total_score || 0
+        });
+        room.playerScores[player.socket_id] = player.total_score || 0;
+      });
+      
+      // Validate current player index
+      if (room.currentPlayerIndex >= room.players.length) {
+        room.currentPlayerIndex = 0;
+      }
+      
+      // Validate dealer index  
+      if (room.dealerIndex >= room.players.length) {
+        room.dealerIndex = 0;
+      }
+      
+      // Add to memory cache
+      rooms[roomCode] = room;
+      console.log(`Successfully restored room ${roomCode} with ${room.players.length} players`);
+      return room;
+    }
+  } catch (error) {
+    console.error(`Failed to restore room ${roomCode} from database:`, error);
+  }
+  
+  return null;
+}
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: {
@@ -317,9 +375,88 @@ io.on("connection", (socket) => {
       }
 
       // Check if username already exists in room
-      if (rooms[cleanRoomCode].players.find((p) => p.name === cleanUsername)) {
-        socket.emit("error", "Username already taken in this room");
-        return;
+      // For waiting rooms: only check connected players or those with active reconnection window
+      // For active games: check all players (including disconnected, since they may reconnect)
+      const existingPlayer = rooms[cleanRoomCode].players.find((p) => p.name === cleanUsername);
+      if (existingPlayer) {
+        const isWaitingRoom = !rooms[cleanRoomCode].started;
+        if (isWaitingRoom) {
+          // In waiting room: allow joining if previous user was disconnected and cleaned up
+          if (existingPlayer.connected) {
+            socket.emit("error", "Username already taken in this room");
+            return;
+          }
+          // Check if the disconnected player has an active reconnection window
+          try {
+            const reconnectionData = await db.getPlayerReconnectionData(cleanUsername, cleanRoomCode);
+            if (reconnectionData && reconnectionData.can_reconnect) {
+              socket.emit("error", "Username already taken in this room (previous player can still reconnect)");
+              return;
+            }
+            // Clean up the orphaned disconnected player
+            console.log(`Cleaning up orphaned disconnected player: ${cleanUsername} in room ${cleanRoomCode}`);
+            rooms[cleanRoomCode].removePlayer(existingPlayer.id, false);
+            await db.removePlayerFromRoom(existingPlayer.id, cleanRoomCode);
+          } catch (error) {
+            console.warn(`Failed to check/cleanup reconnection data for ${cleanUsername}:`, error);
+          }
+        } else {
+          // During active game: check if this is a reconnection attempt
+          if (!existingPlayer.connected) {
+            // This is a disconnected player trying to reconnect during active game
+            try {
+              const reconnectionData = await db.getPlayerReconnectionData(cleanUsername, cleanRoomCode);
+              if (reconnectionData && reconnectionData.can_reconnect) {
+                console.log(`Reconnecting player ${cleanUsername} to active game in room ${cleanRoomCode}`);
+                
+                // Update player connection and socket ID
+                existingPlayer.connected = true;
+                existingPlayer.id = socket.id;
+                
+                // Update database
+                await db.updatePlayerSocketId(reconnectionData.player_id, socket.id);
+                await db.clearPlayerReconnectionData(reconnectionData.player_id);
+                
+                socket.join(cleanRoomCode);
+                currentRoom = cleanRoomCode;
+                playerName = cleanUsername;
+                
+                // Save updated room state
+                await db.saveGameRoom(cleanRoomCode, rooms[cleanRoomCode]);
+                
+                // Send game state to reconnected player
+                socket.emit("room_joined", {
+                  roomCode: cleanRoomCode,
+                  gameState: rooms[cleanRoomCode].getState(),
+                });
+                
+                // Send their cards
+                socket.emit("your_cards", {
+                  cards: rooms[cleanRoomCode].getPlayerCards(socket.id),
+                  validMoves: rooms[cleanRoomCode].getValidMoves(socket.id),
+                });
+                
+                // Broadcast reconnection to other players
+                socket.to(cleanRoomCode).emit("player_reconnected", {
+                  playerName: cleanUsername,
+                  gameState: rooms[cleanRoomCode].getState(),
+                });
+                
+                console.log(`Successfully reconnected ${cleanUsername} to active game in room ${cleanRoomCode}`);
+                return;
+              } else {
+                // Reconnection window has expired - player was likely already removed
+                console.log(`Reconnection window expired for ${cleanUsername} in room ${cleanRoomCode}`);
+              }
+            } catch (error) {
+              console.error(`Error during game reconnection for ${cleanUsername}:`, error);
+            }
+          }
+          
+          // Username is taken by connected player or reconnection failed
+          socket.emit("error", "Username already taken in this room");
+          return;
+        }
       }
 
       const success = rooms[cleanRoomCode].addPlayer(socket.id, cleanUsername);
@@ -422,41 +559,47 @@ io.on("connection", (socket) => {
   // Start the game
   socket.on("start_game", async () => {
     try {
-      if (!currentRoom || !rooms[currentRoom]) {
+      if (!currentRoom) {
+        socket.emit("error", "Not in a valid room");
+        return;
+      }
+
+      const room = await ensureRoomExists(currentRoom);
+      if (!room) {
         socket.emit("error", "Not in a valid room");
         return;
       }
 
       // Only the first player (room creator) can start the game
-      if (rooms[currentRoom].players[0].id !== socket.id) {
+      if (room.players[0].id !== socket.id) {
         socket.emit("error", "Only room creator can start the game");
         return;
       }
 
-      if (rooms[currentRoom].players.length <= 1) {
+      if (room.players.length <= 1) {
         socket.emit("error", "Need at least 2 players to start");
         return;
       }
 
-      const success = rooms[currentRoom].startGame();
+      const success = room.startGame();
       if (!success) {
         socket.emit("error", "Failed to start game");
         return;
       }
 
       // Save game state to database
-      await db.saveGameRoom(currentRoom, rooms[currentRoom]);
+      await db.saveGameRoom(currentRoom, room);
 
       console.log(`Game started in room: ${currentRoom}`);
       io.to(currentRoom).emit("game_started", {
-        gameState: rooms[currentRoom].getState(),
+        gameState: room.getState(),
       });
 
       // Send each player their cards
-      rooms[currentRoom].players.forEach((player) => {
+      room.players.forEach((player) => {
         io.to(player.id).emit("your_cards", {
-          cards: rooms[currentRoom].getPlayerCards(player.id),
-          validMoves: rooms[currentRoom].getValidMoves(player.id),
+          cards: room.getPlayerCards(player.id),
+          validMoves: room.getValidMoves(player.id),
         });
       });
     } catch (error) {
@@ -468,12 +611,16 @@ io.on("connection", (socket) => {
   // Play a card
   socket.on("play_card", async (card) => {
     try {
-      if (!currentRoom || !rooms[currentRoom]) {
+      if (!currentRoom) {
         socket.emit("error", "Not in a valid room");
         return;
       }
 
-      const room = rooms[currentRoom];
+      const room = await ensureRoomExists(currentRoom);
+      if (!room) {
+        socket.emit("error", "Not in a valid room");
+        return;
+      }
       const success = room.playCard(socket.id, card);
 
       if (!success) {
@@ -519,12 +666,16 @@ io.on("connection", (socket) => {
   // Pass turn
   socket.on("pass_turn", async () => {
     try {
-      if (!currentRoom || !rooms[currentRoom]) {
+      if (!currentRoom) {
         socket.emit("error", "Not in a valid room");
         return;
       }
 
-      const room = rooms[currentRoom];
+      const room = await ensureRoomExists(currentRoom);
+      if (!room) {
+        socket.emit("error", "Not in a valid room");
+        return;
+      }
       const success = room.passTurn(socket.id);
 
       if (!success) {
@@ -559,12 +710,16 @@ io.on("connection", (socket) => {
   // Continue to the next round while keeping cumulative scores
   socket.on("continue_round", async () => {
     try {
-      if (!currentRoom || !rooms[currentRoom]) {
+      if (!currentRoom) {
         socket.emit("error", "Not in a valid room");
         return;
       }
 
-      const room = rooms[currentRoom];
+      const room = await ensureRoomExists(currentRoom);
+      if (!room) {
+        socket.emit("error", "Not in a valid room");
+        return;
+      }
       if (!room.gameFinished) {
         socket.emit("error", "Round not finished yet");
         return;
@@ -599,12 +754,16 @@ io.on("connection", (socket) => {
   // Exit the game and broadcast cumulative results
   socket.on("exit_game", async () => {
     try {
-      if (!currentRoom || !rooms[currentRoom]) {
+      if (!currentRoom) {
         socket.emit("error", "Not in a valid room");
         return;
       }
 
-      const room = rooms[currentRoom];
+      const room = await ensureRoomExists(currentRoom);
+      if (!room) {
+        socket.emit("error", "Not in a valid room");
+        return;
+      }
 
       const totals = room.players
         .map((p) => ({ name: p.name, totalScore: p.totalScore }))
@@ -631,14 +790,20 @@ io.on("connection", (socket) => {
   });
 
   // Get current game state
-  socket.on("get_state", () => {
+  socket.on("get_state", async () => {
     try {
-      if (!currentRoom || !rooms[currentRoom]) {
+      if (!currentRoom) {
         socket.emit("error", "Not in a valid room");
         return;
       }
 
-      socket.emit("game_state", rooms[currentRoom].getPlayerState(socket.id));
+      const room = await ensureRoomExists(currentRoom);
+      if (!room) {
+        socket.emit("error", "Not in a valid room");
+        return;
+      }
+
+      socket.emit("game_state", room.getPlayerState(socket.id));
     } catch (error) {
       console.error("Error getting state:", error);
       socket.emit("error", "Failed to get game state");
@@ -657,22 +822,68 @@ io.on("connection", (socket) => {
           room.players[room.currentPlayerIndex]?.id === socket.id;
 
         if (wasGameStarted) {
-          // Game has started - remove player immediately and redistribute cards
-          room.removePlayer(socket.id, true);
+          // Game has started - give short reconnection window (30 seconds) then redistribute cards
+          room.setPlayerDisconnected(socket.id);
+          
+          // Set short reconnection timeout in database
+          await db.setPlayerReconnectionTimeout(socket.id, currentRoom, 0.5); // 30 seconds for active games
+          
+          console.log(`Player ${playerName} disconnected during game. Allowing 30 seconds for reconnection.`);
 
-          // If the disconnected player was the current turn, move to next player
+          // If the disconnected player was the current turn, automatically pass their turn
           if (wasCurrentPlayer && !room.gameFinished) {
+            console.log(`Auto-passing turn for disconnected player ${playerName}`);
             room.nextTurn();
           }
 
           // Save updated game state
           await db.saveGameRoom(currentRoom, room);
 
-          // Broadcast updated state to remaining players
+          // Broadcast updated state to remaining players (showing player as disconnected)
           io.to(currentRoom).emit("player_disconnected", {
             playerName,
             gameState: room.getState(),
           });
+
+          // Set short timeout to remove player and redistribute cards if they don't reconnect
+          setTimeout(async () => {
+            try {
+              // Double check the room still exists and player is still disconnected
+              const currentRoomState = await ensureRoomExists(currentRoom);
+              if (currentRoomState) {
+                const player = currentRoomState.players.find(p => p.id === socket.id);
+                if (player && !player.connected) {
+                  console.log(`Removing player ${playerName} after 30 second timeout. Redistributing cards.`);
+                  
+                  // Remove player and redistribute their cards to keep game playable
+                  currentRoomState.removePlayer(socket.id, true);
+                  await db.removePlayerFromRoom(socket.id, currentRoom);
+                  await db.saveGameRoom(currentRoom, currentRoomState);
+                  
+                  // Broadcast cards redistribution
+                  io.to(currentRoom).emit("cards_redistributed", {
+                    message: `${playerName} was removed. Cards redistributed to continue the game.`,
+                  });
+                  
+                  // Send updated cards to all remaining players
+                  currentRoomState.players.forEach((player) => {
+                    io.to(player.id).emit("your_cards", {
+                      cards: currentRoomState.getPlayerCards(player.id),
+                      validMoves: currentRoomState.getValidMoves(player.id),
+                    });
+                  });
+                  
+                  // Update game state for all players
+                  io.to(currentRoom).emit("player_disconnected", {
+                    playerName,
+                    gameState: currentRoomState.getState(),
+                  });
+                }
+              }
+            } catch (error) {
+              console.error(`Error removing player ${playerName} after timeout:`, error);
+            }
+          }, 30 * 1000); // 30 seconds
 
           // Send updated cards to all remaining players if cards were redistributed
           if (!room.gameFinished) {

@@ -202,7 +202,12 @@ const GameScreen: React.FC<GameScreenProps> = ({
               getWarningLevel(currentPlayer) === 'warning' ? 'warning-indicator' : ''
             }`}>
               <div className="current-player-info">
-                <span className="current-player-name">{currentPlayer.name}</span>
+                <span className="current-player-name">
+                  {currentPlayer.name}
+                  {currentPlayer.isDealer && (
+                    <span className="dealer-badge" title="Dealer">D</span>
+                  )}
+                </span>
                 <span className="current-player-turn">{isMyTurn ? "Your Turn" : "Current Turn"}</span>
               </div>
               <div className="current-player-details">
@@ -222,7 +227,12 @@ const GameScreen: React.FC<GameScreenProps> = ({
                       player.connected ? 'connected' : 'disconnected'
                     } ${warningLevel === 'critical' ? 'critical-warning' : ''} ${warningLevel === 'warning' ? 'warning-indicator' : ''}`}
                   >
-                    <div className="player-name">{player.name}</div>
+                    <div className="player-name">
+                      {player.name}
+                      {player.isDealer && (
+                        <span className="dealer-badge" title="Dealer">D</span>
+                      )}
+                    </div>
                     <div className="player-status-indicators">
                       <span className="card-count">
                         {player.cardCount}
