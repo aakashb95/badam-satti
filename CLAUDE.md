@@ -350,6 +350,21 @@ http://localhost:3000
     - **Race Condition Fix**: Resolved state timing issue in URL join flow by passing username directly
     - **Backward Compatibility**: Maintains all existing manual room code entry functionality
     - **User-Friendly Sharing**: Easy room sharing via direct links instead of complex 6-character codes
+50. **Clockwise Dealing and Dealer Rotation System** - Traditional card game dealer mechanics (2025-07-12):
+    - **Dealer Tracking**: Room creator starts as dealer with visual "D" badge indicators
+    - **Clockwise Card Dealing**: Cards dealt in proper clockwise order starting from player after dealer
+    - **Highest Scorer Rotation**: Player with most remaining card points after each round becomes next dealer
+    - **UI Integration**: Orange dealer badges displayed in waiting room and game screen throughout gameplay
+    - **Edge Case Handling**: Dealer index properly adjusts when players disconnect or leave rooms
+    - **Database Persistence**: Dealer state persists across server restarts and room restoration
+51. **Critical Connection and Room State Fixes** - Comprehensive multiplayer stability improvements (2025-07-12):
+    - **Room Restoration System**: Automatic room restoration from database when memory cache is cleared
+    - **Robust Room Validation**: All socket events now use `ensureRoomExists()` to prevent "Not in a valid room" errors
+    - **Smart Username Validation**: Prevents duplicate usernames while allowing proper cleanup of orphaned disconnected players
+    - **Mid-Game Reconnection**: 30-second reconnection window during active games with automatic card redistribution
+    - **Improved Disconnection Flow**: Distinguishes between waiting room (10min reconnection) and active game (30sec + redistribution)
+    - **Database Consistency**: Added new database methods for reconnection timeout management and player socket ID updates
+    - **Race Condition Prevention**: Fixed timing issues between disconnection detection and reconnection attempts
 
 ## Known Working Features
 - ✅ **React Frontend** - Modern component-based architecture with TypeScript
@@ -400,6 +415,8 @@ http://localhost:3000
 - ✅ **Critical Mobile Viewport Fixes** - Dynamic viewport height (100dvh), iOS safe area support, iPhone model-specific optimization
 - ✅ **Fixed Card Stacking Logic** - Completely resolved board sequence display with proper visual hierarchy and accurate card positioning
 - ✅ **Link-based Room Joining System** - Complete URL-based room sharing with React Router, JoinRoomScreen component, and race condition fix
+- ✅ **Clockwise Dealing and Dealer Rotation** - Traditional card game mechanics with room creator as initial dealer, highest scorer rotation, and visual indicators
+- ✅ **Critical Connection Stability** - Robust room validation, automatic database restoration, smart disconnection handling with 30-second mid-game reconnection
 
 ## Development Notes
 - **Frontend**: React 18 + TypeScript with Vite build system
@@ -413,7 +430,7 @@ http://localhost:3000
 - Game state fully synchronized across all connected clients
 - Room cleanup runs every 60 seconds (database + memory)
 - Graceful shutdown saves all active games to database
-- Disconnected players immediately removed with card redistribution
+- Disconnected players: 30-second reconnection window during games, then card redistribution for continued gameplay
 - Complete SVG card set with custom design (optimized to 5.2MB total)
 - Sophisticated card sorting: hearts, diamonds, clubs, spades by rank
 - Server auto-plays 7♥ to start each round
@@ -474,5 +491,5 @@ http://localhost:3000
 - **Backup Security**: Encrypted database backups with secure storage
 
 ---
-*Last Updated: 2025-07-11*
-*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play (20s), enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), Cloudflare CDN integration for global performance, clean turn-agnostic server-side player position indicators with fixed red critical detection, pre-game help system with blue "How to Play" button, smart 7-centered card stacking with proper edge case handling, fixed touch device card hover states, optimized desktop layout with balanced proportions, clean turn information UX eliminating information overload, toast notification system replacing alert popups, simplified numeric-only player card displays, refined color-only visual indicators, fixed card stacking edge cases for accurate sequence direction detection, critical security hardening with CORS protection, IP privacy, security headers, HTTPS enforcement, and secure health endpoints, critical mobile viewport fixes with dynamic viewport height and iOS safe area support for all iPhone models, completely fixed card stacking logic with proper visual hierarchy and accurate sequence representation, and full link-based room joining system with React Router integration, JoinRoomScreen component, enhanced WaitingRoom with copy link functionality, and race condition fix for URL-based room joining*
+*Last Updated: 2025-07-12*
+*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, critical connection stability fixes, clockwise dealing with dealer rotation, robust room validation with automatic database restoration, smart disconnection handling (30s mid-game reconnection + card redistribution), working auto-play (20s), enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), Cloudflare CDN integration for global performance, clean turn-agnostic server-side player position indicators with fixed red critical detection, pre-game help system with blue "How to Play" button, smart 7-centered card stacking with proper edge case handling, fixed touch device card hover states, optimized desktop layout with balanced proportions, clean turn information UX eliminating information overload, toast notification system replacing alert popups, simplified numeric-only player card displays, refined color-only visual indicators, fixed card stacking edge cases for accurate sequence direction detection, critical security hardening with CORS protection, IP privacy, security headers, HTTPS enforcement, and secure health endpoints, critical mobile viewport fixes with dynamic viewport height and iOS safe area support for all iPhone models, completely fixed card stacking logic with proper visual hierarchy and accurate sequence representation, and full link-based room joining system with React Router integration, JoinRoomScreen component, enhanced WaitingRoom with copy link functionality, and race condition fix for URL-based room joining*
