@@ -822,13 +822,8 @@ io.on("connection", (socket) => {
           room.players[room.currentPlayerIndex]?.id === socket.id;
 
         if (wasGameStarted) {
-          // Game has started - give short reconnection window (30 seconds) then redistribute cards
-          room.setPlayerDisconnected(socket.id);
-          
-          // Set short reconnection timeout in database
-          await db.setPlayerReconnectionTimeout(socket.id, currentRoom, 0.5); // 30 seconds for active games
-          
-          console.log(`Player ${playerName} disconnected during game. Allowing 30 seconds for reconnection.`);
+          // Game has started - immediately redistribute cards for faster gameplay
+          console.log(`Player ${playerName} disconnected during game. Immediately redistributing cards.`);
 
           // If the disconnected player was the current turn, automatically pass their turn
           if (wasCurrentPlayer && !room.gameFinished) {
@@ -836,85 +831,40 @@ io.on("connection", (socket) => {
             room.nextTurn();
           }
 
-          // Save updated game state
+          // Remove player and redistribute their cards immediately to keep game playable
+          room.removePlayer(socket.id, true);
+          await db.removePlayerFromRoom(socket.id, currentRoom);
           await db.saveGameRoom(currentRoom, room);
-
-          // Broadcast updated state to remaining players (showing player as disconnected)
+          
+          // Broadcast cards redistribution
+          io.to(currentRoom).emit("cards_redistributed", {
+            message: `${playerName} was removed. Cards redistributed to continue the game.`,
+          });
+          
+          // Send updated cards to all remaining players
+          room.players.forEach((player) => {
+            io.to(player.id).emit("your_cards", {
+              cards: room.getPlayerCards(player.id),
+              validMoves: room.getValidMoves(player.id),
+            });
+          });
+          
+          // Update game state for all players
           io.to(currentRoom).emit("player_disconnected", {
             playerName,
             gameState: room.getState(),
           });
 
-          // Set short timeout to remove player and redistribute cards if they don't reconnect
-          setTimeout(async () => {
-            try {
-              // Double check the room still exists and player is still disconnected
-              const currentRoomState = await ensureRoomExists(currentRoom);
-              if (currentRoomState) {
-                const player = currentRoomState.players.find(p => p.id === socket.id);
-                if (player && !player.connected) {
-                  console.log(`Removing player ${playerName} after 30 second timeout. Redistributing cards.`);
-                  
-                  // Remove player and redistribute their cards to keep game playable
-                  currentRoomState.removePlayer(socket.id, true);
-                  await db.removePlayerFromRoom(socket.id, currentRoom);
-                  await db.saveGameRoom(currentRoom, currentRoomState);
-                  
-                  // Broadcast cards redistribution
-                  io.to(currentRoom).emit("cards_redistributed", {
-                    message: `${playerName} was removed. Cards redistributed to continue the game.`,
-                  });
-                  
-                  // Send updated cards to all remaining players
-                  currentRoomState.players.forEach((player) => {
-                    io.to(player.id).emit("your_cards", {
-                      cards: currentRoomState.getPlayerCards(player.id),
-                      validMoves: currentRoomState.getValidMoves(player.id),
-                    });
-                  });
-                  
-                  // Update game state for all players
-                  io.to(currentRoom).emit("player_disconnected", {
-                    playerName,
-                    gameState: currentRoomState.getState(),
-                  });
-                }
-              }
-            } catch (error) {
-              console.error(`Error removing player ${playerName} after timeout:`, error);
-            }
-          }, 30 * 1000); // 30 seconds
-
-          // Send updated cards to all remaining players if cards were redistributed
-          if (!room.gameFinished) {
-            // Check if only one player remains
-            if (room.players.length === 1) {
-              // Notify the last player that all others left and end the game
-              io.to(currentRoom).emit("game_over", {
-                type: "all_players_left",
-                winner: room.players[0].name,
-                message: "All other players have left the game",
-              });
-              room.gameFinished = true;
-              await db.saveGameRoom(currentRoom, room);
-            } else {
-              // Notify about card redistribution
-              io.to(currentRoom).emit("cards_redistributed", {
-                message: `${playerName}'s cards have been redistributed`,
-                redistributedCardCount:
-                  room.players.length > 0
-                    ? Math.floor(52 / room.players.length)
-                    : 0,
-              });
-
-              // Send updated cards to all remaining players
-              room.players.forEach((player) => {
-                io.to(player.id).emit("your_cards", {
-                  cards: room.getPlayerCards(player.id),
-                  validMoves: room.getValidMoves(player.id),
-                });
-              });
-            }
+          // Check if only one player remains after redistribution
+          if (!room.gameFinished && room.players.length === 1) {
+            // Notify the last player that all others left and end the game
+            io.to(currentRoom).emit("game_over", {
+              type: "all_players_left",
+              winner: room.players[0].name,
+              message: "All other players have left the game",
+            });
+            room.gameFinished = true;
+            await db.saveGameRoom(currentRoom, room);
           }
         } else {
           // Game hasn't started - allow reconnection
