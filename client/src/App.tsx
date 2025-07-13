@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
+import { Route, BrowserRouter as Router, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import './App.css';
 import ErrorModal from './components/ErrorModal';
@@ -445,7 +445,7 @@ const MainApp: React.FC = () => {
         } else {
           console.log('Conditions NOT met for auto-play - game may have ended or screen changed');
         }
-      }, 20000);
+      }, 30000);
 
       setAutoPassTimeout(timeoutId);
     } else {
