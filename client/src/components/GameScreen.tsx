@@ -111,17 +111,16 @@ const GameScreen: React.FC<GameScreenProps> = ({
           const suitBoard = gameState.board[suit];
           const upSequence = [...(suitBoard.up || [])].sort((a, b) => b - a);
           const downSequence = [...(suitBoard.down || [])].sort((a, b) => b - a);
-          const allRanks = [...upSequence, ...downSequence];
+          const allRanks = Array.from(new Set([...upSequence, ...downSequence]));
           const maxVisibleCards = 3;
           let displayRanks = allRanks;
 
           if (allRanks.length > maxVisibleCards) {
-            const sevenIndex = allRanks.indexOf(7);
-            displayRanks = [
-              allRanks[0],
-              sevenIndex >= 0 ? allRanks[sevenIndex] : allRanks[Math.floor(allRanks.length / 2)],
-              allRanks[allRanks.length - 1],
-            ];
+            const highestRank = allRanks[0];
+            const lowestRank = allRanks[allRanks.length - 1];
+            displayRanks = [highestRank];
+            if (allRanks.includes(7) && highestRank !== 7 && lowestRank !== 7) displayRanks.push(7);
+            displayRanks.push(lowestRank);
           }
 
           return (
