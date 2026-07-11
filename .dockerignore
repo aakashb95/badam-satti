@@ -1,0 +1,11 @@
+.git
+AGENTS.md
+CLAUDE.md
+client/node_modules
+client/dist
+server/node_modules
+server/badam-satti.db
+data
+.DS_Store
+npm-debug.log*
+*.log

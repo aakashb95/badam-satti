@@ -8,7 +8,7 @@ class Database {
   }
 
   init() {
-    const dbPath = path.join(__dirname, 'badam-satti.db');
+    const dbPath = process.env.DB_PATH || path.join(__dirname, 'badam-satti.db');
     
     this.db = new sqlite3.Database(dbPath, (err) => {
       if (err) {

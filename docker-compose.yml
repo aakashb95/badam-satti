@@ -1,0 +1,23 @@
+services:
+  badam-satti:
+    build: .
+    container_name: badam-satti
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 5001
+      DB_PATH: /data/badam-satti.db
+      # Replace these in production. Keep them stable across restarts.
+      IP_HASH_SALT: change-me-to-a-long-random-string
+      ADMIN_KEY: change-me-to-a-long-random-string
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:5001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
