@@ -30,11 +30,16 @@ function isAllowedOrigin(origin) {
   try {
     const { hostname, protocol } = new URL(origin);
     const isLocalProtocol = protocol === 'http:' || protocol === 'https:';
+    const isLoopback =
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname === '[::1]';
     const isPrivateIPv4 =
       /^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
       /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
       /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(hostname);
-    return isLocalProtocol && isPrivateIPv4;
+    return isLocalProtocol && (isLoopback || isPrivateIPv4);
   } catch {
     return false;
   }
@@ -69,7 +74,7 @@ const Database = require("./database");
 const IP_HASH_SALT = process.env.IP_HASH_SALT || crypto.randomBytes(32).toString('hex');
 const ROOM_CODE_PATTERN = /^[A-Z0-9]{6}$/;
 const CARD_SUITS = new Set(['hearts', 'diamonds', 'clubs', 'spades']);
-const RATE_LIMITED_EVENTS = new Set(['create_room', 'join_room', 'reconnect_to_room', 'start_game', 'play_card', 'pass_turn', 'continue_round', 'exit_game']);
+const RATE_LIMITED_EVENTS = new Set(['create_room', 'join_room', 'reconnect_to_room', 'start_game', 'play_card', 'pass_turn', 'continue_round', 'exit_game', 'leave_room']);
 
 function hashIP(ip) {
   return crypto.createHash('sha256').update(`${ip}${IP_HASH_SALT}`).digest('hex').substring(0, 16);
@@ -231,6 +236,83 @@ function clearActiveDisconnectTimer(roomCode, playerId) {
   if (!timer) return;
   clearTimeout(timer);
   activeDisconnectTimers.delete(key);
+}
+
+function buildGameTotals(room) {
+  const totals = room.players
+    .map((player) => ({ name: player.name, totalScore: player.totalScore }))
+    .sort((a, b) => a.totalScore - b.totalScore);
+
+  return {
+    totals,
+    winner: totals[0]?.name || "",
+    loser: totals[totals.length - 1]?.name || "",
+  };
+}
+
+function emitPlayerHands(room) {
+  room.players.forEach((player) => {
+    if (!player.connected) return;
+    io.to(player.id).emit("your_cards", {
+      cards: room.getPlayerCards(player.id),
+      validMoves: room.getValidMoves(player.id),
+    });
+  });
+}
+
+function emitGameTotals(roomCode, room) {
+  io.to(roomCode).emit("game_totals", buildGameTotals(room));
+}
+
+async function removePlayerFromRoom(roomCode, playerId, playerName, options = {}) {
+  const {
+    redistribute = false,
+    notify = true,
+    redistributionMessage = `${playerName} was removed. Cards redistributed to continue the game.`,
+  } = options;
+
+  const room = await ensureRoomExists(roomCode);
+  const player = room?.players.find((candidate) => candidate.id === playerId);
+  if (!room || !player) return room || null;
+
+  clearActiveDisconnectTimer(roomCode, playerId);
+  room.removePlayer(playerId, redistribute);
+  await db.removePlayerFromRoom(playerId, roomCode);
+
+  if (room.players.length === 0) {
+    await db.deactivateRoom(roomCode);
+    delete rooms[roomCode];
+    return null;
+  }
+
+  await db.saveGameRoom(roomCode, room);
+
+  if (redistribute) {
+    io.to(roomCode).emit("cards_redistributed", {
+      message: redistributionMessage,
+    });
+  }
+
+  emitPlayerHands(room);
+
+  if (notify) {
+    io.to(roomCode).emit("player_disconnected", {
+      playerName,
+      gameState: room.getState(),
+    });
+  }
+
+  if (!room.gameFinished && room.started && room.players.length === 1) {
+    room.gameFinished = true;
+    await db.saveGameRoom(roomCode, room);
+    io.to(roomCode).emit("game_over", {
+      type: "all_players_left",
+      winner: room.players[0].name,
+      message: "All other players have left the game",
+    });
+  }
+
+  return room;
 }
 
 app.use(express.json({ limit: '16kb' }));
@@ -478,7 +560,11 @@ io.on("connection", (socket) => {
           // Check if the disconnected player has an active reconnection window
           try {
             const reconnectionData = await db.getPlayerReconnectionData(cleanUsername, cleanRoomCode);
-            if (reconnectionData && reconnectionData.can_reconnect) {
+            const reconnectStillActive =
+              reconnectionData?.can_reconnect &&
+              reconnectionData.reconnect_timeout &&
+              new Date(reconnectionData.reconnect_timeout).getTime() > Date.now();
+            if (reconnectStillActive) {
               emitSocketError(socket, "USERNAME_TAKEN", "Username already taken in this room");
               return;
             }
@@ -544,7 +630,7 @@ io.on("connection", (socket) => {
         if (existingPlayer.id !== socket.id) {
           const previousPlayerId = existingPlayer.id;
           clearActiveDisconnectTimer(cleanRoomCode, previousPlayerId);
-          room.reconnectPlayer(previousPlayerId, socket.id, socket.id);
+          room.reconnectPlayer(previousPlayerId, socket.id);
           await db.updatePlayerSocketId(previousPlayerId, socket.id);
         }
 
@@ -580,7 +666,6 @@ io.on("connection", (socket) => {
 
       const success = room.reconnectPlayer(
         reconnectionResult.playerId, 
-        socket.id, 
         socket.id
       );
 
@@ -789,6 +874,13 @@ io.on("connection", (socket) => {
         socket.emit("error", "Round not finished yet");
         return;
       }
+      if (!room.hasMoreRounds()) {
+        emitGameTotals(currentRoom, room);
+        room.started = false;
+        room.gameFinished = true;
+        await db.saveGameRoom(currentRoom, room);
+        return;
+      }
 
       const success = room.continueRound();
       if (!success) {
@@ -803,13 +895,7 @@ io.on("connection", (socket) => {
         gameState: room.getState(),
       });
 
-      // Send updated cards to each player
-      room.players.forEach((player) => {
-        io.to(player.id).emit("your_cards", {
-          cards: room.getPlayerCards(player.id),
-          validMoves: room.getValidMoves(player.id),
-        });
-      });
+      emitPlayerHands(room);
     } catch (error) {
       console.error("Error continuing round:", error);
       socket.emit("error", "Failed to continue round");
@@ -830,18 +916,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      const totals = room.players
-        .map((p) => ({ name: p.name, totalScore: p.totalScore }))
-        .sort((a, b) => a.totalScore - b.totalScore);
-
-      const winnerName = totals[0]?.name || "";
-      const loserName = totals[totals.length - 1]?.name || "";
-
-      io.to(currentRoom).emit("game_totals", {
-        totals,
-        winner: winnerName,
-        loser: loserName,
-      });
+      emitGameTotals(currentRoom, room);
 
       room.started = false;
       room.gameFinished = true;
@@ -851,6 +926,36 @@ io.on("connection", (socket) => {
     } catch (error) {
       console.error("Error exiting game:", error);
       socket.emit("error", "Failed to exit game");
+    }
+  });
+
+  socket.on("leave_room", async () => {
+    if (!currentRoom) {
+      socket.emit("left_room");
+      return;
+    }
+
+    const leavingRoom = currentRoom;
+    const leavingPlayerName = playerName || "A player";
+    const leavingPlayerId = socket.id;
+
+    try {
+      const room = await ensureRoomExists(leavingRoom);
+      const shouldRedistribute = Boolean(room?.started && !room.gameFinished);
+
+      currentRoom = null;
+      playerName = null;
+      socket.leave(leavingRoom);
+
+      await removePlayerFromRoom(leavingRoom, leavingPlayerId, leavingPlayerName, {
+        redistribute: shouldRedistribute,
+        redistributionMessage: `${leavingPlayerName} left. Cards redistributed to continue the game.`,
+      });
+
+      socket.emit("left_room");
+    } catch (error) {
+      console.error("Error leaving room:", error);
+      socket.emit("error", "Failed to leave room");
     }
   });
 
@@ -905,13 +1010,7 @@ io.on("connection", (socket) => {
             message: `${playerName} disconnected but can reconnect`,
           });
 
-          room.players.forEach((player) => {
-            if (!player.connected) return;
-            io.to(player.id).emit("your_cards", {
-              cards: room.getPlayerCards(player.id),
-              validMoves: room.getValidMoves(player.id),
-            });
-          });
+          emitPlayerHands(room);
 
           const disconnectedRoom = currentRoom;
           const disconnectedPlayerId = socket.id;
@@ -925,35 +1024,9 @@ io.on("connection", (socket) => {
               if (!latestRoom || !player || player.connected) return;
 
               console.log(`Reconnection expired for ${disconnectedPlayerName}. Redistributing cards.`);
-              latestRoom.removePlayer(disconnectedPlayerId, true);
-              await db.removePlayerFromRoom(disconnectedPlayerId, disconnectedRoom);
-              await db.saveGameRoom(disconnectedRoom, latestRoom);
-
-              io.to(disconnectedRoom).emit("cards_redistributed", {
-                message: `${disconnectedPlayerName} was removed. Cards redistributed to continue the game.`,
+              await removePlayerFromRoom(disconnectedRoom, disconnectedPlayerId, disconnectedPlayerName, {
+                redistribute: true,
               });
-
-              latestRoom.players.forEach((remainingPlayer) => {
-                io.to(remainingPlayer.id).emit("your_cards", {
-                  cards: latestRoom.getPlayerCards(remainingPlayer.id),
-                  validMoves: latestRoom.getValidMoves(remainingPlayer.id),
-                });
-              });
-
-              io.to(disconnectedRoom).emit("player_disconnected", {
-                playerName: disconnectedPlayerName,
-                gameState: latestRoom.getState(),
-              });
-
-              if (!latestRoom.gameFinished && latestRoom.players.length === 1) {
-                io.to(disconnectedRoom).emit("game_over", {
-                  type: "all_players_left",
-                  winner: latestRoom.players[0].name,
-                  message: "All other players have left the game",
-                });
-                latestRoom.gameFinished = true;
-                await db.saveGameRoom(disconnectedRoom, latestRoom);
-              }
             } catch (error) {
               console.error("Error finalizing active disconnect:", error);
             }
@@ -987,7 +1060,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Removed reconnection logic - players who disconnect are removed for fair gameplay
+  // Intentional disconnects use leave_room; transport drops use phase-aware reconnection windows.
 });
 
 // Generate a 6-character room code

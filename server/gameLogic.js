@@ -80,21 +80,18 @@ class GameRoom {
         this.dealerIndex = 0;
       }
 
-      // Adjust current player index in case it now exceeds player count
+      if (playerIndex < this.currentPlayerIndex && this.players.length > 0) {
+        this.currentPlayerIndex -= 1;
+      }
+      // If the current player was removed, the shifted player at the same
+      // index becomes current. Wrap only when the removed player was last.
       if (this.currentPlayerIndex >= this.players.length) {
         this.currentPlayerIndex = 0;
       }
     }
   }
 
-  setPlayerDisconnected(id) {
-    const player = this.players.find((p) => p.id === id);
-    if (player) {
-      player.connected = false;
-    }
-  }
-
-  reconnectPlayer(oldId, newId, newSocketId) {
+  reconnectPlayer(oldId, newId) {
     const player = this.players.find((p) => p.id === oldId);
     if (player) {
       player.id = newId;
@@ -380,6 +377,8 @@ class GameRoom {
   }
 
   nextTurn() {
+    if (this.players.length === 0) return;
+
     this.currentPlayerIndex =
       (this.currentPlayerIndex + 1) % this.players.length;
 
@@ -500,6 +499,7 @@ class GameRoom {
   getState() {
     return {
       roomCode: this.roomCode,
+      currentPlayerIndex: this.currentPlayerIndex,
       players: this.players.map((p, index) => ({
         name: p.name,
         cardCount: p.cards.length,
@@ -558,6 +558,7 @@ class GameRoom {
 
   continueRound() {
     if (!this.gameFinished) return false;
+    if (this.round >= this.maxRounds) return false;
 
     // Advance round counters
     this.round++;
@@ -591,6 +592,10 @@ class GameRoom {
     );
 
     return true;
+  }
+
+  hasMoreRounds() {
+    return this.round < this.maxRounds;
   }
 }
 

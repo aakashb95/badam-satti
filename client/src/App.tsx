@@ -314,6 +314,10 @@ const MainApp: React.FC<MainAppProps> = ({ theme, onToggleTheme, comfortSize, on
       setAppState((previous) => ({ ...previous, currentScreen: 'summary', loading: null, summary }));
     });
 
+    socket.on('left_room', () => {
+      actionPendingRef.current = false;
+    });
+
     socket.on('game_state', (playerState) => {
       if (!playerState) return;
       const gameState = playerState.gameState || playerState;
@@ -466,6 +470,9 @@ const MainApp: React.FC<MainAppProps> = ({ theme, onToggleTheme, comfortSize, on
   function leaveRoom() {
     actionPendingRef.current = false;
     clearAutoPlay();
+    if (appState.currentRoom && socketRef.current?.connected) {
+      socketRef.current.emit('leave_room');
+    }
     setAppState((previous) => ({
       ...previous,
       currentRoom: '',
@@ -478,7 +485,6 @@ const MainApp: React.FC<MainAppProps> = ({ theme, onToggleTheme, comfortSize, on
       winner: null,
       summary: null,
     }));
-    socketRef.current?.disconnect().connect();
   }
 
   function renderScreen() {
@@ -495,7 +501,7 @@ const MainApp: React.FC<MainAppProps> = ({ theme, onToggleTheme, comfortSize, on
       case 'game':
         return <GameScreen gameState={appState.gameState} myCards={appState.myCards} validMoves={appState.validMoves} isMyTurn={appState.isMyTurn} canPass={appState.canPass} username={appState.username} onPlayCard={playCard} onPassTurn={passTurn} onLeaveGame={leaveRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} themeToggle={compactThemeToggle} />;
       case 'game-over':
-        return <GameOverScreen winner={appState.winner} onContinueRound={() => { showLoading('Starting next round…'); socketRef.current?.emit('continue_round'); }} onExitGame={() => { showLoading('Calculating results…'); socketRef.current?.emit('exit_game'); }} showingDelay={showingGameOverDelay} />;
+        return <GameOverScreen winner={appState.winner} onContinueRound={() => { showLoading('Starting next round…'); socketRef.current?.emit('continue_round'); }} onExitGame={() => { showLoading('Calculating results…'); socketRef.current?.emit('exit_game'); }} showingDelay={showingGameOverDelay} canContinueRound={Boolean(appState.gameState && appState.gameState.round < appState.gameState.maxRounds)} />;
       case 'summary':
         return <SummaryScreen summary={appState.summary} username={appState.username} onReturnToMenu={leaveRoom} />;
       case 'loading':

@@ -6,11 +6,12 @@ interface GameOverScreenProps {
   onContinueRound: () => void;
   onExitGame: () => void;
   showingDelay: boolean;
+  canContinueRound: boolean;
 }
 
 const CARD_ASSET_VERSION = 'v6';
 
-const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound, onExitGame, showingDelay }) => {
+const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound, onExitGame, showingDelay, canContinueRound }) => {
   const getRankDisplay = (rank: number): string => {
     if (rank === 1) return 'A';
     if (rank === 11) return 'J';
@@ -105,8 +106,8 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound
           )}
         </div>
         <div className="game-over-actions">
-          <button className="primary-button" onClick={onContinueRound}>Next round <span>→</span></button>
-          <button className="secondary-button" onClick={onExitGame}>Finish game</button>
+          {canContinueRound && <button className="primary-button" onClick={onContinueRound}>Next round <span>→</span></button>}
+          <button className={canContinueRound ? 'secondary-button' : 'primary-button'} onClick={onExitGame}>Finish game</button>
         </div>
       </div>
     </main>

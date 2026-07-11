@@ -25,6 +25,8 @@ pids
 
 # Coverage directory used by tools like istanbul
 coverage/
+client/test-results/
+client/playwright-report/
 
 # IDE files
 .vscode/

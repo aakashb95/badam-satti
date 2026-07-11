@@ -32,6 +32,7 @@ export interface GameState {
   maxRounds: number;
   started: boolean;
   roundsPlayed: number;
+  gameFinished: boolean;
   gameStartMessage?: string;
 }
 
@@ -79,6 +80,7 @@ export interface SocketEvents {
   pass_turn: () => void;
   continue_round: () => void;
   exit_game: () => void;
+  leave_room: () => void;
   get_state: () => void;
 
   // Server to Client
@@ -100,6 +102,7 @@ export interface SocketEvents {
   cards_redistributed: (data: { message: string }) => void;
   round_continued: (data: { gameState: GameState }) => void;
   game_totals: (summary: GameSummary) => void;
+  left_room: () => void;
   game_state: (data: GameState & { gameState?: GameState; myCards?: Card[]; validMoves?: Card[]; canPass?: boolean }) => void;
   error: (message: string | { code?: string; message?: string }) => void;
 }
