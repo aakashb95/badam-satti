@@ -216,6 +216,29 @@ cd /opt/apps/badam-satti
 ./scripts/deploy-vps.sh
 ```
 
+## GitHub Actions Deployment
+
+The repo includes `.github/workflows/deploy.yml`. It deploys automatically on every push to `master` and can also be run manually from the GitHub Actions tab.
+
+Required repository secrets:
+
+| Secret | Value |
+| --- | --- |
+| `VPS_HOST` | VPS IP or hostname, for example `157.180.81.97` |
+| `VPS_USER` | SSH user, for example `deploy` |
+| `VPS_PORT` | SSH port, usually `22` |
+| `VPS_APP_DIR` | App directory on the VPS, for example `/opt/apps/badam-satti` |
+| `VPS_SSH_KEY` | Private SSH key allowed to log in as `VPS_USER` |
+
+The action SSHes into the VPS and runs:
+
+```bash
+cd "$VPS_APP_DIR"
+git fetch origin
+git reset --hard origin/master
+./scripts/deploy-vps.sh
+```
+
 Useful operations:
 
 ```bash
