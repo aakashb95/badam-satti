@@ -23,6 +23,7 @@ interface JoinRequest {
 
 interface RouteState {
   error?: string;
+  username?: string;
   joinRoom?: JoinRequest;
 }
 
@@ -46,6 +47,19 @@ const rankLabel = (rank: number) => ({ 1: 'A', 11: 'J', 12: 'Q', 13: 'K' }[rank]
 const suitLabel = (suit: string) => ({ hearts: 'Hearts', diamonds: 'Diamonds', clubs: 'Clubs', spades: 'Spades' }[suit] || suit);
 
 const THEME_STORAGE_KEY = 'badam-satti-theme';
+
+function getServerErrorMessage(message: string | Error): string {
+  const rawMessage = typeof message === 'string' ? message : message.message || 'Unexpected server error';
+  const normalized = rawMessage.toLowerCase();
+
+  if (normalized.includes('room not found')) return 'Room code is wrong.';
+  if (normalized.includes('room is full')) return 'This room is full.';
+  if (normalized.includes('game already started')) return 'This game has already started.';
+  if (normalized.includes('invalid room code')) return 'Enter a valid room code.';
+  if (normalized.includes('username already taken')) return 'That name is already taken in this room.';
+
+  return rawMessage;
+}
 
 const getInitialTheme = (): ThemeMode => {
   try {
@@ -97,6 +111,7 @@ const JoinRoomRoute: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
         onJoinRoom={(code, username) => navigate('/', { state: { joinRoom: { roomCode: code, username } } })}
         onBackToMenu={() => navigate('/')}
         error={routeState?.error || null}
+        initialUsername={routeState?.username || ''}
         onClearError={() => navigate(`/r/${roomCode}`, { replace: true })}
         themeToggle={<ThemeToggle theme={theme} onToggle={onToggleTheme} />}
       />
@@ -202,9 +217,8 @@ const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
       notify(`${playerName} can still reconnect`);
     });
 
-    socket.on('player_reconnected', ({ playerName, gameState }) => {
+    socket.on('player_reconnected', ({ gameState }) => {
       setAppState((previous) => ({ ...previous, gameState }));
-      notify(`${playerName} reconnected`);
     });
 
     socket.on('room_reconnected', ({ roomCode, gameState, myCards, validMoves, canPass }) => {
@@ -218,7 +232,6 @@ const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
         currentScreen: gameState?.started ? 'game' : 'waiting',
         loading: null,
       }));
-      notify('Reconnected to the room');
     });
 
     socket.on('game_started', ({ gameState }) => {
@@ -278,15 +291,15 @@ const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
 
     socket.on('error', (message: string | Error) => {
       actionPendingRef.current = false;
-      const errorMessage = typeof message === 'string' ? message : message.message || 'Unexpected server error';
+      const errorMessage = getServerErrorMessage(message);
       if (errorMessage === 'Invalid move' || errorMessage.startsWith('Cannot pass')) {
         socket.emit('get_state');
         return;
       }
-      const joinError = ['room not found', 'room is full', 'game already started'].some((text) => errorMessage.toLowerCase().includes(text));
+      const joinError = ['room code is wrong', 'room is full', 'game has already started'].some((text) => errorMessage.toLowerCase().includes(text));
       if (joinError && joinRequestRef.current) {
-        const { roomCode } = joinRequestRef.current;
-        navigate(`/r/${roomCode}`, { state: { error: errorMessage }, replace: true });
+        const { roomCode, username } = joinRequestRef.current;
+        navigate(`/r/${roomCode}`, { state: { error: errorMessage, username }, replace: true });
       } else if (joinError) {
         setAppState((previous) => ({ ...previous, currentScreen: 'menu', loading: null, error: errorMessage, currentRoom: '', gameState: null }));
       } else {
@@ -299,11 +312,7 @@ const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
       if (!current.currentRoom) return;
 
       if (socket.connected) {
-        if (current.username) {
-          socket.emit('reconnect_to_room', { roomCode: current.currentRoom, username: current.username });
-        } else {
-          socket.emit('get_state');
-        }
+        socket.emit('get_state');
         return;
       }
 

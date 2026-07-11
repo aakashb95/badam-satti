@@ -478,6 +478,13 @@ button.action-card:hover { background: transparent; transform: none; }
 }
 
 .code-entry input { height: 48px; text-transform: uppercase; }
+.code-entry input,
+.room-code-display span,
+.invite-copy strong {
+  font-family: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .04em;
+}
 .code-submit { padding: 0 20px; cursor: pointer; color: var(--accent-text); background: var(--accent); border-radius: var(--radius); font-weight: 500; }
 .code-submit:disabled { opacity: .35; }
 
@@ -755,7 +762,7 @@ button.action-card:hover { background: transparent; transform: none; }
 .join-intro { margin: 0 auto 24px; }
 
 .room-code-display { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 24px; }
-.room-code-display span { display: grid; aspect-ratio: .8; place-items: center; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); font-size: 1rem; font-weight: 500; }
+.room-code-display span { display: grid; aspect-ratio: .8; place-items: center; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); font-size: 1rem; font-weight: 600; }
 .join-form { text-align: left; }
 .join-form .form-group { margin-bottom: 14px; }
 
@@ -801,7 +808,7 @@ button.action-card:hover { background: transparent; transform: none; }
 
 .invite-copy { display: flex; flex-direction: column; gap: 3px; }
 .invite-copy span { color: var(--faint); font-size: .72rem; font-weight: 400; text-transform: none; }
-.invite-copy strong { font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 500; line-height: 1; }
+.invite-copy strong { font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 600; line-height: 1; }
 .invite-actions { display: flex; gap: 8px; }
 .invite-link { grid-column: 1 / -1; padding-top: 6px; overflow: hidden; color: var(--faint); font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
 

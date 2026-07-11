@@ -1,17 +1,22 @@
-import React, { ReactNode, useState } from 'react';
+import React, { ReactNode, useEffect, useState } from 'react';
 
 interface JoinRoomScreenProps {
   roomCode: string;
   onJoinRoom: (roomCode: string, username: string) => void;
   onBackToMenu: () => void;
   error?: string | null;
+  initialUsername?: string;
   onClearError?: () => void;
   themeToggle?: ReactNode;
 }
 
-const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({ roomCode, onJoinRoom, onBackToMenu, error, onClearError, themeToggle }) => {
-  const [username, setUsername] = useState('');
+const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({ roomCode, onJoinRoom, onBackToMenu, error, initialUsername = '', onClearError, themeToggle }) => {
+  const [username, setUsername] = useState(initialUsername);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (error) setIsSubmitting(false);
+  }, [error]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -988,7 +988,9 @@ io.on("connection", (socket) => {
 
 // Generate a 6-character room code
 function generateRoomCode() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  // Avoid ambiguous characters in fresh room codes: 0/O and 1/I are
+  // easy to confuse when shared verbally or read from a phone screen.
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let result = "";
   for (let i = 0; i < 6; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));

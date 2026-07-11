@@ -71,6 +71,7 @@ export interface SocketEvents {
   // Client to Server
   create_room: (username: string) => void;
   join_room: (data: { roomCode: string; username: string }) => void;
+  reconnect_to_room: (data: { roomCode: string; username: string }) => void;
   start_game: () => void;
   play_card: (card: Card) => void;
   pass_turn: () => void;
@@ -84,8 +85,11 @@ export interface SocketEvents {
   connect_error: (error: any) => void;
   room_created: (data: { roomCode: string; gameState: GameState }) => void;
   room_joined: (data: { roomCode: string; gameState: GameState }) => void;
+  room_reconnected: (data: { roomCode: string; gameState: GameState; myCards: Card[]; validMoves: Card[]; canPass: boolean }) => void;
   player_joined: (data: { playerName: string; gameState: GameState }) => void;
   player_disconnected: (data: { playerName: string; gameState: GameState }) => void;
+  player_temporarily_disconnected: (data: { playerName: string; gameState: GameState; message?: string }) => void;
+  player_reconnected: (data: { playerName: string; gameState: GameState }) => void;
   game_started: (data: { gameState: GameState }) => void;
   your_cards: (data: { cards: Card[]; validMoves: Card[] }) => void;
   card_played: (data: { playerName: string; card: Card; gameState: GameState }) => void;
@@ -94,6 +98,7 @@ export interface SocketEvents {
   cards_redistributed: (data: { message: string }) => void;
   round_continued: (data: { gameState: GameState }) => void;
   game_totals: (summary: GameSummary) => void;
+  game_state: (data: GameState & { gameState?: GameState; myCards?: Card[]; validMoves?: Card[]; canPass?: boolean }) => void;
   error: (message: string) => void;
 }
 
