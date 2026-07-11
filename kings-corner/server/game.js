@@ -63,6 +63,42 @@ class KingsCornerGame {
     if (player) player.connected = false;
   }
 
+  removePlayer(id) {
+    const playerIndex = this.players.findIndex((item) => item.id === id);
+    if (playerIndex < 0) return null;
+
+    const wasCurrentPlayer = playerIndex === this.currentPlayerIndex;
+    const [player] = this.players.splice(playerIndex, 1);
+
+    // An intentional leave is permanent. Return that hand to the stock so the
+    // remaining table can finish without silently losing playable cards.
+    if (this.started && !this.finished && player.hand.length > 0) {
+      this.stock = shuffle([...this.stock, ...player.hand]);
+    }
+
+    if (this.players.length === 0) {
+      this.currentPlayerIndex = 0;
+      this.dealerIndex = 0;
+      return { player, wasCurrentPlayer };
+    }
+
+    if (playerIndex < this.currentPlayerIndex) this.currentPlayerIndex -= 1;
+    if (this.currentPlayerIndex >= this.players.length) this.currentPlayerIndex = 0;
+    if (playerIndex < this.dealerIndex) this.dealerIndex -= 1;
+    if (this.dealerIndex >= this.players.length) this.dealerIndex = 0;
+
+    if (this.started && !this.finished && this.players.length === 1) {
+      this.finished = true;
+      this.winnerId = this.players[0].id;
+      this.lastAction = { type: 'player_left', playerName: player.name };
+    } else if (this.started && !this.finished && wasCurrentPlayer) {
+      this.beginTurn();
+      this.lastAction = { type: 'player_left', playerName: player.name };
+    }
+
+    return { player, wasCurrentPlayer };
+  }
+
   start(playerId) {
     if (this.started || this.players.length < 2 || this.players[0].id !== playerId) return false;
     this.started = true;
@@ -178,7 +214,9 @@ class KingsCornerGame {
 
   playCard(playerId, card, targetPileId, automatic = false) {
     const player = this.players.find((item) => item.id === playerId);
-    if (!player || player.id !== this.currentPlayer()?.id || this.finished) return false;
+    const validCard = card && typeof card === 'object' && SUITS.includes(card.suit)
+      && Number.isInteger(card.rank) && card.rank >= 1 && card.rank <= 13;
+    if (!player || player.id !== this.currentPlayer()?.id || this.finished || !validCard) return false;
     const handIndex = player.hand.findIndex((item) => item.suit === card.suit && item.rank === card.rank);
     if (handIndex < 0 || !this.canPlayCard(player.hand[handIndex], targetPileId)) return false;
     const [played] = player.hand.splice(handIndex, 1);

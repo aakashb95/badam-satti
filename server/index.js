@@ -2,9 +2,16 @@ const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
 const crypto = require("crypto");
+const httpProxy = require("http-proxy");
 const os = require("os");
 const app = express();
 const server = require("http").createServer(app);
+const KINGS_CORNER_ORIGIN = process.env.KINGS_CORNER_ORIGIN || "http://127.0.0.1:5100";
+const kingsCornerProxy = httpProxy.createProxyServer({
+  target: KINGS_CORNER_ORIGIN,
+  ws: true,
+  xfwd: true,
+});
 
 // Security configuration
 const DEFAULT_ALLOWED_ORIGINS = [
@@ -217,6 +224,32 @@ app.use((req, res, next) => {
     return res.redirect(`https://${req.hostname}${req.url}`);
   }
   next();
+});
+
+// Keep King's Corner reachable behind older catch-all reverse-proxy configs.
+// A path-aware Caddy rule may route these requests directly to port 5100, but
+// forwarding here makes a normal application deploy sufficient on its own.
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/kings-corner')) return next();
+
+  kingsCornerProxy.web(req, res, (error) => {
+    console.error('King\'s Corner proxy error:', sanitizeError(error.message));
+    if (!res.headersSent) {
+      res.status(502).type('text/plain').send('King\'s Corner is temporarily unavailable.');
+    } else {
+      res.end();
+    }
+  });
+});
+
+server.prependListener('upgrade', (req, socket, head) => {
+  const pathname = new URL(req.url || '/', 'http://localhost').pathname;
+  if (!pathname.startsWith('/kings-corner/socket.io')) return;
+
+  kingsCornerProxy.ws(req, socket, head, (error) => {
+    console.error('King\'s Corner WebSocket proxy error:', sanitizeError(error.message));
+    socket.destroy();
+  });
 });
 
 // Initialize database

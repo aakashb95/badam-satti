@@ -42,8 +42,12 @@ export default function App() {
     socketRef.current = socket;
     socket.on('connect', () => {
       setConnected(true);
-      const saved = window.localStorage.getItem(SESSION_KEY);
-      if (saved) socket.emit('reconnect_room', JSON.parse(saved));
+      try {
+        const saved = window.localStorage.getItem(SESSION_KEY);
+        if (saved) socket.emit('reconnect_room', JSON.parse(saved));
+      } catch {
+        window.localStorage.removeItem(SESSION_KEY);
+      }
     });
     socket.on('disconnect', () => setConnected(false));
     socket.on('connect_error', () => setConnected(false));

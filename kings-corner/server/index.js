@@ -47,8 +47,8 @@ function currentRoom(socket) {
 
 function cleanName(value) {
   if (typeof value !== 'string') return null;
-  const name = value.trim().replace(/\s+/g, ' ');
-  return name.length >= 1 && name.length <= 20 ? name : null;
+  const name = value.normalize('NFKC').trim().replace(/\s+/g, ' ');
+  return name.length >= 1 && name.length <= 20 && !/[\u0000-\u001F\u007F]/.test(name) ? name : null;
 }
 
 function act(socket, callback) {
@@ -116,13 +116,21 @@ io.on('connection', (socket) => {
   socket.on('leave_room', () => {
     const room = currentRoom(socket);
     if (!room) return;
-    room.disconnectPlayer(socket.id);
+    const removal = room.removePlayer(socket.id);
     socket.leave(room.roomCode);
     socket.data.roomCode = null;
-    if (room.players.every((player) => !player.connected)) {
+    if (room.players.length === 0) {
       clearTimeout(roomTimers.get(room.roomCode));
       roomTimers.delete(room.roomCode);
       rooms.delete(room.roomCode);
+    } else if (room.finished) {
+      clearTimeout(roomTimers.get(room.roomCode));
+      roomTimers.delete(room.roomCode);
+      emitState(room);
+    } else if (removal?.wasCurrentPlayer && room.started) {
+      scheduleAutoAction(room);
+    } else {
+      emitState(room);
     }
   });
 

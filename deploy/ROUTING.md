@@ -15,6 +15,12 @@
 
 The order of the two Caddy `handle` blocks matters: `/kings-corner*` must be selected before the catch-all upstream. `reverse_proxy` supports WebSocket upgrades, so no separate WebSocket directive is required.
 
+The Badam server also proxies `/kings-corner/*` (including Socket.io upgrades)
+to `KINGS_CORNER_ORIGIN`, which defaults to `http://127.0.0.1:5100`. This is a
+deployment safety net: King's Corner still works when the live Caddyfile only
+contains the historical catch-all proxy to port 5001. The path-specific Caddy
+rule remains preferred because it removes one internal hop.
+
 ## SPA and asset behavior
 
 Both Vite builds have explicit base paths. Express serves each build at the same path used at build time and returns that game’s `index.html` only for routes inside its prefix. This prevents a missing King’s Corner route from accidentally returning the Badam app, and prevents either build’s `/assets`, card images, or fonts from colliding with the other.

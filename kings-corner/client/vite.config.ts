@@ -6,7 +6,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/kings-corner/socket.io': { target: 'http://localhost:5100', ws: true },
+      // Use an explicit IPv4 loopback. On systems where localhost resolves to
+      // ::1, Vite otherwise cannot reach the IPv4-bound game server.
+      '/kings-corner/socket.io': { target: 'http://127.0.0.1:5100', ws: true },
     },
   },
   test: {

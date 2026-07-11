@@ -131,3 +131,32 @@ test('the host can restart a finished table with a rotated dealer', () => {
   assert.equal(game.dealerIndex, 1);
   assert.equal(game.players.every((player) => player.hand.length >= 7), true);
 });
+
+test('malformed card actions are rejected without throwing', () => {
+  const game = startedGame();
+  game.players[0].hand = [card(7, 'clubs')];
+  assert.doesNotThrow(() => game.playCard('a', undefined, 'north'));
+  assert.equal(game.playCard('a', undefined, 'north'), false);
+  assert.equal(game.playCard('a', { rank: '7', suit: 'clubs' }, 'north'), false);
+  assert.deepEqual(game.players[0].hand, [card(7, 'clubs')]);
+});
+
+test('leaving the waiting room removes the player and promotes a new host', () => {
+  const game = new KingsCornerGame('TEST02');
+  game.addPlayer('host', 'Host');
+  game.addPlayer('guest', 'Guest');
+  game.removePlayer('host');
+  assert.deepEqual(game.players.map((player) => player.name), ['Guest']);
+  assert.equal(game.players[0].id, 'guest');
+});
+
+test('leaving an active two-player game awards the remaining player', () => {
+  const game = startedGame();
+  game.players[0].hand = [card(7, 'clubs')];
+  game.players[1].hand = [card(6, 'hearts')];
+  game.stock = [];
+  game.removePlayer('a');
+  assert.equal(game.finished, true);
+  assert.equal(game.winnerId, 'b');
+  assert.equal(game.players[0].name, 'Maya');
+});
