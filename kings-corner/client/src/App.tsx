@@ -4,9 +4,10 @@ import CardView from './CardView';
 import GameBoard from './GameBoard';
 import HelpModal from './HelpModal';
 import ResultsScreen from './ResultsScreen';
-import type { Card, GameState, MovePileAction, PlayCardAction } from './types';
+import type { Card, ComfortSize, GameState, MovePileAction, PlayCardAction } from './types';
 
 const SESSION_KEY = 'kings-corner-session';
+const COMFORT_KEY = 'kings-corner-comfort-size';
 
 function useCountdown(deadline: number | null) {
   const [remaining, setRemaining] = useState(10);
@@ -30,10 +31,14 @@ export default function App() {
   const [showingResultDelay, setShowingResultDelay] = useState(false);
   const [copiedRoomCode, setCopiedRoomCode] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [comfortSize, setComfortSize] = useState<ComfortSize>(() => {
+    const stored = window.localStorage.getItem(COMFORT_KEY);
+    return stored === 'large' || stored === 'extra-large' ? stored : 'standard';
+  });
   const countdown = useCountdown(state?.actionDeadline || null);
 
   useEffect(() => {
-    const socket = io({ reconnectionAttempts: 10 });
+    const socket = io({ reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 800, reconnectionDelayMax: 5_000, timeout: 20_000 });
     socketRef.current = socket;
     socket.on('connect', () => {
       setConnected(true);
@@ -41,6 +46,7 @@ export default function App() {
       if (saved) socket.emit('reconnect_room', JSON.parse(saved));
     });
     socket.on('disconnect', () => setConnected(false));
+    socket.on('connect_error', () => setConnected(false));
     socket.on('state', setState);
     socket.on('error_message', setError);
     socket.on('session_invalid', () => {
@@ -65,6 +71,11 @@ export default function App() {
     const timer = window.setTimeout(() => setShowingResultDelay(false), 1600);
     return () => window.clearTimeout(timer);
   }, [state?.finished]);
+
+  useEffect(() => {
+    document.documentElement.dataset.comfortSize = comfortSize;
+    window.localStorage.setItem(COMFORT_KEY, comfortSize);
+  }, [comfortSize]);
 
   const createRoom = () => {
     setError('');
@@ -94,6 +105,7 @@ export default function App() {
   }, [state?.suggestedActions]);
 
   const automaticAction = typeof state?.lastAction?.type === 'string' && state.lastAction.type.startsWith('auto_');
+  const connectionBanner = !connected ? <div className="connection-banner" role="status"><span /> Reconnecting… Your table is safe.</div> : null;
 
   if (!state) {
     if (!identityConfirmed) {
@@ -121,7 +133,7 @@ export default function App() {
             </div>
             <div className="field-message">Up to 20 characters</div>
             <div className="welcome-meta"><span>2–4 players</span><span>Private rooms</span><span>No sign-up</span></div>
-            {!connected && <p className="status">Connecting to the table…</p>}
+            {connectionBanner}
           </section>
         </main>
       );
@@ -162,11 +174,11 @@ export default function App() {
               </div>
             </section>
           </div>
-          {!connected && <p className="status">Connecting to the table…</p>}
           {error && <p role="alert" className="error">{error}</p>}
         </section>
       </main>
-      <HelpModal open={showHelp} onClose={() => setShowHelp(false)} />
+      <HelpModal open={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={setComfortSize} />
+      {connectionBanner}
     </>);
   }
 
@@ -208,12 +220,13 @@ export default function App() {
           {error && <p role="alert" className="error">{error}</p>}
         </section>
       </main>
-      <HelpModal open={showHelp} onClose={() => setShowHelp(false)} />
+      <HelpModal open={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={setComfortSize} />
+      {connectionBanner}
     </>);
   }
 
   if (state.finished) {
-    return <ResultsScreen state={state} username={name} showingDelay={showingResultDelay} onRestart={() => socketRef.current?.emit('restart_game')} onReturnToLobby={returnToLobby} />;
+    return <><ResultsScreen state={state} username={name} showingDelay={showingResultDelay} onRestart={() => socketRef.current?.emit('restart_game')} onReturnToLobby={returnToLobby} />{connectionBanner}</>;
   }
 
   return (<>
@@ -234,6 +247,7 @@ export default function App() {
         {state.isMyTurn && <p className={`action-note ${state.suggestedActions.length === 0 ? 'ready' : ''}`}>{state.suggestedActions.length === 0 ? 'You’re done here — finish your turn.' : 'Glowing cards and piles are suggested moves. Tap one to play it instantly.'}</p>}
       </section>
     </main>
-    <HelpModal open={showHelp} onClose={() => setShowHelp(false)} />
+    <HelpModal open={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={setComfortSize} />
+    {connectionBanner}
   </>);
 }

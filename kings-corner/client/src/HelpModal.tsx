@@ -1,6 +1,8 @@
-interface Props { open: boolean; onClose: () => void }
+import type { ComfortSize } from './types';
 
-export default function HelpModal({ open, onClose }: Props) {
+interface Props { open: boolean; onClose: () => void; comfortSize: ComfortSize; onComfortSizeChange: (size: ComfortSize) => void }
+
+export default function HelpModal({ open, onClose, comfortSize, onComfortSizeChange }: Props) {
   if (!open) return null;
 
   return (
@@ -19,6 +21,13 @@ export default function HelpModal({ open, onClose }: Props) {
             <span className="demo-mini-card demo-jack">J<i>♣</i></span>
           </div>
           <p>King opens a corner. Then build down in alternating colours.</p>
+        </div>
+
+        <div className="comfort-control">
+          <div><strong>Text size</strong><span>Choose what feels comfortable</span></div>
+          <div className="comfort-options" role="group" aria-label="Text size">
+            {(['standard', 'large', 'extra-large'] as ComfortSize[]).map((size) => <button key={size} className={comfortSize === size ? 'active' : ''} onClick={() => onComfortSizeChange(size)} aria-pressed={comfortSize === size}>{size === 'standard' ? 'A' : size === 'large' ? 'A+' : 'A++'}</button>)}
+          </div>
         </div>
 
         <div className="help-rules">

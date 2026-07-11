@@ -1,4 +1,5 @@
 export type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades';
+export type ComfortSize = 'standard' | 'large' | 'extra-large';
 export interface Card { suit: Suit; rank: number }
 export type PileId = 'north' | 'east' | 'south' | 'west' | 'northWest' | 'northEast' | 'southEast' | 'southWest';
 export interface PlayCardAction { type: 'play_card'; card: Card; targetPileId: PileId }

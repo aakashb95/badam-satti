@@ -57,7 +57,58 @@ test('phone menu and animated help stay inside a narrow viewport', async ({ brow
   await page.getByRole('button', { name: 'How to play' }).click();
   await expect(page.getByRole('dialog', { name: 'How to play' })).toBeVisible();
   await expect(page.getByText('Move complete piles')).toBeVisible();
+  await page.getByRole('button', { name: 'A++' }).click();
   await page.getByRole('button', { name: 'Okay, let’s play' }).click();
   await expect(page.getByRole('dialog', { name: 'How to play' })).not.toBeVisible();
+  const largeTextLayout = await page.evaluate(() => ({ viewportWidth: window.innerWidth, bodyWidth: document.body.scrollWidth, comfortSize: document.documentElement.dataset.comfortSize }));
+  expect(largeTextLayout.comfortSize).toBe('extra-large');
+  expect(largeTextLayout.bodyWidth).toBeLessThanOrEqual(largeTextLayout.viewportWidth);
   await context.close();
+});
+
+test('phone landscape gameplay fits while card images load slowly', async ({ browser }) => {
+  const hostContext = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true });
+  const guestContext = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true });
+  const host = await hostContext.newPage();
+  const guest = await guestContext.newPage();
+
+  await host.route('**/images/cards/**', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    await route.continue();
+  });
+  await host.goto('/');
+  await host.getByPlaceholder('Enter your name').fill('Landscape Host');
+  await host.getByRole('button', { name: 'Continue' }).click();
+  await host.getByRole('button', { name: 'Create a table' }).click();
+  await expect(host.locator('.waiting-screen h1')).toBeVisible();
+  const roomCode = await host.locator('.invite-copy strong').innerText();
+
+  await guest.goto('/');
+  await guest.getByPlaceholder('Enter your name').fill('Landscape Guest');
+  await guest.getByRole('button', { name: 'Continue' }).click();
+  await guest.getByLabel('Room code').fill(roomCode);
+  await guest.getByRole('button', { name: 'Join' }).click();
+  await expect(host.getByText('Landscape Guest')).toBeVisible();
+  await host.getByRole('button', { name: 'Start game' }).click();
+  await expect(host.getByText('Your hand')).toBeVisible();
+  await expect(host.locator('.card-fallback').first()).toBeVisible();
+
+  const layout = await host.evaluate(() => {
+    const board = document.querySelector('.tableau')?.getBoundingClientRect();
+    const hand = document.querySelector('.hand-area')?.getBoundingClientRect();
+    return {
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      bodyWidth: document.body.scrollWidth,
+      bodyHeight: document.body.scrollHeight,
+      boardHeight: board?.height || 0,
+      handBottom: hand?.bottom || 0,
+    };
+  });
+  expect(layout.bodyWidth).toBeLessThanOrEqual(layout.viewportWidth);
+  expect(layout.bodyHeight).toBeLessThanOrEqual(layout.viewportHeight);
+  expect(layout.boardHeight).toBeGreaterThan(150);
+  expect(layout.handBottom).toBeLessThanOrEqual(layout.viewportHeight);
+  await hostContext.close();
+  await guestContext.close();
 });
