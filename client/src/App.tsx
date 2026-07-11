@@ -10,6 +10,7 @@ import LoadingScreen from './components/LoadingScreen';
 import LoginScreen from './components/LoginScreen';
 import MenuScreen from './components/MenuScreen';
 import Notification from './components/Notification';
+import SimulationScreen from './components/SimulationScreen';
 import SummaryScreen from './components/SummaryScreen';
 import ThemeToggle, { ThemeMode } from './components/ThemeToggle';
 import WaitingRoom from './components/WaitingRoom';
@@ -70,6 +71,7 @@ const App: React.FC = () => {
     <BrowserRouter>
       <Routes>
         <Route path="/r/:roomCode" element={<JoinRoomRoute theme={theme} onToggleTheme={toggleTheme} />} />
+        <Route path="/simulation" element={<SimulationRoute theme={theme} onToggleTheme={toggleTheme} />} />
         <Route path="/*" element={<MainApp theme={theme} onToggleTheme={toggleTheme} />} />
       </Routes>
     </BrowserRouter>
@@ -101,6 +103,12 @@ const JoinRoomRoute: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
     </div>
   );
 };
+
+const SimulationRoute: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => (
+  <div className="app" data-theme={theme}>
+    <SimulationScreen themeToggle={<ThemeToggle theme={theme} onToggle={onToggleTheme} />} />
+  </div>
+);
 
 const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
   const navigate = useNavigate();

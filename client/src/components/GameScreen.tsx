@@ -22,7 +22,7 @@ const SUIT_META: Record<Card['suit'], { symbol: string; label: string; short: st
   clubs: { symbol: '♣', label: 'Clubs', short: 'C' },
   spades: { symbol: '♠', label: 'Spades', short: 'S' },
 };
-const CARD_ASSET_VERSION = 'v5';
+const CARD_ASSET_VERSION = 'v6';
 
 const GameScreen: React.FC<GameScreenProps> = ({
   gameState,

@@ -8,7 +8,7 @@ interface GameOverScreenProps {
   showingDelay: boolean;
 }
 
-const CARD_ASSET_VERSION = 'v5';
+const CARD_ASSET_VERSION = 'v6';
 
 const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound, onExitGame, showingDelay }) => {
   const getRankDisplay = (rank: number): string => {
