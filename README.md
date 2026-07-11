@@ -1,8 +1,8 @@
 # Badam Satti
 
-Badam Satti is a browser-based multiplayer card game. The frontend is a React + TypeScript app built with Vite, and the backend is a Node/Express + Socket.io server with SQLite persistence for rooms, players, reconnect state, and rate-limit data.
+This repository hosts a phone-first card-games site with Badam 7 (Badam Satti) and King’s Corner. Each game has a React + TypeScript client and Node/Express + Socket.io server. Badam also uses SQLite persistence for rooms, players, reconnect state, and rate-limit data.
 
-The same Express server serves the built React app in production, so a VPS can run one Node process behind Caddy.
+The public root is a lightweight game chooser. Badam runs at `/badam7/`; King’s Corner runs at `/kings-corner/`. See [`deploy/ROUTING.md`](deploy/ROUTING.md) for the reverse-proxy, SPA fallback, Socket.io, PWA, and backward-compatibility design.
 
 ## Requirements
 
@@ -29,7 +29,7 @@ npm --prefix server run dev
 npm --prefix client run dev
 ```
 
-Open `http://localhost:5001`.
+Open `http://localhost:5001/badam7/` for Badam. King’s Corner development runs separately with `npm run dev --prefix kings-corner` and opens at `http://localhost:5101/kings-corner/`.
 
 In this mode Vite serves the React app on port `5001` and proxies `/socket.io` to the backend on `http://localhost:3000`. The backend defaults to port `3000` unless `PORT` is set.
 
@@ -42,7 +42,14 @@ npm --prefix client run build
 npm --prefix server run start:v2
 ```
 
-Open `http://localhost:5001`. This serves `client/dist` from Express and handles Socket.io from the same origin.
+Open `http://localhost:5001` for the landing page or `http://localhost:5001/badam7/` for Badam. This serves `client/dist` from Express and handles Badam Socket.io from the same origin.
+
+To run the complete production shape locally, also build and start King’s Corner:
+
+```bash
+npm --prefix kings-corner/client run build
+HOST=127.0.0.1 PORT=5100 npm --prefix kings-corner/server start
+```
 
 Health check:
 
@@ -108,6 +115,10 @@ cp .env.production.example .env
 | `APP_NAME` | `badam-satti` | pm2 process name used by `scripts/deploy-vps.sh`. |
 | `APP_URL` | `http://127.0.0.1:5001` | URL used by the deploy script health check. |
 | `DB_PATH` | `server/badam-satti.db` | SQLite database location. Use a persistent path such as `/opt/apps/badam-satti/data/badam-satti.db` in production. |
+| `KINGS_APP_NAME` | `kings-corner` | King’s Corner PM2 process name. |
+| `KINGS_APP_URL` | `http://127.0.0.1:5100/kings-corner/health` | King’s Corner deploy health check. |
+| `KINGS_HOST` | `127.0.0.1` | King’s Corner bind address used by the deploy script. |
+| `KINGS_PORT` | `5100` | King’s Corner internal port. |
 | `ALLOWED_ORIGINS` | empty | Comma-separated extra browser origins allowed by Socket.io/CORS. |
 | `IP_HASH_SALT` | random per process | Salt for hashing client IPs in rate-limit records. Set a stable long random value in production. |
 | `ADMIN_KEY` | unset | Required for `GET /health/admin` via the `x-admin-key` header. |
@@ -200,12 +211,17 @@ sudo nano /etc/caddy/Caddyfile
 sudo systemctl reload caddy
 ```
 
-The example reverse proxies the public domain to `127.0.0.1:5001`:
+The example routes King’s Corner to `127.0.0.1:5100` and everything else (landing, Badam, and legacy Badam links) to `127.0.0.1:5001`:
 
 ```caddyfile
 badam7.aakashb.xyz {
   encode zstd gzip
-  reverse_proxy 127.0.0.1:5001
+  handle /kings-corner* {
+    reverse_proxy 127.0.0.1:5100
+  }
+  handle {
+    reverse_proxy 127.0.0.1:5001
+  }
 }
 ```
 
@@ -218,7 +234,7 @@ cd /opt/apps/badam-satti
 
 ## GitHub Actions Deployment
 
-The repo includes `.github/workflows/deploy.yml`. It deploys automatically on every push to `master` and can also be run manually from the GitHub Actions tab.
+The repo includes `.github/workflows/deploy.yml`. Pull requests build and test both games without deploying. A push to `master` (or a manual dispatch) deploys only after those checks pass.
 
 Required repository secrets:
 
@@ -230,7 +246,7 @@ Required repository secrets:
 | `VPS_APP_DIR` | App directory on the VPS, for example `/opt/apps/badam-satti` |
 | `VPS_SSH_KEY` | Private SSH key allowed to log in as `VPS_USER` |
 
-The action SSHes into the VPS and runs:
+The deploy job SSHes into the VPS and runs:
 
 ```bash
 cd "$VPS_APP_DIR"
@@ -239,12 +255,14 @@ git reset --hard origin/master
 ./scripts/deploy-vps.sh
 ```
 
-Useful operations:
+The VPS script builds both clients and manages the `badam-satti` and `kings-corner` PM2 processes. Useful operations:
 
 ```bash
 pm2 status
 pm2 logs badam-satti --lines 100
+pm2 logs kings-corner --lines 100
 curl http://127.0.0.1:5001/health
+curl http://127.0.0.1:5100/kings-corner/health
 ```
 
 ## Security and Deployment Notes

@@ -77,7 +77,7 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinR
           </section>
         </div>
 
-        <footer className="app-footer"><span>Classic rules</span><span>Seven rounds</span><a href="/simulation">Simulation lab</a></footer>
+        <footer className="app-footer"><span>Classic rules</span><span>Seven rounds</span><a href={`${import.meta.env.BASE_URL}simulation`}>Simulation lab</a></footer>
       </div>
       <HelpModal 
         isOpen={showHelpModal} 

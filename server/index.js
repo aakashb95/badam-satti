@@ -372,9 +372,13 @@ setInterval(async () => {
   }
 }, 60000); // Clean up every minute
 
-// Serve static files from client dist directory (React build)
-// Add no-cache headers for HTML, JS, CSS to ensure latest UI
-app.use(express.static(path.join(__dirname, "../client/dist"), {
+const clientDist = path.join(__dirname, "../client/dist");
+const landingDir = path.join(__dirname, "../landing");
+
+// Serve Badam Satti under its stable game prefix. Its Socket.io endpoint remains
+// at /socket.io so existing clients and reverse-proxy rules keep working.
+app.get(/^\/badam7$/, (req, res) => res.redirect(308, '/badam7/'));
+app.use('/badam7', express.static(clientDist, {
   setHeaders: (res, path) => {
     // No cache for HTML files
     if (path.endsWith('.html') || path.endsWith('sw.js')) {
@@ -1109,14 +1113,30 @@ async function shutdown(signal) {
 process.once('SIGINT', () => shutdown('SIGINT'));
 process.once('SIGTERM', () => shutdown('SIGTERM'));
 
-// Catch-all route - serve React app for all unmatched routes
-app.get("*", (req, res) => {
+// Preserve shared room links created before the multi-game landing page existed.
+app.get('/r/:roomCode', (req, res) => {
+  const query = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+  res.redirect(308, `/badam7/r/${encodeURIComponent(req.params.roomCode)}${query}`);
+});
+app.get('/simulation', (req, res) => res.redirect(308, '/badam7/simulation'));
+
+// Badam's BrowserRouter needs an app-shell fallback below its prefix.
+app.get("/badam7/*", (req, res) => {
   // Always serve fresh HTML with no-cache headers
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  res.sendFile(path.join(__dirname, "../client/dist/index.html"));
+  res.sendFile(path.join(clientDist, "index.html"));
 });
+
+// The domain root is a deliberately small, cache-safe game chooser.
+app.use(express.static(landingDir, { index: false, maxAge: '1h' }));
+app.get('/', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(landingDir, 'index.html'));
+});
+
+app.use((req, res) => res.status(404).sendFile(path.join(landingDir, '404.html')));
 
 // Start the server
 const PORT = process.env.PORT || 3000;

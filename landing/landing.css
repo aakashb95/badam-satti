@@ -1,0 +1,142 @@
+@font-face {
+  font-family: Haskoy;
+  src: url('/badam7/fonts/Haskoy-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Haskoy;
+  src: url('/badam7/fonts/Haskoy-SemiBold.woff2') format('woff2');
+  font-weight: 600 800;
+  font-display: swap;
+}
+
+:root {
+  color: #f6f0df;
+  background: #061b16;
+  font-family: Haskoy, Georgia, sans-serif;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 15% 5%, rgba(66, 132, 103, .2), transparent 35%),
+    radial-gradient(circle at 85% 95%, rgba(190, 124, 54, .13), transparent 38%),
+    #061b16;
+}
+
+body::before {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  opacity: .16;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.3'/%3E%3C/svg%3E");
+}
+
+.table {
+  position: relative;
+  width: min(1120px, 100%);
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: max(20px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(22px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #d9d0b9;
+  font-size: .8rem;
+  font-weight: 600;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.brand-mark {
+  width: 29px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(246, 240, 223, .32);
+  border-radius: 5px;
+  color: #f0b963;
+  transform: rotate(-5deg);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, .18);
+}
+
+.intro { padding: clamp(38px, 8vh, 72px) 2px 28px; }
+.eyebrow, .game-kicker { margin: 0; color: #edbb6a; font-size: .67rem; font-weight: 700; letter-spacing: .17em; text-transform: uppercase; }
+h1 { margin: 12px 0 16px; max-width: 760px; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(2.75rem, 13vw, 6rem); font-weight: 400; line-height: .84; letter-spacing: -.055em; }
+h1 em { color: #d9c6a2; font-weight: 400; }
+.lede { max-width: 490px; margin: 0; color: #9eb2aa; font-size: .95rem; line-height: 1.55; }
+
+.game-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.game-card {
+  --accent: #ecb151;
+  position: relative;
+  min-height: 300px;
+  padding: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: #fff8e8;
+  text-decoration: none;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 22px;
+  isolation: isolate;
+  box-shadow: 0 22px 46px rgba(0,0,0,.22);
+  transition: transform .25s ease, border-color .25s ease;
+  animation: deal-in .65s cubic-bezier(.2,.8,.2,1) both;
+}
+.game-card:nth-child(2) { animation-delay: .09s; }
+.game-card::before { position: absolute; inset: 0; z-index: -2; content: ''; }
+.game-card::after { position: absolute; inset: 0; z-index: -1; content: ''; background: linear-gradient(150deg, transparent 28%, rgba(0,0,0,.42)); }
+.badam::before { background: radial-gradient(circle at 82% 16%, rgba(241, 177, 84, .28), transparent 32%), #153f34; }
+.kings { --accent: #d9d1b8; }
+.kings::before { background: radial-gradient(circle at 80% 13%, rgba(122, 151, 163, .25), transparent 35%), #192f35; }
+.game-number { color: rgba(255,255,255,.56); font-size: .7rem; font-weight: 700; letter-spacing: .12em; }
+.suit-watermark { position: absolute; top: -38px; right: -16px; color: rgba(255,255,255,.05); font-family: Georgia, serif; font-size: 12rem; line-height: 1; }
+
+.card-art { position: absolute; top: 25px; right: 23px; width: 125px; height: 135px; }
+.playing-card { position: absolute; width: 76px; height: 108px; padding: 8px; display: flex; flex-direction: column; background: #f5ecd9; border: 1px solid #fff; border-radius: 8px; color: #17201f; box-shadow: 0 16px 30px rgba(0,0,0,.3); font-family: Georgia, serif; font-style: normal; }
+.playing-card b { font-size: 1.55rem; line-height: 1; }
+.playing-card small { font-size: 1.15rem; }
+.card-back { right: 45px; top: 8px; background: repeating-linear-gradient(45deg, #914238 0 4px, #6f302c 4px 8px); border: 4px solid #efe5ce; transform: rotate(-13deg); }
+.seven { right: 3px; top: 13px; color: #a32929; transform: rotate(8deg); }
+.black-king { right: 44px; top: 9px; transform: rotate(-11deg); }
+.red-queen { right: 0; top: 18px; color: #a32929; transform: rotate(9deg); }
+
+.game-copy { margin-top: auto; max-width: 78%; display: flex; flex-direction: column; }
+.game-copy strong { margin: 7px 0 8px; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(2rem, 10vw, 3.5rem); font-weight: 400; letter-spacing: -.04em; }
+.game-copy small { color: rgba(244, 241, 226, .73); font-size: .78rem; line-height: 1.45; }
+.play-cta { margin-top: 18px; padding-top: 14px; display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,.16); color: var(--accent); font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
+.play-cta b { font-size: 1.2rem; transition: transform .2s ease; }
+
+footer { margin-top: auto; padding: 26px 2px 2px; display: flex; flex-wrap: wrap; gap: 12px 22px; color: #758d83; font-size: .67rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+footer span::before { content: '·'; margin-right: 7px; color: #d9a958; }
+
+@keyframes deal-in { from { opacity: 0; transform: translateY(18px) rotate(.5deg); } to { opacity: 1; transform: none; } }
+@media (hover: hover) {
+  .game-card:hover { transform: translateY(-5px); border-color: rgba(255,255,255,.32); }
+  .game-card:hover .play-cta b { transform: translateX(5px); }
+}
+@media (min-width: 760px) {
+  .table { padding-inline: 32px; }
+  .masthead { display: grid; grid-template-columns: 170px 1fr; }
+  .brand { align-self: start; margin-top: 7px; }
+  .intro { padding-top: 48px; }
+  .game-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .game-card { min-height: 390px; padding: 26px; }
+  .card-art { top: 34px; right: 34px; transform: scale(1.15); transform-origin: top right; }
+}
+@media (prefers-reduced-motion: reduce) { .game-card { animation: none; transition: none; } }

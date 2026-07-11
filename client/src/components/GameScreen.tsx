@@ -74,7 +74,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
     return `${rankMap[card.rank] || card.rank}${suitLetters[card.suit]}.svg`;
   };
 
-  const getCardSrc = (card: Card): string => `/images/cards/${getCardFilename(card)}?${CARD_ASSET_VERSION}`;
+  const getCardSrc = (card: Card): string => `${import.meta.env.BASE_URL}images/cards/${getCardFilename(card)}?${CARD_ASSET_VERSION}`;
 
   const isValidMove = (card: Card): boolean =>
     validMoves.some((move) => move.suit === card.suit && move.rank === card.rank);

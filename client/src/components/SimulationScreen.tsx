@@ -52,7 +52,7 @@ const initialState = (): SimulationState => ({
 const rankLabel = (rank: number): string => ({ 1: 'A', 11: 'J', 12: 'Q', 13: 'K' }[rank] || String(rank));
 const cardLabel = (card: Card): string => `${rankLabel(card.rank)}${SUIT_SYMBOLS[card.suit]}`;
 const cardFile = (card: Card): string => `${rankLabel(card.rank)}${SUIT_LETTERS[card.suit]}.svg`;
-const cardSrc = (card: Card): string => `/images/cards/${cardFile(card)}?${CARD_ASSET_VERSION}`;
+const cardSrc = (card: Card): string => `${import.meta.env.BASE_URL}images/cards/${cardFile(card)}?${CARD_ASSET_VERSION}`;
 
 const sortHand = (cards: Card[]): Card[] => {
   const suitOrder = new Map(SUITS.map((suit, index) => [suit, index]));
@@ -240,7 +240,7 @@ const SimulationScreen: React.FC = () => {
             <p>Fast test a full table without opening room links on every device.</p>
           </div>
           <div className="simulation-header-actions">
-            <a className="quiet-button" href="/">Lobby</a>
+            <a className="quiet-button" href={import.meta.env.BASE_URL}>Lobby</a>
           </div>
         </header>
 

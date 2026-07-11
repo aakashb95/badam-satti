@@ -9,7 +9,7 @@ async function applyZoom(page: Page, zoom: number) {
 }
 
 async function login(page: Page, name: string) {
-  await page.goto('/');
+  await page.goto('/badam7/');
   await expect(page.locator('#player-name')).toBeVisible();
   await expectNoThemeToggle(page);
   await page.locator('#player-name').fill(name);
@@ -27,7 +27,7 @@ async function createRoom(page: Page) {
 }
 
 async function joinRoom(page: Page, roomCode: string, name: string) {
-  await page.goto(`/r/${roomCode}`);
+  await page.goto(`/badam7/r/${roomCode}`);
   await expect(page.locator('#username')).toBeVisible();
   await expectNoThemeToggle(page);
   await page.locator('#username').fill(name);

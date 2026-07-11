@@ -5,6 +5,12 @@ client/node_modules
 client/dist
 server/node_modules
 server/badam-satti.db
+kings-corner/node_modules
+kings-corner/client/node_modules
+kings-corner/client/dist
+kings-corner/server/node_modules
+kings-corner/test-results
+client/test-results
 data
 .DS_Store
 npm-debug.log*

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#10292e"/>
+  <rect x="13" y="9" width="38" height="46" rx="6" fill="#f4ead3" transform="rotate(5 32 32)"/>
+  <path d="M21 23h6v4l10-8v8h6v17H21V23Zm4 8v9h14v-9l-7 5-7-5Z" fill="#bd823c"/>
+  <text x="18" y="23" fill="#15282a" font-family="Georgia,serif" font-size="14" font-weight="700">K</text>
+</svg>

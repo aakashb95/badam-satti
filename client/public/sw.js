@@ -1,6 +1,7 @@
-const APP_CACHE = 'badam-satti-app-v7';
-const CARD_CACHE = 'badam-satti-cards-v7';
-const APP_SHELL = ['/', '/manifest.json', '/images/icon.svg'];
+const APP_CACHE = 'badam-satti-app-v8';
+const CARD_CACHE = 'badam-satti-cards-v8';
+const APP_ROOT = '/badam7/';
+const APP_SHELL = [APP_ROOT, `${APP_ROOT}manifest.json`, `${APP_ROOT}images/icon.svg`];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -27,7 +28,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || request.url.includes('/socket.io/')) return;
 
   const url = new URL(request.url);
-  const isCard = url.origin === self.location.origin && url.pathname.startsWith('/images/cards/');
+  const isCard = url.origin === self.location.origin && url.pathname.startsWith(`${APP_ROOT}images/cards/`);
 
   if (isCard) {
     event.respondWith(
@@ -48,10 +49,10 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          if (response.ok) caches.open(APP_CACHE).then((cache) => cache.put('/', response.clone()));
+          if (response.ok) caches.open(APP_CACHE).then((cache) => cache.put(APP_ROOT, response.clone()));
           return response;
         })
-        .catch(() => caches.match('/'))
+        .catch(() => caches.match(APP_ROOT))
     );
   }
 });

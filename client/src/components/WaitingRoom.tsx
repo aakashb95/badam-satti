@@ -34,7 +34,7 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
     const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
     return isLocalhost && lanOrigin ? lanOrigin : window.location.origin;
   }, [lanOrigin]);
-  const inviteLink = `${inviteOrigin}/r/${roomCode}`;
+  const inviteLink = `${inviteOrigin}${import.meta.env.BASE_URL}r/${roomCode}`;
 
   const copy = async (text: string, successMessage: string) => {
     try {

@@ -1,4 +1,13 @@
 badam7.aakashb.xyz {
   encode zstd gzip
-  reverse_proxy 127.0.0.1:5001
+
+  # King’s Corner has its own Express + Socket.io process and path-scoped SPA.
+  handle /kings-corner* {
+    reverse_proxy 127.0.0.1:5100
+  }
+
+  # Landing page, Badam 7, legacy /r links, health, and Badam Socket.io.
+  handle {
+    reverse_proxy 127.0.0.1:5001
+  }
 }
