@@ -8,6 +8,8 @@ interface GameOverScreenProps {
   showingDelay: boolean;
 }
 
+const CARD_ASSET_VERSION = 'v5';
+
 const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound, onExitGame, showingDelay }) => {
   const getRankDisplay = (rank: number): string => {
     if (rank === 1) return 'A';
@@ -24,6 +26,8 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound
     return `${rankPart}${suitLetters[card.suit]}.svg`;
   };
 
+  const getCardSrc = (card: Card): string => `/images/cards/${getCardFilename(card)}?${CARD_ASSET_VERSION}`;
+
   const renderRemainingCards = (cards: Card[]) => {
     if (!cards || cards.length === 0) return null;
     
@@ -32,7 +36,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound
         {cards.map((card, index) => (
           <img
             key={`${card.suit}-${card.rank}-${index}`}
-            src={`/images/cards/${getCardFilename(card)}`}
+            src={getCardSrc(card)}
             loading="lazy"
             className="mini-card"
             alt={`${getRankDisplay(card.rank)} of ${card.suit}`}

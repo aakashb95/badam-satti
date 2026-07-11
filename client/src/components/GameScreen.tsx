@@ -22,6 +22,7 @@ const SUIT_META: Record<Card['suit'], { symbol: string; label: string; short: st
   clubs: { symbol: '♣', label: 'Clubs', short: 'C' },
   spades: { symbol: '♠', label: 'Spades', short: 'S' },
 };
+const CARD_ASSET_VERSION = 'v5';
 
 const GameScreen: React.FC<GameScreenProps> = ({
   gameState,
@@ -70,6 +71,8 @@ const GameScreen: React.FC<GameScreenProps> = ({
     const rankMap: Record<number, string> = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
     return `${rankMap[card.rank] || card.rank}${suitLetters[card.suit]}.svg`;
   };
+
+  const getCardSrc = (card: Card): string => `/images/cards/${getCardFilename(card)}?${CARD_ASSET_VERSION}`;
 
   const isValidMove = (card: Card): boolean =>
     validMoves.some((move) => move.suit === card.suit && move.rank === card.rank);
@@ -142,7 +145,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
                   return (
                     <img
                       key={`${suit}-${rank}-${index}`}
-                      src={`/images/cards/${getCardFilename(card)}`}
+                      src={getCardSrc(card)}
                       className={`board-card-img stack-${index}`}
                       alt={`${getRankDisplay(rank)} of ${SUIT_META[suit].label}`}
                       decoding="async"
@@ -189,7 +192,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
                       disabled={!playable || pendingCard !== null}
                       aria-label={`${playable ? 'Play' : ''} ${getRankDisplay(card.rank)} of ${SUIT_META[card.suit].label}`.trim()}
                     >
-                      <img src={`/images/cards/${getCardFilename(card)}`} alt="" decoding="async" />
+                      <img src={getCardSrc(card)} alt="" decoding="async" />
                     </button>
                   );
                 })}
