@@ -366,6 +366,7 @@ input::placeholder { color: var(--faint); }
 }
 
 .welcome-form { max-width: 400px; }
+.brand-lockup + .welcome-form { margin-left: 51px; }
 .field-action { position: relative; }
 .field-action input { height: 56px; padding-right: 62px; }
 
@@ -1305,6 +1306,7 @@ button.action-card:hover { background: transparent; transform: none; }
 
   .welcome-copy { min-height: auto; padding: 32px 24px 26px; }
   .brand-lockup { margin-bottom: 22px; }
+  .brand-lockup + .welcome-form { margin-left: 0; }
   .welcome-copy h1 { font-size: 2.45rem; }
   .welcome-copy .subtitle { font-size: .82rem; }
   .welcome-meta { margin-top: 16px; }

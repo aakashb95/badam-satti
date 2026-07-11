@@ -53,7 +53,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue, themeToggle }) =>
             </div>
           </div>
           <div className="form-group welcome-form">
-            <label htmlFor="player-name">Your name</label>
+            <label htmlFor="player-name">Play with your friends and family</label>
             <div className="field-action">
               <input
                 id="player-name"
@@ -65,7 +65,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue, themeToggle }) =>
                   setError('');
                 }}
                 onKeyDown={handleKeyPress}
-                placeholder="Enter a name"
+                placeholder="Enter your game"
                 maxLength={20}
                 autoComplete="name"
               />
