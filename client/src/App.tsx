@@ -279,19 +279,36 @@ const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
       }
     });
 
-    const reconnectWhenVisible = () => {
-      if (document.visibilityState !== 'visible' || socket.connected) return;
+    const syncCurrentRoom = () => {
       const current = stateRef.current;
-      if (current.currentScreen === 'waiting' && current.currentRoom && current.username) {
+      if (!current.currentRoom) return;
+
+      if (socket.connected) {
+        socket.emit('get_state');
+        return;
+      }
+
+      if (current.currentScreen === 'waiting' && current.username) {
         socket.once('connect', () => socket.emit('reconnect_to_room', { roomCode: current.currentRoom, username: current.username }));
       }
+
       socket.connect();
     };
 
-    document.addEventListener('visibilitychange', reconnectWhenVisible);
+    const syncWhenVisible = () => {
+      if (document.visibilityState === 'visible') syncCurrentRoom();
+    };
+
+    document.addEventListener('visibilitychange', syncWhenVisible);
+    window.addEventListener('focus', syncCurrentRoom);
+    window.addEventListener('online', syncCurrentRoom);
+    window.addEventListener('pageshow', syncCurrentRoom);
 
     return () => {
-      document.removeEventListener('visibilitychange', reconnectWhenVisible);
+      document.removeEventListener('visibilitychange', syncWhenVisible);
+      window.removeEventListener('focus', syncCurrentRoom);
+      window.removeEventListener('online', syncCurrentRoom);
+      window.removeEventListener('pageshow', syncCurrentRoom);
       clearAutoPlay();
       if (notificationTimer.current !== null) window.clearTimeout(notificationTimer.current);
       if (resultTimer.current !== null) window.clearTimeout(resultTimer.current);
