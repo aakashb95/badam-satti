@@ -1,4 +1,4 @@
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface JoinRoomScreenProps {
   roomCode: string;
@@ -7,10 +7,9 @@ interface JoinRoomScreenProps {
   error?: string | null;
   initialUsername?: string;
   onClearError?: () => void;
-  themeToggle?: ReactNode;
 }
 
-const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({ roomCode, onJoinRoom, onBackToMenu, error, initialUsername = '', onClearError, themeToggle }) => {
+const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({ roomCode, onJoinRoom, onBackToMenu, error, initialUsername = '', onClearError }) => {
   const [username, setUsername] = useState(initialUsername);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -41,7 +40,6 @@ const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({ roomCode, onJoinRoom, o
       <div className="join-shell surface-panel">
         <div className="join-top-actions">
           <button className="back-link" type="button" onClick={onBackToMenu} disabled={isSubmitting}>← Back</button>
-          {themeToggle}
         </div>
         <div className="join-brand"><span className="brand-mark">7<span>♥</span></span></div>
         <span className="eyebrow">You’ve been invited</span>

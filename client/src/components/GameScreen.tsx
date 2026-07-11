@@ -1,4 +1,4 @@
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, ComfortSize, GameState, Player } from '../types';
 import HelpModal from './HelpModal';
 
@@ -14,7 +14,6 @@ interface GameScreenProps {
   onLeaveGame: () => void;
   comfortSize: ComfortSize;
   onComfortSizeChange: (size: ComfortSize) => void;
-  themeToggle?: ReactNode;
 }
 
 const SUITS: Card['suit'][] = ['hearts', 'diamonds', 'clubs', 'spades'];
@@ -38,7 +37,6 @@ const GameScreen: React.FC<GameScreenProps> = ({
   onLeaveGame,
   comfortSize,
   onComfortSizeChange,
-  themeToggle,
 }) => {
   const [timeLeft, setTimeLeft] = useState(20);
   const [showHelp, setShowHelp] = useState(false);
@@ -225,7 +223,6 @@ const GameScreen: React.FC<GameScreenProps> = ({
           </div>
 
           <div className="game-toolbar">
-            {themeToggle}
             <button className="round-icon-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button>
             <button className="round-icon-button leave-button" onClick={onLeaveGame} aria-label="Leave game">×</button>
           </div>
