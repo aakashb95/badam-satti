@@ -1,10 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140" role="img" aria-label="K of S">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140" role="img" aria-label="K of Spades">
   <rect x="2" y="2" width="96" height="136" rx="9" fill="#f7f0e6" stroke="#ded5c8" stroke-width="1.5"/>
-  <text x="14" y="22" fill="#111111" font-family="Haskoy, -apple-system, Segoe UI, Arial, sans-serif" font-size="18" font-weight="500">K</text>
-  <text x="14" y="38" fill="#111111" font-family="Haskoy, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="500">♠</text>
-  <g><text x="50" y="49" text-anchor="middle" dominant-baseline="central" fill="#111111" font-family="Haskoy, -apple-system, Segoe UI, Arial, sans-serif" font-size="30" font-weight="500">K</text><text x="50" y="68" text-anchor="middle" dominant-baseline="central" fill="#111111" font-family="Haskoy, -apple-system, Segoe UI, Arial, sans-serif" font-size="16" font-weight="500">♠</text></g>
-  <g transform="rotate(180 50 70)">
-    <text x="14" y="22" fill="#111111" font-family="Haskoy, -apple-system, Segoe UI, Arial, sans-serif" font-size="18" font-weight="500">K</text>
-    <text x="14" y="38" fill="#111111" font-family="Haskoy, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="500">♠</text>
-  </g>
+  <text font-family="Haskoy, -apple-system, Segoe UI, Arial, sans-serif" font-weight="500" x="15" y="23" fill="#111111" font-size="18" text-anchor="middle">K</text>
+  <g fill="#111111" transform="translate(15 37) scale(0.19)"><path d="M0,-28 C-9,-20 -23,-11 -23,2 C-23,15 -7,20 0,8 C7,20 23,15 23,2 C23,-11 9,-20 0,-28Z"/><path d="M-4,5 C-5,13 -10,18 -15,22 H15 C10,18 5,13 4,5Z"/></g>
+  <g><text font-family="Haskoy, -apple-system, Segoe UI, Arial, sans-serif" font-weight="500" x="50" y="61" fill="#111111" font-size="32" text-anchor="middle" dominant-baseline="central">K</text><g fill="#111111" transform="translate(50 88) scale(0.42)"><path d="M0,-28 C-9,-20 -23,-11 -23,2 C-23,15 -7,20 0,8 C7,20 23,15 23,2 C23,-11 9,-20 0,-28Z"/><path d="M-4,5 C-5,13 -10,18 -15,22 H15 C10,18 5,13 4,5Z"/></g></g>
 </svg>

@@ -1,10 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140" role="img" aria-label="2 of H">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140" role="img" aria-label="2 of Hearts">
   <rect x="2" y="2" width="96" height="136" rx="9" fill="#f7f0e6" stroke="#ded5c8" stroke-width="1.5"/>
-  <text x="14" y="22" fill="#e85d63" font-family="Haskoy, -apple-system, Segoe UI, Arial, sans-serif" font-size="18" font-weight="500">2</text>
-  <text x="14" y="38" fill="#e85d63" font-family="Haskoy, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="500">♥</text>
-  <g><text x="50" y="30" text-anchor="middle" dominant-baseline="central" fill="#e85d63" font-family="Haskoy, -apple-system, Segoe UI, Arial, sans-serif" font-size="18" font-weight="500">♥</text><text x="50" y="70" text-anchor="middle" dominant-baseline="central" fill="#e85d63" font-family="Haskoy, -apple-system, Segoe UI, Arial, sans-serif" font-size="18" font-weight="500">♥</text></g>
-  <g transform="rotate(180 50 70)">
-    <text x="14" y="22" fill="#e85d63" font-family="Haskoy, -apple-system, Segoe UI, Arial, sans-serif" font-size="18" font-weight="500">2</text>
-    <text x="14" y="38" fill="#e85d63" font-family="Haskoy, -apple-system, Segoe UI, Arial, sans-serif" font-size="12" font-weight="500">♥</text>
-  </g>
+  <text font-family="Haskoy, -apple-system, Segoe UI, Arial, sans-serif" font-weight="500" x="15" y="23" fill="#e85d63" font-size="18" text-anchor="middle">2</text>
+  <path d="M0,-7 C-7,-18 -23,-12 -23,3 C-23,17 -8,26 0,34 C8,26 23,17 23,3 C23,-12 7,-18 0,-7Z" fill="#e85d63" transform="translate(15 37) scale(0.19) translate(0 -7)"/>
+  <g><path d="M0,-7 C-7,-18 -23,-12 -23,3 C-23,17 -8,26 0,34 C8,26 23,17 23,3 C23,-12 7,-18 0,-7Z" fill="#e85d63" transform="translate(50 48) scale(0.28) translate(0 -7)"/><path d="M0,-7 C-7,-18 -23,-12 -23,3 C-23,17 -8,26 0,34 C8,26 23,17 23,3 C23,-12 7,-18 0,-7Z" fill="#e85d63" transform="translate(50 96) scale(0.28) translate(0 -7)"/></g>
 </svg>

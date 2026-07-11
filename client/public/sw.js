@@ -1,5 +1,5 @@
-const APP_CACHE = 'badam-satti-app-v3';
-const CARD_CACHE = 'badam-satti-cards-v3';
+const APP_CACHE = 'badam-satti-app-v4';
+const CARD_CACHE = 'badam-satti-cards-v4';
 const APP_SHELL = ['/', '/manifest.json', '/images/icon.svg'];
 
 self.addEventListener('install', (event) => {
