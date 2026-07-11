@@ -885,26 +885,29 @@ button.action-card:hover { background: transparent; transform: none; }
 
 .help-demo-board {
   position: relative;
-  display: grid;
-  width: min(100%, 310px);
-  height: 118px;
+  width: min(100%, 300px);
+  height: 178px;
   margin: 0 auto 10px;
-  grid-template-columns: repeat(3, 1fr);
-  align-items: center;
-  justify-items: center;
 }
 
 .demo-slot,
-.demo-card {
+.demo-card,
+.demo-side-seven {
   display: grid;
-  width: 54px;
-  height: 76px;
   place-items: center;
   color: var(--brand-ink);
   background: var(--card-face);
   border-radius: 7px;
-  font-size: 1.05rem;
   font-weight: 500;
+}
+
+.demo-slot,
+.demo-card {
+  position: absolute;
+  left: calc(50% - 24px);
+  width: 48px;
+  height: 66px;
+  font-size: 1rem;
 }
 
 .demo-slot {
@@ -913,16 +916,41 @@ button.action-card:hover { background: transparent; transform: none; }
   border: 1px dashed color-mix(in srgb, var(--line) 72%, transparent);
 }
 
-.demo-slot.is-target { animation: demo-target-pulse 3.4s ease-in-out infinite; }
+.demo-up-target { top: 5px; animation: demo-up-pulse 4.8s ease-in-out infinite; }
+.demo-seven { top: 56px; z-index: 2; box-shadow: 0 8px 18px var(--card-shadow); }
+.demo-down-target { top: 107px; animation: demo-down-pulse 4.8s ease-in-out infinite; }
 .demo-card span { color: var(--red); font-size: .72rem; }
-.demo-seven { box-shadow: 0 8px 18px var(--card-shadow); }
+.demo-side-seven {
+  position: absolute;
+  width: 36px;
+  height: 50px;
+  color: var(--faint);
+  background: color-mix(in srgb, var(--card-face) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line) 58%, transparent);
+  border-radius: 6px;
+  font-size: .78rem;
+}
+
+.demo-side-seven span { font-size: .58rem; }
+.demo-diamond { top: 64px; left: 34px; transform: rotate(-5deg); }
+.demo-club { top: 42px; right: 34px; transform: rotate(5deg); }
+.demo-spade { top: 88px; right: 38px; transform: rotate(-3deg); }
+.demo-diamond span { color: var(--red); }
 
 .demo-moving-card {
-  position: absolute;
-  bottom: 0;
-  left: calc(50% - 27px);
   box-shadow: 0 10px 20px var(--card-shadow);
-  animation: demo-card-play 3.4s ease-in-out infinite;
+}
+
+.demo-moving-eight {
+  top: 5px;
+  z-index: 3;
+  animation: demo-eight-play 4.8s ease-in-out infinite;
+}
+
+.demo-moving-six {
+  top: 107px;
+  z-index: 3;
+  animation: demo-six-play 4.8s ease-in-out infinite;
 }
 
 .help-demo p {
@@ -933,16 +961,28 @@ button.action-card:hover { background: transparent; transform: none; }
   line-height: 1.45;
 }
 
-@keyframes demo-card-play {
-  0%, 18% { translate: 0 25px; rotate: -3deg; opacity: 0; }
-  30% { opacity: 1; }
-  62%, 78% { translate: calc(100% + 46px) 0; rotate: 4deg; opacity: 1; }
-  100% { translate: calc(100% + 46px) 0; rotate: 4deg; opacity: 0; }
+@keyframes demo-eight-play {
+  0%, 12% { translate: -80px 112px; rotate: -6deg; opacity: 0; }
+  20% { opacity: 1; }
+  38%, 88% { translate: 0 0; rotate: 0deg; opacity: 1; }
+  100% { translate: 0 0; rotate: 0deg; opacity: 0; }
 }
 
-@keyframes demo-target-pulse {
+@keyframes demo-six-play {
+  0%, 43% { translate: 84px 49px; rotate: 6deg; opacity: 0; }
+  51% { opacity: 1; }
+  68%, 88% { translate: 0 0; rotate: 0deg; opacity: 1; }
+  100% { translate: 0 0; rotate: 0deg; opacity: 0; }
+}
+
+@keyframes demo-up-pulse {
   0%, 100% { border-color: color-mix(in srgb, var(--line) 72%, transparent); }
-  48%, 72% { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+  12%, 38% { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+}
+
+@keyframes demo-down-pulse {
+  0%, 100% { border-color: color-mix(in srgb, var(--line) 72%, transparent); }
+  44%, 68% { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
 }
 
 .help-modal-body { padding: 0 0 15px; }

@@ -16,14 +16,18 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
           <button className="help-close-btn" onClick={onClose} aria-label="Close help">×</button>
         </div>
 
-        <div className="help-demo" aria-label="A card moves next to seven">
+        <div className="help-demo" aria-label="Cards are placed above and below seven">
           <div className="help-demo-board" aria-hidden="true">
-            <span className="demo-slot">6</span>
+            <span className="demo-side-seven demo-diamond">7<span>♦</span></span>
+            <span className="demo-side-seven demo-club">7<span>♣</span></span>
+            <span className="demo-side-seven demo-spade">7<span>♠</span></span>
+            <span className="demo-slot demo-up-target">8</span>
             <span className="demo-card demo-seven">7<span>♥</span></span>
-            <span className="demo-slot is-target">8</span>
-            <span className="demo-card demo-moving-card">8<span>♥</span></span>
+            <span className="demo-slot demo-down-target">6</span>
+            <span className="demo-card demo-moving-card demo-moving-eight">8<span>♥</span></span>
+            <span className="demo-card demo-moving-card demo-moving-six">6<span>♥</span></span>
           </div>
-          <p>Cards grow out from 7. If 7 is down, 6 or 8 can join.</p>
+          <p>8 goes above 7. 6 goes below. Any 7 starts a side pile.</p>
         </div>
         
         <div className="help-modal-body">
