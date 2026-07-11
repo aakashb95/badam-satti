@@ -107,6 +107,10 @@ function sanitizeError(error) {
   return 'Internal server error';
 }
 
+function emitSocketError(socket, code, message) {
+  socket.emit("error", { code, message });
+}
+
 // Room validation and restoration utility
 async function ensureRoomExists(roomCode) {
   // If room exists in memory, return it
@@ -436,7 +440,7 @@ io.on("connection", (socket) => {
       const cleanRoomCode = normalizeRoomCode(payload?.roomCode);
       const cleanUsername = normalizeUsername(payload?.username);
       if (!cleanRoomCode || !cleanUsername) {
-        socket.emit("error", "Invalid room code or username");
+        emitSocketError(socket, "INVALID_JOIN_DETAILS", "Invalid room code or username");
         return;
       }
 
@@ -450,12 +454,12 @@ io.on("connection", (socket) => {
 
       const room = await ensureRoomExists(cleanRoomCode);
       if (!room) {
-        socket.emit("error", "Room not found");
+        emitSocketError(socket, "ROOM_NOT_FOUND", "Room not found");
         return;
       }
 
       if (room.started) {
-        socket.emit("error", "Game already started");
+        emitSocketError(socket, "GAME_ALREADY_STARTED", "Game already started");
         return;
       }
 
@@ -468,14 +472,14 @@ io.on("connection", (socket) => {
         if (isWaitingRoom) {
           // In waiting room: allow joining if previous user was disconnected and cleaned up
           if (existingPlayer.connected) {
-            socket.emit("error", "Username already taken in this room");
+            emitSocketError(socket, "USERNAME_TAKEN", "Username already taken in this room");
             return;
           }
           // Check if the disconnected player has an active reconnection window
           try {
             const reconnectionData = await db.getPlayerReconnectionData(cleanUsername, cleanRoomCode);
             if (reconnectionData && reconnectionData.can_reconnect) {
-              socket.emit("error", "Username already taken in this room (previous player can still reconnect)");
+              emitSocketError(socket, "USERNAME_TAKEN", "Username already taken in this room");
               return;
             }
             // Clean up the orphaned disconnected player
@@ -490,7 +494,7 @@ io.on("connection", (socket) => {
 
       const success = room.addPlayer(socket.id, cleanUsername);
       if (!success) {
-        socket.emit("error", "Room is full (max 11 players)");
+        emitSocketError(socket, "ROOM_FULL", "Room is full");
         return;
       }
 
@@ -525,13 +529,13 @@ io.on("connection", (socket) => {
       const cleanRoomCode = normalizeRoomCode(payload?.roomCode);
       const cleanUsername = normalizeUsername(payload?.username);
       if (!cleanRoomCode || !cleanUsername) {
-        socket.emit("error", "Invalid room code or username");
+        emitSocketError(socket, "INVALID_JOIN_DETAILS", "Invalid room code or username");
         return;
       }
 
       const room = await ensureRoomExists(cleanRoomCode);
       if (!room) {
-        socket.emit("error", "Room not found");
+        emitSocketError(socket, "ROOM_NOT_FOUND", "Room not found");
         return;
       }
 
@@ -567,7 +571,7 @@ io.on("connection", (socket) => {
       );
 
       if (!reconnectionResult.canReconnect) {
-        socket.emit("error", "Cannot reconnect - reconnection period expired or you were not in this room");
+        emitSocketError(socket, "RECONNECT_UNAVAILABLE", "Cannot reconnect - reconnection period expired or you were not in this room");
         return;
       }
 
@@ -581,7 +585,7 @@ io.on("connection", (socket) => {
       );
 
       if (!success) {
-        socket.emit("error", "Failed to reconnect to room");
+        emitSocketError(socket, "RECONNECT_FAILED", "Failed to reconnect to room");
         return;
       }
 

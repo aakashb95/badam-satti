@@ -99,7 +99,7 @@ export interface SocketEvents {
   round_continued: (data: { gameState: GameState }) => void;
   game_totals: (summary: GameSummary) => void;
   game_state: (data: GameState & { gameState?: GameState; myCards?: Card[]; validMoves?: Card[]; canPass?: boolean }) => void;
-  error: (message: string) => void;
+  error: (message: string | { code?: string; message?: string }) => void;
 }
 
 // App State

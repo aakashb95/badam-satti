@@ -27,6 +27,11 @@ interface RouteState {
   joinRoom?: JoinRequest;
 }
 
+interface ServerErrorPayload {
+  code?: string;
+  message?: string;
+}
+
 const initialState: AppState = {
   currentScreen: 'login',
   username: '',
@@ -48,7 +53,15 @@ const suitLabel = (suit: string) => ({ hearts: 'Hearts', diamonds: 'Diamonds', c
 
 const THEME_STORAGE_KEY = 'badam-satti-theme';
 
-function getServerErrorMessage(message: string | Error): string {
+function getServerErrorMessage(message: string | Error | ServerErrorPayload): string {
+  if (typeof message === 'object' && !(message instanceof Error)) {
+    if (message.code === 'ROOM_NOT_FOUND') return 'Room code is wrong.';
+    if (message.code === 'ROOM_FULL') return 'This room is full.';
+    if (message.code === 'GAME_ALREADY_STARTED') return 'This game has already started.';
+    if (message.code === 'INVALID_JOIN_DETAILS') return 'Enter a valid room code.';
+    if (message.code === 'USERNAME_TAKEN') return 'That name is already taken in this room.';
+  }
+
   const rawMessage = typeof message === 'string' ? message : message.message || 'Unexpected server error';
   const normalized = rawMessage.toLowerCase();
 
