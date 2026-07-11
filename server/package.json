@@ -4,9 +4,9 @@
   "description": "Server for Badam Satti card game",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "start:v2": "PORT=5001 node index.js",
-    "dev": "nodemon index.js"
+    "start": "HOST=0.0.0.0 node index.js",
+    "start:v2": "HOST=0.0.0.0 PORT=5001 node index.js",
+    "dev": "HOST=0.0.0.0 nodemon index.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
