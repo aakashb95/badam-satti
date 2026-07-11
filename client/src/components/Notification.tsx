@@ -6,7 +6,8 @@ interface NotificationProps {
 
 const Notification: React.FC<NotificationProps> = ({ message }) => {
   return (
-    <div className="notification">
+    <div className="notification" role="status" aria-live="polite">
+      <span className="notification-mark">✓</span>
       <span>{message}</span>
     </div>
   );

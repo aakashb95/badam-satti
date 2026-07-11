@@ -532,15 +532,22 @@ class Database {
   }
 
   close() {
-    if (this.db) {
-      this.db.close((err) => {
+    if (!this.db) return Promise.resolve();
+
+    const connection = this.db;
+    this.db = null;
+
+    return new Promise((resolve, reject) => {
+      connection.close((err) => {
         if (err) {
           console.error('Error closing database:', err);
+          reject(err);
         } else {
           console.log('📦 Database connection closed');
+          resolve();
         }
       });
-    }
+    });
   }
 }
 

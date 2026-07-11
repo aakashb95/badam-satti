@@ -1,5 +1,4 @@
 const express = require("express");
-const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 const cors = require("cors");
 const crypto = require("crypto");
@@ -12,6 +11,8 @@ const ALLOWED_ORIGINS = [
   "https://localhost:3000",
   "http://localhost:5173", // Vite dev server
   "https://localhost:5173",
+  "http://localhost:5001", // V2 local client
+  "https://localhost:5001",
   "https://badam7.aakashb.xyz",
   "https://www.badam7.aakashb.xyz"
 ];
@@ -29,11 +30,37 @@ const path = require("path");
 
 const { GameRoom } = require("./gameLogic");
 const Database = require("./database");
+const IP_HASH_SALT = process.env.IP_HASH_SALT || crypto.randomBytes(32).toString('hex');
+const ROOM_CODE_PATTERN = /^[A-Z0-9]{6}$/;
+const CARD_SUITS = new Set(['hearts', 'diamonds', 'clubs', 'spades']);
+const RATE_LIMITED_EVENTS = new Set(['create_room', 'join_room', 'reconnect_to_room', 'start_game', 'play_card', 'pass_turn', 'continue_round', 'exit_game']);
 
-// Security utility functions
 function hashIP(ip) {
-  // Create a consistent hash of the IP address for privacy
-  return crypto.createHash('sha256').update(ip + process.env.IP_HASH_SALT || 'default-salt').digest('hex').substring(0, 16);
+  return crypto.createHash('sha256').update(`${ip}${IP_HASH_SALT}`).digest('hex').substring(0, 16);
+}
+
+function normalizeUsername(value) {
+  if (typeof value !== 'string') return null;
+  const username = value.normalize('NFKC').trim().replace(/\s+/g, ' ');
+  if (!username || username.length > 20 || /[\u0000-\u001F\u007F]/.test(username)) return null;
+  return username;
+}
+
+function normalizeRoomCode(value) {
+  if (typeof value !== 'string') return null;
+  const roomCode = value.trim().toUpperCase();
+  return ROOM_CODE_PATTERN.test(roomCode) ? roomCode : null;
+}
+
+function isValidCard(card) {
+  return card && typeof card === 'object' && CARD_SUITS.has(card.suit) && Number.isInteger(card.rank) && card.rank >= 1 && card.rank <= 13;
+}
+
+function secureKeyMatch(value, secret) {
+  if (typeof value !== 'string' || typeof secret !== 'string') return false;
+  const candidate = Buffer.from(value);
+  const expected = Buffer.from(secret);
+  return candidate.length === expected.length && crypto.timingSafeEqual(candidate, expected);
 }
 
 function sanitizeError(error) {
@@ -107,8 +134,8 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'", "wss:", "ws:"],
       fontSrc: ["'self'"],
@@ -142,31 +169,7 @@ const db = new Database();
 // Store all game rooms (in-memory cache + database persistence)
 const rooms = {};
 
-// Rate limiting middleware with IP hashing
-const createRoomLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 10, // limit each IP to 10 room creations per windowMs
-  message: { error: "Too many room creation attempts, please try again later" },
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => hashIP(req.ip || req.connection.remoteAddress || 'unknown'),
-});
-
-const joinRoomLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 20, // limit each IP to 20 join attempts per windowMs
-  message: { error: "Too many join attempts, please try again later" },
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => hashIP(req.ip || req.connection.remoteAddress || 'unknown'),
-});
-
-// Middleware for parsing JSON
-app.use(express.json());
-
-// Apply rate limiting to room creation
-app.use('/api/create-room', createRoomLimiter);
-app.use('/api/join-room', joinRoomLimiter);
+app.use(express.json({ limit: '16kb' }));
 
 // Cleanup interval to remove empty rooms and persist active ones
 setInterval(async () => {
@@ -223,15 +226,13 @@ app.use(express.static(path.join(__dirname, "../client/dist"), {
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
     }
-    // No cache for JS and CSS files (they have hashed names from Vite)
+    // Vite fingerprints JS and CSS, so these can be cached permanently.
     else if (path.endsWith('.js') || path.endsWith('.css')) {
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     }
     // Allow caching for images and other assets
     else {
-      res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     }
   }
 }));
@@ -260,7 +261,7 @@ app.get("/health/admin", async (req, res) => {
   try {
     // Check for admin authentication
     const adminKey = req.headers['x-admin-key'];
-    if (!adminKey || adminKey !== process.env.ADMIN_KEY) {
+    if (!secureKeyMatch(adminKey, process.env.ADMIN_KEY)) {
       return res.status(401).json({ error: "Unauthorized" });
     }
     
@@ -300,12 +301,26 @@ io.on("connection", (socket) => {
 
   let currentRoom = null;
   let playerName = null;
+  const recentActions = [];
+
+  socket.use(([event], next) => {
+    if (!RATE_LIMITED_EVENTS.has(event)) return next();
+    const cutoff = Date.now() - 10000;
+    while (recentActions[0] < cutoff) recentActions.shift();
+    if (recentActions.length >= 40) {
+      socket.emit('error', 'Too many actions. Please slow down.');
+      return;
+    }
+    recentActions.push(Date.now());
+    next();
+  });
 
   // Create a new room
   socket.on("create_room", async (username) => {
     try {
-      if (!username || username.trim().length === 0) {
-        socket.emit("error", "Username is required");
+      const cleanUsername = normalizeUsername(username);
+      if (!cleanUsername) {
+        socket.emit("error", "Username must be between 1 and 20 characters");
         return;
       }
 
@@ -320,7 +335,7 @@ io.on("connection", (socket) => {
       const roomCode = generateRoomCode();
       rooms[roomCode] = new GameRoom(roomCode);
 
-      const success = rooms[roomCode].addPlayer(socket.id, username.trim());
+      const success = rooms[roomCode].addPlayer(socket.id, cleanUsername);
       if (!success) {
         socket.emit("error", "Failed to create room");
         return;
@@ -328,7 +343,7 @@ io.on("connection", (socket) => {
 
       socket.join(roomCode);
       currentRoom = roomCode;
-      playerName = username.trim();
+      playerName = cleanUsername;
 
       // Save to database
       await db.saveGameRoom(roomCode, rooms[roomCode]);
@@ -346,10 +361,12 @@ io.on("connection", (socket) => {
   });
 
   // Join an existing room
-  socket.on("join_room", async ({ roomCode, username }) => {
+  socket.on("join_room", async (payload) => {
     try {
-      if (!roomCode || !username) {
-        socket.emit("error", "Room code and username are required");
+      const cleanRoomCode = normalizeRoomCode(payload?.roomCode);
+      const cleanUsername = normalizeUsername(payload?.username);
+      if (!cleanRoomCode || !cleanUsername) {
+        socket.emit("error", "Invalid room code or username");
         return;
       }
 
@@ -360,9 +377,6 @@ io.on("connection", (socket) => {
         socket.emit("error", "Too many join attempts. Please wait.");
         return;
       }
-
-      const cleanRoomCode = roomCode.toUpperCase().trim();
-      const cleanUsername = username.trim();
 
       if (!rooms[cleanRoomCode]) {
         socket.emit("error", "Room not found");
@@ -491,15 +505,14 @@ io.on("connection", (socket) => {
   });
 
   // Attempt to reconnect to a room
-  socket.on("reconnect_to_room", async ({ roomCode, username }) => {
+  socket.on("reconnect_to_room", async (payload) => {
     try {
-      if (!roomCode || !username) {
-        socket.emit("error", "Room code and username are required");
+      const cleanRoomCode = normalizeRoomCode(payload?.roomCode);
+      const cleanUsername = normalizeUsername(payload?.username);
+      if (!cleanRoomCode || !cleanUsername) {
+        socket.emit("error", "Invalid room code or username");
         return;
       }
-
-      const cleanRoomCode = roomCode.toUpperCase().trim();
-      const cleanUsername = username.trim();
 
       // Check if room exists
       if (!rooms[cleanRoomCode]) {
@@ -611,6 +624,10 @@ io.on("connection", (socket) => {
   // Play a card
   socket.on("play_card", async (card) => {
     try {
+      if (!isValidCard(card)) {
+        socket.emit("error", "Invalid card");
+        return;
+      }
       if (!currentRoom) {
         socket.emit("error", "Not in a valid room");
         return;
@@ -914,28 +931,32 @@ function generateRoomCode() {
 }
 
 // Graceful shutdown handling
-process.on('SIGINT', async () => {
-  console.log('\n📦 Shutting down gracefully...');
-  
+let isShuttingDown = false;
+async function shutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`\n📦 ${signal} received. Shutting down gracefully...`);
+
   try {
     // Save all active rooms to database
     for (const [roomCode, room] of Object.entries(rooms)) {
       await db.saveGameRoom(roomCode, room);
     }
-    
-    // Close database connection
-    db.close();
-    
-    // Close server
-    server.close(() => {
-      console.log('✅ Server closed gracefully');
-      process.exit(0);
-    });
+
+    // Close live socket connections and the HTTP server before the database.
+    await new Promise((resolve) => io.close(resolve));
+    await db.close();
+
+    console.log('✅ Server closed gracefully');
+    process.exit(0);
   } catch (error) {
     console.error('❌ Error during shutdown:', error);
     process.exit(1);
   }
-});
+}
+
+process.once('SIGINT', () => shutdown('SIGINT'));
+process.once('SIGTERM', () => shutdown('SIGTERM'));
 
 // Catch-all route - serve React app for all unmatched routes
 app.get("*", (req, res) => {

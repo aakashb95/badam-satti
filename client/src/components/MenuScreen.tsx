@@ -33,59 +33,65 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinR
   };
 
   return (
-    <div className="screen">
-      <div className="container glass-panel">
-        <h2>Welcome, {username}!</h2>
-        <button 
-          className="help-btn" 
-          onClick={() => setShowHelpModal(true)}
-          style={{
-            backgroundColor: '#2196F3',
-            color: 'white',
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '20px',
-            fontSize: '14px',
-            cursor: 'pointer',
-            marginBottom: '20px',
-            transition: 'background-color 0.3s ease'
-          }}
-          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1976D2'}
-          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2196F3'}
-        >
-          ℹ️ How to Play
-        </button>
-        <div className="menu-options">
-          <button className="menu-btn" onClick={onCreateRoom}>
-            Create New Room
+    <main className="screen lobby-screen">
+      <div className="app-shell menu-shell">
+        <header className="app-header">
+          <div className="mini-brand"><span className="brand-mark">7<span>♥</span></span><span>Badam Satti</span></div>
+          <button className="quiet-button" onClick={() => setShowHelpModal(true)}>How to play</button>
+        </header>
+
+        <section className="menu-hero">
+          <span className="eyebrow">Welcome to the table</span>
+          <h2>Good to see you,<br /><span>{username}</span>.</h2>
+          <p>Start a private room or enter a six-character invite code.</p>
+        </section>
+
+        <div className="menu-grid">
+          <button className="action-card action-card-primary" onClick={onCreateRoom}>
+            <span className="action-card-icon">＋</span>
+            <span className="action-card-copy">
+              <strong>Create a room</strong>
+              <small>You set the table and invite everyone</small>
+            </span>
+            <span className="action-card-arrow">→</span>
           </button>
-          <div className="divider">OR</div>
-          <div className="join-section">
-            <input
-              type="text"
-              value={roomCode}
-              onChange={handleRoomCodeChange}
-              onKeyPress={handleKeyPress}
-              placeholder="Enter Room Code"
-              maxLength={6}
-              autoComplete="off"
-            />
-            <button className="menu-btn" onClick={handleJoinRoom}>
-              Join Room
-            </button>
-            {onReconnectToRoom && (
-              <button className="menu-btn secondary" onClick={handleReconnectRoom}>
-                Reconnect to Room
-              </button>
-            )}
-          </div>
+
+          <section className="action-card join-card">
+            <span className="action-card-icon">⌁</span>
+            <div className="action-card-copy">
+              <strong>Join a room</strong>
+              <small>Enter the code from your host</small>
+            </div>
+            <div className="code-entry">
+              <input
+                aria-label="Room code"
+                type="text"
+                value={roomCode}
+                onChange={handleRoomCodeChange}
+                onKeyDown={handleKeyPress}
+                placeholder="ABC123"
+                maxLength={6}
+                autoComplete="off"
+                inputMode="text"
+              />
+              <button className="code-submit" onClick={handleJoinRoom} disabled={roomCode.length !== 6}>Join</button>
+            </div>
+          </section>
         </div>
+
+        {onReconnectToRoom && (
+          <button className="reconnect-link" onClick={handleReconnectRoom} disabled={roomCode.length !== 6}>
+            <span className="status-dot" /> Returning after a disconnect? Reconnect to this room
+          </button>
+        )}
+
+        <footer className="app-footer"><span>Classic rules</span><span>Seven rounds</span><span>Made in India</span></footer>
       </div>
       <HelpModal 
         isOpen={showHelpModal} 
         onClose={() => setShowHelpModal(false)} 
       />
-    </div>
+    </main>
   );
 };
 

@@ -6,12 +6,13 @@ interface LoadingScreenProps {
 
 const LoadingScreen: React.FC<LoadingScreenProps> = ({ message }) => {
   return (
-    <div className="screen">
-      <div className="container">
-        <div className="loading-spinner"></div>
+    <main className="screen loading-screen">
+      <div className="loading-content">
+        <div className="shuffle-loader" aria-hidden="true"><span /><span /><span /></div>
+        <span className="eyebrow">Badam Satti</span>
         <p>{message}</p>
       </div>
-    </div>
+    </main>
   );
 };
 

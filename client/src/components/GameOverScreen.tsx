@@ -44,10 +44,13 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound
   };
   if (showingDelay) {
     return (
-      <div className="screen">
-        <div className="container">
+      <main className="screen results-reveal-screen">
+        <div className="results-reveal">
+          <span className="eyebrow">Round complete</span>
           <div className="game-over-delay">
-            <h1>🎉 Game Over! 🎉</h1>
+            <div className="reveal-seven">7<span>♥</span></div>
+            <h1>Cards down.</h1>
+            <p>Counting the table</p>
             <div className="loading-dots">
               <span></span>
               <span></span>
@@ -55,39 +58,38 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound
             </div>
           </div>
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div className="screen">
-      <div className="container">
-        <h2>🎉 Round Results</h2>
+    <main className="screen results-screen">
+      <div className="app-shell results-shell">
+        <header className="results-header">
+          <span className="eyebrow">Round results</span>
+          <h2><span>{winner?.winner}</span> takes the round.</h2>
+          {winner?.message && <p>{winner.message}</p>}
+        </header>
         <div id="winner-display">
-          {winner && (
-            <div className="winner-info">
-              <h3>🏆 Winner: {winner.winner}</h3>
-              {winner.message && <p>{winner.message}</p>}
-            </div>
-          )}
         </div>
         <div id="final-scores">
           {winner?.finalScores && (
             <div className="final-scores">
-              <h4>Final Scores:</h4>
+              <div className="section-heading"><h3>This round</h3><span>Points added</span></div>
               <div className="scores-list">
                 {winner.finalScores.map((score, index) => (
                   <div key={index} className="score-row">
                     <div className={`score-item ${score.isWinner ? 'winner' : ''}`}>
                       <div className="score-main">
-                        <div className="player-info">
+                        <span className="score-rank">{String(index + 1).padStart(2, '0')}</span>
+                        <div className="score-player">
                           <span className="player-name">{score.name}</span>
+                          <small>{score.isWinner ? 'Round winner' : `${score.remainingCards?.length || 0} cards left`}</small>
                         </div>
-                        <span className="player-score">{score.score} pts</span>
+                        <span className="player-score"><strong>{score.score}</strong> pts</span>
                       </div>
                       {score.remainingCards && score.remainingCards.length > 0 && (
                         <div className="remaining-cards">
-                          <span className="remaining-cards-label">Remaining cards:</span>
                           {renderRemainingCards(score.remainingCards)}
                         </div>
                       )}
@@ -99,11 +101,11 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound
           )}
         </div>
         <div className="game-over-actions">
-          <button onClick={onContinueRound}>Continue Round</button>
-          <button onClick={onExitGame}>Exit Game</button>
+          <button className="primary-button" onClick={onContinueRound}>Next round <span>→</span></button>
+          <button className="secondary-button" onClick={onExitGame}>Finish game</button>
         </div>
       </div>
-    </div>
+    </main>
   );
 };
 

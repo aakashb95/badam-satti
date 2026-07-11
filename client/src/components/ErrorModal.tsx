@@ -7,11 +7,13 @@ interface ErrorModalProps {
 
 const ErrorModal: React.FC<ErrorModalProps> = ({ message, onClose }) => {
   return (
-    <div className="modal">
-      <div className="modal-content">
-        <h3>Error</h3>
+    <div className="modal" role="presentation">
+      <div className="modal-content" role="alertdialog" aria-modal="true" aria-labelledby="error-title">
+        <span className="modal-icon">!</span>
+        <span className="eyebrow">Something went wrong</span>
+        <h3 id="error-title">We hit a snag</h3>
         <p>{message}</p>
-        <button onClick={onClose}>OK</button>
+        <button className="primary-button full-button" onClick={onClose}>Try again</button>
       </div>
     </div>
   );

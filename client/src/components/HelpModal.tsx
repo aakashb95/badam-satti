@@ -9,39 +9,36 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="help-modal-overlay" onClick={onClose}>
-      <div className="help-modal-content" onClick={(e) => e.stopPropagation()}>
+    <div className="help-modal-overlay" onClick={onClose} role="presentation">
+      <section className="help-modal-content" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="help-title">
         <div className="help-modal-header">
-          <h3>Badam7 Help</h3>
-          <button className="help-close-btn" onClick={onClose}>×</button>
+          <div><span className="eyebrow">A two-minute guide</span><h3 id="help-title">How to play</h3></div>
+          <button className="help-close-btn" onClick={onClose} aria-label="Close help">×</button>
         </div>
         
         <div className="help-modal-body">
           <div className="help-section">
-            <h4>🎯 Game Goal</h4>
-            <p>Play all your cards first to win!</p>
+            <span className="help-number">01</span>
+            <div><h4>Lose your hand</h4><p>Be the first player to put down every card. Lower cumulative score wins across seven rounds.</p></div>
           </div>
 
           <div className="help-section">
-            <h4>🃏 How to Play</h4>
-            <p>• Connect cards in sequence (6→7→8)</p>
-            <p>• Same suit only (hearts with hearts)</p>
-            <p>• Game starts with 7 of hearts</p>
+            <span className="help-number">02</span>
+            <div><h4>Build from seven</h4><p>The 7♥ opens the table. Continue each suit outward in order: 6 ← 7 → 8, then 5 and 9, and so on.</p></div>
           </div>
 
           <div className="help-section">
-            <h4>🔍 Card Colors</h4>
-            <p><span className="help-indicator green">🟢 Green border</span> = Tap the card to play it</p>
-            <p><span className="help-indicator normal">⚪ No border</span> = Can't play yet</p>
+            <span className="help-number">03</span>
+            <div><h4>Play what glows</h4><p>On your turn, playable cards lift and glow. If nothing is available, pass. After 20 seconds, the game keeps things moving for you.</p></div>
           </div>
 
           <div className="help-section">
-            <h4>⚠️ Player Warnings</h4>
-            <p><span className="help-indicator yellow">🟡 Yellow</span> = 3 or less page warning</p>
-            <p><span className="help-indicator red">🔴 Red</span> = All pages sure!</p>
+            <span className="help-number">04</span>
+            <div><h4>Read the table</h4><p>Amber players have three cards or fewer. Red players can immediately play everything they have—stop them if you can.</p></div>
           </div>
         </div>
-      </div>
+        <button className="primary-button full-button" onClick={onClose}>Got it</button>
+      </section>
     </div>
   );
 };

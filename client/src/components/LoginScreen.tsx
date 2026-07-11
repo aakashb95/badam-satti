@@ -6,6 +6,7 @@ interface LoginScreenProps {
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue }) => {
   const [username, setUsername] = useState('');
+  const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -20,12 +21,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue }) => {
   const handleContinue = () => {
     const trimmedUsername = username.trim();
     if (!trimmedUsername) {
-      alert('Please enter your name');
+      setError('Tell the table what to call you.');
       return;
     }
 
     if (trimmedUsername.length > 20) {
-      alert('Name too long (max 20 characters)');
+      setError('Keep your name under 20 characters.');
       return;
     }
 
@@ -39,32 +40,46 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue }) => {
   };
 
   return (
-    <div className="screen">
-      <div className="container glass-panel">
-        <div className="logo-section">
-          <img 
-            src="/images/cards/7H.svg" 
-            alt="7 of Hearts" 
-            className="logo-card"
-          />
-          <h1>Badam Satti</h1>
-        </div>
-        <p className="subtitle">Play the classic card game with family</p>
-        <div className="form-group">
-          <input
-            ref={inputRef}
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Enter your name"
-            maxLength={20}
-            autoComplete="off"
-          />
-          <button onClick={handleContinue}>Continue</button>
-        </div>
+    <main className="screen welcome-screen">
+      <div className="welcome-shell">
+        <section className="welcome-copy">
+          <div className="brand-lockup">
+            <span className="brand-mark">7<span>♥</span></span>
+            <span className="eyebrow">The classic table game</span>
+          </div>
+          <h1>Badam<br />Satti</h1>
+          <p className="subtitle">The classic race through every suit, made for one table and everyone around it.</p>
+          <div className="form-group welcome-form">
+            <label htmlFor="player-name">Your name</label>
+            <div className="field-action">
+              <input
+                id="player-name"
+                ref={inputRef}
+                type="text"
+                value={username}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  setError('');
+                }}
+                onKeyDown={handleKeyPress}
+                placeholder="Enter a name"
+                maxLength={20}
+                autoComplete="name"
+              />
+              <button className="icon-submit" onClick={handleContinue} aria-label="Continue">
+                <span>→</span>
+              </button>
+            </div>
+            <div className={`field-message ${error ? 'is-visible' : ''}`} role="status">{error || 'Up to 20 characters'}</div>
+          </div>
+          <div className="welcome-meta">
+            <span>2–11 players</span>
+            <span>Private rooms</span>
+            <span>No sign-up</span>
+          </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 };
 
