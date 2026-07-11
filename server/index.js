@@ -7,7 +7,7 @@ const app = express();
 const server = require("http").createServer(app);
 
 // Security configuration
-const ALLOWED_ORIGINS = [
+const DEFAULT_ALLOWED_ORIGINS = [
   "http://localhost:3000",
   "https://localhost:3000",
   "http://localhost:5173", // Vite dev server
@@ -17,6 +17,11 @@ const ALLOWED_ORIGINS = [
   "https://badam7.aakashb.xyz",
   "https://www.badam7.aakashb.xyz"
 ];
+const EXTRA_ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const ALLOWED_ORIGINS = [...new Set([...DEFAULT_ALLOWED_ORIGINS, ...EXTRA_ALLOWED_ORIGINS])];
 
 function isAllowedOrigin(origin) {
   if (!origin) return true;
