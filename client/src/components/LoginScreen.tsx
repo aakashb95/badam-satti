@@ -47,10 +47,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue, themeToggle }) =>
           {themeToggle && <div className="screen-corner-action">{themeToggle}</div>}
           <div className="brand-lockup">
             <span className="brand-mark">7<span>♥</span></span>
-            <span className="eyebrow">The classic card game</span>
+            <div className="brand-title">
+              <h1>Badam Satti</h1>
+              <span className="eyebrow">The classic card game</span>
+            </div>
           </div>
-          <h1>Badam<br />Satti</h1>
-          <p className="subtitle">The classic race through every suit, made for one table and everyone around it.</p>
           <div className="form-group welcome-form">
             <label htmlFor="player-name">Your name</label>
             <div className="field-action">
