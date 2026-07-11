@@ -3,33 +3,44 @@ import { GameSummary } from '../types';
 
 interface SummaryScreenProps {
   summary: GameSummary | null;
+  username: string;
   onReturnToMenu: () => void;
 }
 
-const SummaryScreen: React.FC<SummaryScreenProps> = ({ summary, onReturnToMenu }) => {
+const CONFETTI_PIECES = Array.from({ length: 14 }, (_, index) => index);
+
+const SummaryScreen: React.FC<SummaryScreenProps> = ({ summary, username, onReturnToMenu }) => {
+  const isWinner = Boolean(summary?.winner && summary.winner === username);
+
   return (
-    <div className="screen">
-      <div className="container">
-        <h2>🏅 Game Summary</h2>
+    <main className="screen results-screen summary-screen">
+      <div className="app-shell results-shell">
+        <header className="results-header">
+          {isWinner && (
+            <div className="winner-confetti" aria-hidden="true">
+              {CONFETTI_PIECES.map((piece) => <span key={piece} />)}
+            </div>
+          )}
+          <span className="eyebrow">Seven rounds complete</span>
+          <h2><span>{summary?.winner}</span> rules the table.</h2>
+          <p>Lowest total takes the crown. Until the rematch, anyway.</p>
+        </header>
         <div id="summary-scores">
           {summary && (
             <div className="summary-content">
-              <div className="game-result">
-                <h3>🏆 Overall Winner: {summary.winner}</h3>
-                <p>🥺 Last Place: {summary.loser}</p>
-              </div>
               <div className="total-scores">
-                <h4>Final Cumulative Scores:</h4>
+                <div className="section-heading"><h3>Final standings</h3><span>Lowest score wins</span></div>
                 <div className="scores-list">
                   {summary.totals.map((total, index) => (
                     <div key={index} className="score-row">
                       <div className={`score-item ${total.name === summary.winner ? 'winner' : ''}`}>
                         <div className="score-main">
-                          <div className="player-info">
-                            <span className="rank">#{index + 1}</span>
+                          <span className="score-rank">{String(index + 1).padStart(2, '0')}</span>
+                          <div className="score-player">
                             <span className="player-name">{total.name}</span>
+                            <small>{total.name === summary.winner ? 'Table champion' : total.name === summary.loser ? 'Ready for a rematch' : 'Well played'}</small>
                           </div>
-                          <span className="player-score">{total.totalScore} pts</span>
+                          <span className="player-score"><strong>{total.totalScore}</strong> pts</span>
                         </div>
                       </div>
                     </div>
@@ -40,10 +51,10 @@ const SummaryScreen: React.FC<SummaryScreenProps> = ({ summary, onReturnToMenu }
           )}
         </div>
         <div className="game-over-actions">
-          <button onClick={onReturnToMenu}>Return to Menu</button>
+          <button className="primary-button" onClick={onReturnToMenu}>Return to lobby <span>→</span></button>
         </div>
       </div>
-    </div>
+    </main>
   );
 };
 

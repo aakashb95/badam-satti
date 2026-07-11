@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { ReactNode, useEffect, useMemo, useState } from 'react';
 import { GameState } from '../types';
 
 interface WaitingRoomProps {
@@ -8,6 +8,7 @@ interface WaitingRoomProps {
   onStartGame: () => void;
   onLeaveRoom: () => void;
   onShowNotification: (message: string) => void;
+  themeToggle?: ReactNode;
 }
 
 const WaitingRoom: React.FC<WaitingRoomProps> = ({
@@ -17,115 +18,100 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
   onStartGame,
   onLeaveRoom,
   onShowNotification,
+  themeToggle,
 }) => {
-  const copyRoomCode = async () => {
-    try {
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(roomCode);
-        onShowNotification('Room code copied to clipboard!');
-      } else {
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = roomCode;
-        document.body.appendChild(textArea);
-        textArea.select();
-        try {
-          document.execCommand('copy');
-          onShowNotification('Room code copied to clipboard!');
-        } catch (err) {
-          console.error('Failed to copy: ', err);
-          onShowNotification('Failed to copy room code');
-        }
-        document.body.removeChild(textArea);
-      }
-    } catch (err) {
-      console.error('Failed to copy: ', err);
-      onShowNotification('Failed to copy room code');
-    }
-  };
+  const [lanOrigin, setLanOrigin] = useState<string | null>(null);
 
-  const copyRoomLink = async () => {
-    const roomLink = `${window.location.origin}/r/${roomCode}`;
+  useEffect(() => {
+    const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    if (!isLocalhost) return;
+
+    fetch('/api/network-info')
+      .then((response) => response.ok ? response.json() : null)
+      .then((data: { lanOrigin?: string } | null) => setLanOrigin(data?.lanOrigin || null))
+      .catch(() => setLanOrigin(null));
+  }, []);
+
+  const inviteOrigin = useMemo(() => {
+    const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    return isLocalhost && lanOrigin ? lanOrigin : window.location.origin;
+  }, [lanOrigin]);
+  const inviteLink = `${inviteOrigin}/r/${roomCode}`;
+
+  const copy = async (text: string, successMessage: string) => {
     try {
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(roomLink);
-        onShowNotification('Room link copied to clipboard!');
-      } else {
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = roomLink;
-        document.body.appendChild(textArea);
-        textArea.select();
-        try {
-          document.execCommand('copy');
-          onShowNotification('Room link copied to clipboard!');
-        } catch (err) {
-          console.error('Failed to copy: ', err);
-          onShowNotification('Failed to copy room link');
-        }
-        document.body.removeChild(textArea);
-      }
-    } catch (err) {
-      console.error('Failed to copy: ', err);
-      onShowNotification('Failed to copy room link');
+      await navigator.clipboard.writeText(text);
+      onShowNotification(successMessage);
+    } catch {
+      onShowNotification('Copy failed — select the text instead');
     }
   };
 
   const isCreator = gameState?.players && gameState.players.length > 0 && gameState.players[0].name === username;
+  const playerCount = gameState?.players.length || 0;
 
   return (
-    <div className="screen">
-      <div className="container">
-        <h2>Room: <span>{roomCode}</span></h2>
-        <div className="room-info">
-          <p>Share with others to join!</p>
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <button onClick={copyRoomCode}>Copy Code</button>
-            <button onClick={copyRoomLink} style={{ backgroundColor: '#2196F3' }}>Copy Link</button>
+    <main className="screen waiting-screen">
+      <div className="app-shell waiting-shell">
+        <header className="app-header">
+          <div className="mini-brand"><span className="brand-mark">7<span>♥</span></span><span>Badam Satti</span></div>
+          <div className="header-actions">
+            {themeToggle}
+            <button className="quiet-button danger-text" onClick={onLeaveRoom}>Leave room</button>
           </div>
-          <div style={{ 
-            marginTop: '10px', 
-            padding: '8px', 
-            backgroundColor: '#f5f5f5', 
-            borderRadius: '4px',
-            fontSize: '12px',
-            color: '#666',
-            wordBreak: 'break-all'
-          }}>
-            Link: {window.location.origin}/r/{roomCode}
+        </header>
+
+        <section className="waiting-heading">
+          <span className="eyebrow">Private table</span>
+          <h2>Waiting for players</h2>
+          <p>{isCreator ? 'Invite your people, then start whenever everyone is ready.' : 'The host will start the game when everyone is ready.'}</p>
+        </section>
+
+        <section className="invite-card">
+          <div className="invite-copy">
+            <span>Room code</span>
+            <strong>{roomCode}</strong>
           </div>
-        </div>
+          <div className="invite-actions">
+            <button className="secondary-button" onClick={() => copy(roomCode, 'Room code copied')}>Copy code</button>
+            <button className="primary-button" onClick={() => copy(inviteLink, 'Invite link copied')}>Share invite</button>
+          </div>
+          <div className="invite-link">{inviteLink}</div>
+        </section>
         
-        <div className="players-section">
-          <h3>Players <span>({gameState?.players.length || 0}/11)</span></h3>
+        <section className="players-section">
+          <div className="section-heading">
+            <h3>Players</h3>
+            <span>{playerCount} / 11</span>
+          </div>
           <div id="players-list">
-            {gameState?.players.map((player) => (
+            {gameState?.players.map((player, index) => (
               <div
                 key={player.name}
                 className={`player-item ${player.connected ? 'connected' : 'disconnected'}`}
               >
-                <span className="player-name">
-                  {player.name}
-                  {player.isDealer && (
-                    <span className="dealer-badge" title="Dealer">D</span>
-                  )}
+                <span className="player-avatar">{player.name.charAt(0).toUpperCase()}</span>
+                <span className="player-item-copy">
+                  <strong>{player.name}{player.name === username && <small> You</small>}</strong>
+                  <small>{index === 0 ? 'Host' : player.connected ? 'Ready at the table' : 'Reconnecting'}</small>
                 </span>
-                <span className="player-status">{player.connected ? '🔵' : '🔴'}</span>
+                {player.isDealer && <span className="dealer-badge" title="Dealer">Dealer</span>}
+                <span className="connection-dot" aria-label={player.connected ? 'Connected' : 'Disconnected'} />
               </div>
             ))}
           </div>
-        </div>
+        </section>
         
         <div className="waiting-actions">
           {isCreator && (
-            <button onClick={onStartGame}>
-              Start Game
+            <button className="primary-button start-button" onClick={onStartGame} disabled={playerCount < 2}>
+              {playerCount < 2 ? 'Waiting for one more player' : <>Start game <span>→</span></>}
             </button>
           )}
-          <button onClick={onLeaveRoom}>Leave Room</button>
+          {!isCreator && <div className="waiting-pulse"><span /> Waiting for the host</div>}
         </div>
       </div>
-    </div>
+    </main>
   );
 };
 
