@@ -36,8 +36,8 @@ nvm install
 nvm use
 
 echo "==> Installing dependencies"
-npm --prefix client ci
-npm --prefix server ci --omit=dev
+npm --prefix client install
+npm --prefix server install --omit=dev
 
 echo "==> Building client"
 npm --prefix client run build
