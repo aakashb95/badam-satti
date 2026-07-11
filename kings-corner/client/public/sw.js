@@ -1,5 +1,6 @@
-const CACHE = 'kings-corner-v1';
-const SHELL = ['/', '/fonts/Haskoy-Regular.woff2', '/fonts/Haskoy-SemiBold.woff2'];
+const CACHE = 'kings-corner-v2';
+const APP_ROOT = '/kings-corner/';
+const SHELL = [APP_ROOT, `${APP_ROOT}fonts/Haskoy-Regular.woff2`, `${APP_ROOT}fonts/Haskoy-SemiBold.woff2`];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -13,7 +14,7 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET' || request.url.includes('/socket.io/')) return;
   const url = new URL(request.url);
-  const cacheableAsset = url.origin === self.location.origin && (url.pathname.startsWith('/images/cards/') || url.pathname.startsWith('/fonts/') || ['script', 'style', 'image', 'font'].includes(request.destination));
+  const cacheableAsset = url.origin === self.location.origin && (url.pathname.startsWith(`${APP_ROOT}images/cards/`) || url.pathname.startsWith(`${APP_ROOT}fonts/`) || ['script', 'style', 'image', 'font'].includes(request.destination));
 
   if (cacheableAsset) {
     event.respondWith(caches.match(request).then((cached) => cached || fetch(request).then((response) => {
@@ -25,8 +26,8 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(fetch(request).then((response) => {
-      if (response.ok) caches.open(CACHE).then((cache) => cache.put('/', response.clone()));
+      if (response.ok) caches.open(CACHE).then((cache) => cache.put(APP_ROOT, response.clone()));
       return response;
-    }).catch(() => caches.match('/')));
+    }).catch(() => caches.match(APP_ROOT)));
   }
 });

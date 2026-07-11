@@ -1,6 +1,8 @@
 services:
   badam-satti:
-    build: .
+    build:
+      context: .
+      target: badam-runtime
     container_name: badam-satti
     restart: unless-stopped
     environment:
@@ -12,11 +14,29 @@ services:
       IP_HASH_SALT: change-me-to-a-long-random-string
       ADMIN_KEY: change-me-to-a-long-random-string
     ports:
-      - "5001:5001"
+      - "127.0.0.1:5001:5001"
     volumes:
       - ./data:/data
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:5001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+  kings-corner:
+    build:
+      context: .
+      target: kings-runtime
+    container_name: kings-corner
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 5100
+    ports:
+      - "127.0.0.1:5100:5100"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:5100/kings-corner/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 30s
       timeout: 5s
       retries: 3

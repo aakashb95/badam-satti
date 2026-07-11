@@ -4,15 +4,54 @@ on:
   push:
     branches:
       - master
+  pull_request:
+    branches:
+      - master
   workflow_dispatch:
 
-concurrency:
-  group: production-deploy
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 jobs:
+  verify:
+    name: Build and test both games
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            server/package-lock.json
+            kings-corner/client/package-lock.json
+            kings-corner/server/package-lock.json
+      - name: Install dependencies
+        run: |
+          npm ci --prefix client
+          npm ci --prefix server
+          npm ci --prefix kings-corner/client
+          npm ci --prefix kings-corner/server
+      - name: Build clients
+        run: |
+          npm run build --prefix client
+          npm run build --prefix kings-corner/client
+      - name: Test servers and King’s Corner UI
+        run: |
+          npm test --prefix server
+          npm test --prefix kings-corner/server
+          npm test --prefix kings-corner/client
+
   deploy:
     name: Deploy to VPS
+    needs: verify
+    if: github.event_name != 'pull_request'
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
 

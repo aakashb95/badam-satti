@@ -27,7 +27,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound
     return `${rankPart}${suitLetters[card.suit]}.svg`;
   };
 
-  const getCardSrc = (card: Card): string => `/images/cards/${getCardFilename(card)}?${CARD_ASSET_VERSION}`;
+  const getCardSrc = (card: Card): string => `${import.meta.env.BASE_URL}images/cards/${getCardFilename(card)}?${CARD_ASSET_VERSION}`;
 
   const renderRemainingCards = (cards: Card[]) => {
     if (!cards || cards.length === 0) return null;

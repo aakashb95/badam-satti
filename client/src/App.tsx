@@ -116,7 +116,7 @@ const App: React.FC = () => {
   }, [comfortSize]);
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         <Route path="/r/:roomCode" element={<JoinRoomRoute theme={theme} onToggleTheme={toggleTheme} comfortSize={comfortSize} />} />
         <Route path="/simulation" element={<SimulationRoute theme={theme} onToggleTheme={toggleTheme} comfortSize={comfortSize} />} />
@@ -207,6 +207,7 @@ const MainApp: React.FC<MainAppProps> = ({ theme, onToggleTheme, comfortSize, on
 
   useEffect(() => {
     const socket = io({
+      path: '/socket.io',
       reconnection: true,
       reconnectionDelay: 800,
       reconnectionDelayMax: 4000,

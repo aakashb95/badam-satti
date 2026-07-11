@@ -1,5 +1,5 @@
-@font-face { font-family: Haskoy; src: url('/fonts/Haskoy-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
-@font-face { font-family: Haskoy; src: url('/fonts/Haskoy-SemiBold.woff2') format('woff2'); font-weight: 600 800; font-display: swap; }
+@font-face { font-family: Haskoy; src: url('/kings-corner/fonts/Haskoy-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: Haskoy; src: url('/kings-corner/fonts/Haskoy-SemiBold.woff2') format('woff2'); font-weight: 600 800; font-display: swap; }
 
 :root {
   font-family: Haskoy, sans-serif;

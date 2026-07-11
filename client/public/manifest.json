@@ -2,17 +2,18 @@
   "name": "Badam Satti — Card Game",
   "short_name": "Badam Satti",
   "description": "Play the classic Indian card game Badam Satti with family and friends online",
-  "start_url": "/",
+  "id": "/badam7/",
+  "start_url": "/badam7/",
   "display": "standalone",
   "background_color": "#07120f",
   "theme_color": "#07120f",
   "orientation": "portrait-primary",
-  "scope": "/",
+  "scope": "/badam7/",
   "lang": "en",
   "categories": ["games", "entertainment"],
   "icons": [
     {
-      "src": "/images/icon.svg",
+      "src": "/badam7/images/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

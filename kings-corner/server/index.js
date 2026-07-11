@@ -11,13 +11,13 @@ const HOST = process.env.HOST || '0.0.0.0';
 const AUTO_ACTION_MS = Number(process.env.AUTO_ACTION_MS || 10_000);
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: true, credentials: true }, pingTimeout: 120_000 });
+const io = new Server(server, { path: '/kings-corner/socket.io', cors: { origin: true, credentials: true }, pingTimeout: 120_000 });
 const rooms = new Map();
 const roomTimers = new Map();
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
-app.get('/health', (_request, response) => response.json({ status: 'ok', game: 'kings-corner' }));
+app.get(['/health', '/kings-corner/health'], (_request, response) => response.json({ status: 'ok', game: 'kings-corner' }));
 
 function roomCode() {
   let code;
@@ -134,8 +134,9 @@ io.on('connection', (socket) => {
 });
 
 const clientDist = path.join(__dirname, '../client/dist');
-app.use(express.static(clientDist));
-app.get('*', (_request, response) => response.sendFile(path.join(clientDist, 'index.html')));
+app.get(/^\/kings-corner$/, (_request, response) => response.redirect(308, '/kings-corner/'));
+app.use('/kings-corner', express.static(clientDist));
+app.get('/kings-corner/*', (_request, response) => response.sendFile(path.join(clientDist, 'index.html')));
 
 if (require.main === module) server.listen(PORT, HOST, () => console.log(`King's Corner listening on http://${HOST}:${PORT}`));
 

@@ -6,14 +6,14 @@ test('two players create, join, and begin a game', async ({ browser }) => {
   const host = await hostContext.newPage();
   const guest = await guestContext.newPage();
 
-  await host.goto('/');
+  await host.goto('/kings-corner/');
   await host.getByPlaceholder('Enter your name').fill('Aakash');
   await host.getByRole('button', { name: 'Continue' }).click();
   await host.getByRole('button', { name: 'Create a table' }).click();
   await expect(host.locator('.waiting-screen h1')).toBeVisible();
   const roomCode = await host.locator('.invite-copy strong').innerText();
 
-  await guest.goto('/');
+  await guest.goto('/kings-corner/');
   await guest.getByPlaceholder('Enter your name').fill('Maya');
   await guest.getByRole('button', { name: 'Continue' }).click();
   await guest.getByLabel('Room code').fill(roomCode);
@@ -37,7 +37,7 @@ test('two players create, join, and begin a game', async ({ browser }) => {
 test('phone menu and animated help stay inside a narrow viewport', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 393, height: 852 } });
   const page = await context.newPage();
-  await page.goto('/');
+  await page.goto('/kings-corner/');
   await page.getByPlaceholder('Enter your name').fill('Phone Player');
   await page.getByRole('button', { name: 'Continue' }).click();
 
@@ -76,14 +76,14 @@ test('phone landscape gameplay fits while card images load slowly', async ({ bro
     await new Promise((resolve) => setTimeout(resolve, 1_500));
     await route.continue();
   });
-  await host.goto('/');
+  await host.goto('/kings-corner/');
   await host.getByPlaceholder('Enter your name').fill('Landscape Host');
   await host.getByRole('button', { name: 'Continue' }).click();
   await host.getByRole('button', { name: 'Create a table' }).click();
   await expect(host.locator('.waiting-screen h1')).toBeVisible();
   const roomCode = await host.locator('.invite-copy strong').innerText();
 
-  await guest.goto('/');
+  await guest.goto('/kings-corner/');
   await guest.getByPlaceholder('Enter your name').fill('Landscape Guest');
   await guest.getByRole('button', { name: 'Continue' }).click();
   await guest.getByLabel('Room code').fill(roomCode);

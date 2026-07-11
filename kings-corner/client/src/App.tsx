@@ -38,7 +38,7 @@ export default function App() {
   const countdown = useCountdown(state?.actionDeadline || null);
 
   useEffect(() => {
-    const socket = io({ reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 800, reconnectionDelayMax: 5_000, timeout: 20_000 });
+    const socket = io({ path: '/kings-corner/socket.io', reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 800, reconnectionDelayMax: 5_000, timeout: 20_000 });
     socketRef.current = socket;
     socket.on('connect', () => {
       setConnected(true);
