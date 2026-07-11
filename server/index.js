@@ -191,10 +191,15 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 
-// HTTPS enforcement (except for localhost development)
+function isLoopbackHost(hostname) {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]';
+}
+
+// HTTPS enforcement for public production traffic.
+// Local loopback traffic is used by PM2/Caddy health checks and must not redirect.
 app.use((req, res, next) => {
-  if (req.header('x-forwarded-proto') !== 'https' && 
-      !req.hostname.includes('localhost') && 
+  if (req.header('x-forwarded-proto') !== 'https' &&
+      !isLoopbackHost(req.hostname) &&
       process.env.NODE_ENV === 'production') {
     return res.redirect(`https://${req.hostname}${req.url}`);
   }
