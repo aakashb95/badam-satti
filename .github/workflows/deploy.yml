@@ -38,8 +38,13 @@ jobs:
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/badam_satti_deploy_key
+          printf '%s' "$VPS_SSH_KEY" \
+            | sed 's/\\n/\n/g' \
+            | tr -d '\r' \
+            > ~/.ssh/badam_satti_deploy_key
+          printf '\n' >> ~/.ssh/badam_satti_deploy_key
           chmod 600 ~/.ssh/badam_satti_deploy_key
+          ssh-keygen -y -f ~/.ssh/badam_satti_deploy_key >/dev/null
           ssh-keyscan -p "$VPS_PORT" "$VPS_HOST" >> ~/.ssh/known_hosts
 
       - name: Deploy on VPS
