@@ -310,7 +310,7 @@ input::placeholder { color: var(--faint); }
 
 /* Welcome */
 .welcome-shell {
-  width: min(100%, 620px);
+  width: min(100%, 860px);
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -365,7 +365,7 @@ input::placeholder { color: var(--faint); }
   line-height: 1.6;
 }
 
-.welcome-form { max-width: 400px; }
+.welcome-form { max-width: 520px; }
 .field-action { position: relative; }
 .field-action input { height: 56px; padding-right: 62px; }
 
@@ -1299,14 +1299,34 @@ button.action-card:hover { background: transparent; transform: none; }
 
 @media (max-width: 680px) {
   .screen { align-items: flex-start; padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); }
-  .welcome-screen,
   .join-screen,
   .results-screen { align-items: center; }
+  .welcome-screen { justify-content: flex-start; }
 
-  .welcome-copy { min-height: auto; padding: 32px 24px 26px; }
+  .theme-toggle {
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0;
+    border-radius: 50%;
+  }
+
+  .theme-toggle span:first-child { font-size: .86rem; }
+  .theme-toggle span:last-child { display: none; }
+
+  .welcome-screen .screen-corner-action {
+    position: fixed;
+    top: max(14px, env(safe-area-inset-top));
+    right: max(14px, env(safe-area-inset-right));
+    z-index: 20;
+  }
+
+  .welcome-shell { width: 100%; }
+  .welcome-copy { min-height: auto; padding: clamp(88px, 18dvh, 140px) 24px 26px; }
   .brand-lockup { margin-bottom: 22px; }
-  .welcome-copy h1 { font-size: 2.45rem; }
+  .welcome-copy h1 { font-size: clamp(2.15rem, 10vw, 2.8rem); }
   .welcome-copy .subtitle { font-size: .82rem; }
+  .welcome-form { max-width: none; }
   .welcome-meta { margin-top: 16px; }
 
   .menu-hero { padding: 40px 2px 24px; }
@@ -1406,9 +1426,11 @@ button.action-card:hover { background: transparent; transform: none; }
 
 @media (max-width: 390px) {
   .welcome-screen { align-items: flex-start; }
-  .welcome-copy { padding: 26px 20px 22px; }
+  .welcome-copy { padding: clamp(76px, 16dvh, 112px) 18px 22px; }
   .brand-lockup { margin-bottom: 18px; }
-  .welcome-copy h1 { font-size: 2.25rem; }
+  .brand-lockup { gap: 12px; }
+  .brand-mark { width: 32px; height: 42px; }
+  .welcome-copy h1 { font-size: clamp(1.95rem, 10vw, 2.25rem); }
   .welcome-copy .subtitle { line-height: 1.45; }
   .field-action input { height: 50px; }
   .icon-submit { width: 40px; height: 40px; }
