@@ -2,6 +2,7 @@ const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
 const crypto = require("crypto");
+const os = require("os");
 const app = express();
 const server = require("http").createServer(app);
 
@@ -17,9 +18,39 @@ const ALLOWED_ORIGINS = [
   "https://www.badam7.aakashb.xyz"
 ];
 
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (ALLOWED_ORIGINS.includes(origin)) return true;
+
+  try {
+    const { hostname, protocol } = new URL(origin);
+    const isLocalProtocol = protocol === 'http:' || protocol === 'https:';
+    const isPrivateIPv4 =
+      /^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(hostname);
+    return isLocalProtocol && isPrivateIPv4;
+  } catch {
+    return false;
+  }
+}
+
+const corsOrigin = (origin, callback) => {
+  callback(isAllowedOrigin(origin) ? null : new Error('Origin not allowed'), isAllowedOrigin(origin));
+};
+
+function getLANAddress() {
+  const interfaces = os.networkInterfaces();
+  for (const addresses of Object.values(interfaces)) {
+    const address = addresses?.find((item) => item.family === 'IPv4' && !item.internal);
+    if (address) return address.address;
+  }
+  return null;
+}
+
 const io = require("socket.io")(server, {
   cors: {
-    origin: ALLOWED_ORIGINS,
+    origin: corsOrigin,
     methods: ["GET", "POST"],
     credentials: true
   },
@@ -141,14 +172,16 @@ app.use(helmet({
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
-      frameSrc: ["'none'"]
+      frameSrc: ["'none'"],
+      upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
     }
   },
+  hsts: process.env.NODE_ENV === 'production',
   crossOriginEmbedderPolicy: false // Allow for PWA features
 }));
 
 app.use(cors({
-  origin: ALLOWED_ORIGINS,
+  origin: corsOrigin,
   credentials: true,
   optionsSuccessStatus: 200
 }));
@@ -170,6 +203,16 @@ const db = new Database();
 const rooms = {};
 
 app.use(express.json({ limit: '16kb' }));
+
+app.get('/api/network-info', (req, res) => {
+  const lanAddress = getLANAddress();
+  const protocol = req.secure ? 'https' : 'http';
+  const port = req.socket.localPort || PORT;
+  res.json({
+    lanAddress,
+    lanOrigin: lanAddress ? `${protocol}://${lanAddress}:${port}` : null
+  });
+});
 
 // Cleanup interval to remove empty rooms and persist active ones
 setInterval(async () => {
@@ -969,12 +1012,12 @@ app.get("*", (req, res) => {
 
 // Start the server
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+const HOST = process.env.HOST || "0.0.0.0";
+server.listen(PORT, HOST, () => {
+  const lanAddress = getLANAddress();
   console.log(`🎮 Badam Satti server running on port ${PORT}`);
   console.log(`📱 Open http://localhost:${PORT} in your browser`);
-  console.log(
-    `🌐 Or share your IP address with family: http://YOUR_IP:${PORT}`
-  );
+  if (lanAddress) console.log(`🌐 Phone / same Wi-Fi: http://${lanAddress}:${PORT}`);
   console.log(`📦 SQLite database initialized`);
   console.log(`🛡️  Rate limiting enabled`);
   console.log(`🔄 Game persistence enabled`);

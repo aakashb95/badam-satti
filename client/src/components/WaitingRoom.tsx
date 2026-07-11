@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { GameState } from '../types';
 
 interface WaitingRoomProps {
@@ -18,6 +18,24 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
   onLeaveRoom,
   onShowNotification,
 }) => {
+  const [lanOrigin, setLanOrigin] = useState<string | null>(null);
+
+  useEffect(() => {
+    const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    if (!isLocalhost) return;
+
+    fetch('/api/network-info')
+      .then((response) => response.ok ? response.json() : null)
+      .then((data: { lanOrigin?: string } | null) => setLanOrigin(data?.lanOrigin || null))
+      .catch(() => setLanOrigin(null));
+  }, []);
+
+  const inviteOrigin = useMemo(() => {
+    const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    return isLocalhost && lanOrigin ? lanOrigin : window.location.origin;
+  }, [lanOrigin]);
+  const inviteLink = `${inviteOrigin}/r/${roomCode}`;
+
   const copy = async (text: string, successMessage: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -51,9 +69,9 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
           </div>
           <div className="invite-actions">
             <button className="secondary-button" onClick={() => copy(roomCode, 'Room code copied')}>Copy code</button>
-            <button className="primary-button" onClick={() => copy(`${window.location.origin}/r/${roomCode}`, 'Invite link copied')}>Share invite</button>
+            <button className="primary-button" onClick={() => copy(inviteLink, 'Invite link copied')}>Share invite</button>
           </div>
-          <div className="invite-link">{window.location.origin}/r/{roomCode}</div>
+          <div className="invite-link">{inviteLink}</div>
         </section>
         
         <section className="players-section">

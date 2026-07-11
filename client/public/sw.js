@@ -1,5 +1,5 @@
-const APP_CACHE = 'badam-satti-app-v2';
-const CARD_CACHE = 'badam-satti-cards-v2';
+const APP_CACHE = 'badam-satti-app-v3';
+const CARD_CACHE = 'badam-satti-cards-v3';
 const APP_SHELL = ['/', '/manifest.json', '/images/icon.svg'];
 
 self.addEventListener('install', (event) => {
@@ -32,11 +32,13 @@ self.addEventListener('fetch', (event) => {
   if (isCard) {
     event.respondWith(
       caches.open(CARD_CACHE).then(async (cache) => {
-        const cached = await cache.match(request);
-        if (cached) return cached;
-        const response = await fetch(request);
-        if (response.ok) cache.put(request, response.clone());
-        return response;
+        try {
+          const response = await fetch(request);
+          if (response.ok) cache.put(request, response.clone());
+          return response;
+        } catch {
+          return cache.match(request);
+        }
       })
     );
     return;

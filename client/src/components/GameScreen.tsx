@@ -15,11 +15,11 @@ interface GameScreenProps {
 }
 
 const SUITS: Card['suit'][] = ['hearts', 'diamonds', 'clubs', 'spades'];
-const SUIT_META: Record<Card['suit'], { symbol: string; label: string }> = {
-  hearts: { symbol: '♥', label: 'Hearts' },
-  diamonds: { symbol: '♦', label: 'Diamonds' },
-  clubs: { symbol: '♣', label: 'Clubs' },
-  spades: { symbol: '♠', label: 'Spades' },
+const SUIT_META: Record<Card['suit'], { symbol: string; label: string; short: string }> = {
+  hearts: { symbol: '♥', label: 'Hearts', short: 'H' },
+  diamonds: { symbol: '♦', label: 'Diamonds', short: 'D' },
+  clubs: { symbol: '♣', label: 'Clubs', short: 'C' },
+  spades: { symbol: '♠', label: 'Spades', short: 'S' },
 };
 
 const GameScreen: React.FC<GameScreenProps> = ({
@@ -90,11 +90,12 @@ const GameScreen: React.FC<GameScreenProps> = ({
           >
             <span className="table-player-avatar">{player.name.charAt(0).toUpperCase()}</span>
             <span className="table-player-copy">
-              <strong>{player.name === username ? 'You' : player.name}</strong>
-              <small>{player.isCurrentPlayer ? 'Playing now' : `${player.cardCount} cards`}</small>
+              <strong>
+                {player.name === username ? 'You' : player.name}
+                {player.isDealer && <span className="dealer-chip" title="Dealer">D</span>}
+              </strong>
+              {player.isCurrentPlayer && <small>Playing now</small>}
             </span>
-            {player.isDealer && <span className="dealer-chip">D</span>}
-            <span className="player-card-count">{player.cardCount}</span>
           </div>
         ))}
       </section>
@@ -125,16 +126,10 @@ const GameScreen: React.FC<GameScreenProps> = ({
 
           return (
             <div key={suit} className={`suit-pile ${allRanks.length ? 'has-cards' : 'is-empty'}`} data-suit={suit}>
-              <div className="suit-pile-heading">
-                <span className="suit-symbol">{SUIT_META[suit].symbol}</span>
-                <span>{SUIT_META[suit].label}</span>
-                {allRanks.length > maxVisibleCards && <small>{allRanks.length} cards</small>}
-              </div>
               <div className="cards-display">
                 {!displayRanks.length && (
-                  <div className="empty-pile">
+                  <div className="empty-pile" aria-label={`${SUIT_META[suit].label} pile is empty`}>
                     <span>{SUIT_META[suit].symbol}</span>
-                    <small>Waiting for 7</small>
                   </div>
                 )}
                 {displayRanks.map((rank, index) => {
@@ -160,12 +155,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
   const renderHand = () => (
     <section className={`hand-dock ${isMyTurn ? 'is-my-turn' : ''}`} aria-label="Your hand">
       <div className="hand-heading">
-        <div>
-          <span className="eyebrow">Your hand</span>
-          <strong>{myCards.length} {myCards.length === 1 ? 'card' : 'cards'}</strong>
-        </div>
         <div className="hand-actions">
-          {isMyTurn && <span className="turn-hint">{validMoves.length ? `${validMoves.length} playable` : 'No valid cards'}</span>}
           <button className="pass-button" onClick={onPassTurn} disabled={!isMyTurn || !canPass}>Pass turn</button>
         </div>
       </div>
@@ -177,7 +167,6 @@ const GameScreen: React.FC<GameScreenProps> = ({
 
           return (
             <div key={suit} className="hand-suit" data-suit={suit}>
-              <span className="hand-suit-label">{SUIT_META[suit].symbol}</span>
               <div className="hand-card-fan">
                 {cards.map((card) => {
                   const valid = isValidMove(card);
@@ -220,7 +209,6 @@ const GameScreen: React.FC<GameScreenProps> = ({
             {isMyTurn && <span className="turn-timer">{timeLeft}s</span>}
             <div>
               <strong>{isMyTurn ? 'Your turn' : `${gameState?.currentPlayerName || 'Player'} is playing`}</strong>
-              <small>{isMyTurn ? (validMoves.length ? 'Choose a highlighted card' : 'You can pass this turn') : 'Watch the table'}</small>
             </div>
           </div>
 
@@ -230,7 +218,6 @@ const GameScreen: React.FC<GameScreenProps> = ({
           </div>
         </header>
 
-        {gameState?.gameStartMessage && <div className="game-start-message">{gameState.gameStartMessage}</div>}
         {renderPlayers()}
         {renderBoard()}
         {renderHand()}
