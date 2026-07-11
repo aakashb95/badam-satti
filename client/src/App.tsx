@@ -163,7 +163,10 @@ const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
     socket.on('connect', () => {
       setIsConnected(true);
       setAppState((previous) => ({ ...previous, loading: null }));
-      if (stateRef.current.currentRoom) socket.emit('get_state');
+      const current = stateRef.current;
+      if (current.currentRoom && current.username) {
+        socket.emit('reconnect_to_room', { roomCode: current.currentRoom, username: current.username });
+      }
     });
 
     socket.on('disconnect', (reason) => {
@@ -204,12 +207,15 @@ const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
       notify(`${playerName} reconnected`);
     });
 
-    socket.on('room_reconnected', ({ roomCode, gameState }) => {
+    socket.on('room_reconnected', ({ roomCode, gameState, myCards, validMoves, canPass }) => {
       setAppState((previous) => ({
         ...previous,
         currentRoom: roomCode,
         gameState,
-        currentScreen: gameState.started ? 'game' : 'waiting',
+        myCards: myCards || previous.myCards,
+        validMoves: validMoves || previous.validMoves,
+        canPass: Boolean(canPass),
+        currentScreen: gameState?.started ? 'game' : 'waiting',
         loading: null,
       }));
       notify('Reconnected to the room');
@@ -259,13 +265,14 @@ const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
 
     socket.on('game_state', (playerState) => {
       if (!playerState) return;
+      const gameState = playerState.gameState || playerState;
       setAppState((previous) => ({
         ...previous,
-        gameState: playerState.gameState,
+        gameState,
         myCards: playerState.myCards || [],
         validMoves: playerState.validMoves || [],
         canPass: Boolean(playerState.canPass),
-        currentScreen: playerState.gameState?.started ? 'game' : 'waiting',
+        currentScreen: gameState?.started ? 'game' : 'waiting',
       }));
     });
 
@@ -292,11 +299,15 @@ const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
       if (!current.currentRoom) return;
 
       if (socket.connected) {
-        socket.emit('get_state');
+        if (current.username) {
+          socket.emit('reconnect_to_room', { roomCode: current.currentRoom, username: current.username });
+        } else {
+          socket.emit('get_state');
+        }
         return;
       }
 
-      if (current.currentScreen === 'waiting' && current.username) {
+      if (current.username) {
         socket.once('connect', () => socket.emit('reconnect_to_room', { roomCode: current.currentRoom, username: current.username }));
       }
 

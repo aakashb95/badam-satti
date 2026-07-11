@@ -849,6 +849,8 @@ button.action-card:hover { background: transparent; transform: none; }
   align-items: center;
   padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
   overflow: hidden;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .game-shell {

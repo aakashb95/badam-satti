@@ -9,4 +9,9 @@ body,
 #root {
   width: 100%;
   min-height: 100%;
+  overscroll-behavior-x: none;
+}
+
+body {
+  overflow-x: hidden;
 }

@@ -225,6 +225,22 @@ class Database {
     });
   }
 
+  async getPlayerReconnectionData(username, roomCode) {
+    return new Promise((resolve, reject) => {
+      this.db.get(
+        'SELECT * FROM players WHERE username = ? AND room_code = ?',
+        [username, roomCode],
+        (err, row) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(row || null);
+          }
+        }
+      );
+    });
+  }
+
   async updatePlayerConnection(playerId, socketId, connected) {
     return new Promise((resolve, reject) => {
       this.db.run(
@@ -288,8 +304,8 @@ class Database {
           } else if (row) {
             // Player can reconnect - update their socket ID and connection status
             this.db.run(
-              'UPDATE players SET socket_id = ?, connected = 1, can_reconnect = 0, reconnect_timeout = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-              [newSocketId, row.id],
+              'UPDATE players SET id = ?, socket_id = ?, connected = 1, can_reconnect = 0, reconnect_timeout = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+              [newSocketId, newSocketId, row.id],
               (err) => {
                 if (err) {
                   reject(err);
@@ -467,8 +483,8 @@ class Database {
   async updatePlayerSocketId(playerId, newSocketId) {
     return new Promise((resolve, reject) => {
       this.db.run(
-        'UPDATE players SET socket_id = ?, connected = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [newSocketId, playerId],
+        'UPDATE players SET id = ?, socket_id = ?, connected = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [newSocketId, newSocketId, playerId],
         function(err) {
           if (err) {
             reject(err);
