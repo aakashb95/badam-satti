@@ -14,8 +14,32 @@ const state = {
 describe('GameBoard', () => {
   it('makes a suggested board pile directly tappable', () => {
     const onMove = vi.fn();
-    render(<GameBoard state={state} onMovePile={onMove} />);
+    const { container } = render(<GameBoard state={state} onMovePile={onMove} />);
     screen.getByRole('button', { name: 'Move North pile to East' }).click();
     expect(onMove).toHaveBeenCalledWith({ type: 'move_pile', sourcePileId: 'north', targetPileId: 'east' });
+    expect(container.querySelector('.pile-south .empty-slot')).toHaveTextContent('+');
+    expect(container.querySelector('.pile-southWest .empty-slot')).toHaveTextContent('K');
+  });
+
+  it('renders only the base and playable endpoint for a long pile', () => {
+    const longPileState: GameState = {
+      ...state,
+      piles: {
+        ...state.piles,
+        north: [
+          { rank: 10, suit: 'diamonds' },
+          { rank: 9, suit: 'clubs' },
+          { rank: 8, suit: 'hearts' },
+          { rank: 7, suit: 'spades' },
+        ],
+      },
+    };
+    const { container } = render(<GameBoard state={longPileState} onMovePile={vi.fn()} />);
+    const northPile = container.querySelector('.pile-north');
+    expect(northPile?.querySelectorAll('.playing-card')).toHaveLength(2);
+    expect(northPile).toHaveTextContent('+2');
+    expect(northPile?.querySelector('img[alt="9 of clubs"]')).not.toBeInTheDocument();
+    expect(northPile?.querySelector('img[alt="10 of diamonds"]')).toBeInTheDocument();
+    expect(northPile?.querySelector('img[alt="7 of spades"]')).toBeInTheDocument();
   });
 });

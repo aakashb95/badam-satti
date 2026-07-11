@@ -35,6 +35,9 @@ test('only a king may start an empty corner', () => {
   assert.equal(game.canPlayCard(card(13, 'clubs'), 'northWest'), true);
   assert.equal(game.canPlayCard(card(12, 'clubs'), 'northWest'), false);
   assert.equal(game.canPlayCard(card(3, 'clubs'), 'northEast'), false);
+  game.piles.north = [];
+  assert.equal(game.canPlayCard(card(13, 'clubs'), 'north'), false);
+  assert.equal(game.canPlayCard(card(12, 'clubs'), 'north'), true);
 });
 
 test('a suggested board pile can be tapped and moved', () => {
@@ -56,6 +59,24 @@ test('a complete sequence may fill an empty cardinal position', () => {
   assert.equal(game.movePile('a', 'east', 'north'), true);
   assert.deepEqual(game.piles.north, [card(9, 'clubs'), card(8, 'hearts')]);
   assert.equal(game.piles.east.length, 0);
+});
+
+test('a king pile on the main board is suggested into an empty corner', () => {
+  const game = startedGame();
+  game.piles.north = [card(13, 'spades'), card(12, 'hearts')];
+  game.piles.northWest = [];
+  game.turnBoardSignatures = new Set([game.boardSignature()]);
+  assert.deepEqual(game.suggestedActions().find((action) => action.type === 'move_pile'), {
+    type: 'move_pile', sourcePileId: 'north', targetPileId: 'northWest',
+  });
+});
+
+test('a king anchored in a corner can never move back to the main board', () => {
+  const game = startedGame();
+  game.piles.north = [];
+  game.piles.northWest = [card(13, 'spades'), card(12, 'hearts')];
+  assert.equal(game.pileActions().some((action) => action.sourcePileId === 'northWest'), false);
+  assert.equal(game.movePile('a', 'northWest', 'north'), false);
 });
 
 test('auto action plays a hand card before moving a board pile', () => {

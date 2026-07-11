@@ -24,6 +24,7 @@ export default function App() {
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState('');
   const [connected, setConnected] = useState(false);
+  const [identityConfirmed, setIdentityConfirmed] = useState(false);
   const countdown = useCountdown(state?.actionDeadline || null);
 
   useEffect(() => {
@@ -37,11 +38,15 @@ export default function App() {
     socket.on('disconnect', () => setConnected(false));
     socket.on('state', setState);
     socket.on('error_message', setError);
-    socket.on('session_invalid', () => window.localStorage.removeItem(SESSION_KEY));
+    socket.on('session_invalid', () => {
+      window.localStorage.removeItem(SESSION_KEY);
+      setIdentityConfirmed(false);
+    });
     socket.on('session', (session) => {
       window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
       setName(session.name);
       setRoomCode(session.roomCode);
+      setIdentityConfirmed(true);
     });
     return () => { socket.disconnect(); };
   }, []);
@@ -68,20 +73,72 @@ export default function App() {
   const automaticAction = typeof state?.lastAction?.type === 'string' && state.lastAction.type.startsWith('auto_');
 
   if (!state) {
+    if (!identityConfirmed) {
+      return (
+        <main className="shell welcome-screen">
+          <section className="welcome-card">
+            <div className="brand-lockup">
+              <div className="brand-mark" aria-hidden="true"><span>K</span><i>♛</i></div>
+              <div><h1>King’s Corner</h1><p className="eyebrow">The classic table game</p></div>
+            </div>
+            <p className="welcome-intro">Build downward, alternate colours, and clear your hand before everyone else.</p>
+            <label htmlFor="player-name">Play with your friends and family</label>
+            <div className="identity-entry">
+              <input
+                id="player-name"
+                value={name}
+                maxLength={20}
+                autoComplete="name"
+                onChange={(event) => { setName(event.target.value); setError(''); }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && name.trim()) setIdentityConfirmed(true);
+                }}
+                placeholder="Enter your name"
+              />
+              <button aria-label="Continue" onClick={() => setIdentityConfirmed(Boolean(name.trim()))} disabled={!name.trim()}>→</button>
+            </div>
+            <div className="welcome-meta"><span>2–4 players</span><span>Private rooms</span><span>No sign-up</span></div>
+            {!connected && <p className="status">Connecting to the table…</p>}
+          </section>
+        </main>
+      );
+    }
+
     return (
-      <main className="shell landing">
-        <div className="brand-mark" aria-hidden="true"><span>K</span><i>♛</i></div>
-        <p className="eyebrow">A classic table game</p>
-        <h1>King’s<br /><em>Corner</em></h1>
-        <p className="intro">Build downward. Alternate colours. Make room for the kings.</p>
-        <section className="join-panel">
-          <label>Your name<input value={name} maxLength={20} onChange={(event) => setName(event.target.value)} placeholder="Aakash" /></label>
-          <div className="join-row">
-            <label>Room code<input value={roomCode} maxLength={6} onChange={(event) => setRoomCode(event.target.value.toUpperCase())} placeholder="ABC123" /></label>
-            <button className="secondary" onClick={joinRoom} disabled={!connected || !name.trim() || roomCode.length !== 6}>Join</button>
+      <main className="shell menu-screen">
+        <section className="menu-shell">
+          <header className="menu-header">
+            <div className="mini-brand"><span>K</span><strong>King’s Corner</strong></div>
+            <button className="change-name" onClick={() => setIdentityConfirmed(false)}>Change name</button>
+          </header>
+          <div className="menu-hero">
+            <p className="eyebrow">Welcome to the table</p>
+            <h1>Good to see you,<br /><em>{name}</em>.</h1>
+            <p>Start a private table or enter the six-character code from your host.</p>
           </div>
-          <div className="or"><span>or</span></div>
-          <button className="primary" onClick={createRoom} disabled={!connected || !name.trim()}>Create a new table</button>
+          <div className="menu-grid">
+            <button className="action-card create-card" onClick={createRoom} disabled={!connected}>
+              <span className="action-icon">＋</span>
+              <span><strong>Create a table</strong><small>You host and invite everyone</small></span>
+              <b>→</b>
+            </button>
+            <section className="action-card join-card">
+              <span className="action-icon">⌁</span>
+              <span><strong>Join a table</strong><small>Enter the code from your host</small></span>
+              <div className="code-entry">
+                <input
+                  aria-label="Room code"
+                  value={roomCode}
+                  maxLength={6}
+                  autoComplete="off"
+                  onChange={(event) => setRoomCode(event.target.value.toUpperCase())}
+                  onKeyDown={(event) => { if (event.key === 'Enter' && roomCode.length === 6) joinRoom(); }}
+                  placeholder="ABC123"
+                />
+                <button onClick={joinRoom} disabled={!connected || roomCode.length !== 6}>Join</button>
+              </div>
+            </section>
+          </div>
           {!connected && <p className="status">Connecting to the table…</p>}
           {error && <p role="alert" className="error">{error}</p>}
         </section>
@@ -122,12 +179,12 @@ export default function App() {
       <aside className="players-strip">{state.players.map((player) => <div key={player.name} className={player.name === state.currentPlayerName ? 'current' : ''}><span>{player.name.slice(0, 1)}</span><strong>{player.name}</strong><small>{player.cardCount}</small>{player.isDealer && <i>D</i>}</div>)}</aside>
       <GameBoard state={state} onMovePile={movePile} />
       <section className="hand-area">
-        <div className="hand-heading"><div><p className="eyebrow">Your hand</p><strong>{state.myHand.length} cards</strong></div>{state.isMyTurn && <button className="finish-turn" onClick={() => socketRef.current?.emit('end_turn')}>Finish turn <span>→</span></button>}</div>
+        <div className="hand-heading"><div><p className="eyebrow">Your hand</p><strong>{state.myHand.length} cards</strong></div>{state.isMyTurn && <button className={`finish-turn ${state.suggestedActions.length === 0 ? 'ready' : ''}`} onClick={() => socketRef.current?.emit('end_turn')}>{state.suggestedActions.length === 0 ? 'No moves left · Finish turn' : 'Finish turn'} <span>→</span></button>}</div>
         <div className="hand-cards">{state.myHand.map((card: Card, index) => {
           const suggestion = cardSuggestion.get(`${card.rank}:${card.suit}`);
           return <CardView key={`${card.rank}-${card.suit}`} card={card} className={suggestion ? 'suggested' : ''} onClick={suggestion ? () => playCard(suggestion) : undefined} label={suggestion ? `Play suggested ${card.rank} of ${card.suit}` : undefined} />;
         })}</div>
-        {state.isMyTurn && <p className="action-note">Glowing cards and piles are suggested moves. Tap one to play it instantly.</p>}
+        {state.isMyTurn && <p className={`action-note ${state.suggestedActions.length === 0 ? 'ready' : ''}`}>{state.suggestedActions.length === 0 ? 'You’re done here — finish your turn.' : 'Glowing cards and piles are suggested moves. Tap one to play it instantly.'}</p>}
       </section>
     </main>
   );

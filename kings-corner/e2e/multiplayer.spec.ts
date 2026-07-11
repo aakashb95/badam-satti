@@ -7,17 +7,19 @@ test('two players create, join, and begin a game', async ({ browser }) => {
   const guest = await guestContext.newPage();
 
   await host.goto('/');
-  await host.getByLabel('Your name').fill('Aakash');
-  await host.getByRole('button', { name: 'Create a new table' }).click();
-  await expect(host.getByText('Private table')).toBeVisible();
-  const heading = await host.locator('h1').innerText();
+  await host.getByPlaceholder('Enter your name').fill('Aakash');
+  await host.getByRole('button', { name: 'Continue' }).click();
+  await host.getByRole('button', { name: 'Create a table' }).click();
+  await expect(host.locator('.waiting h1')).toBeVisible();
+  const heading = await host.locator('.waiting h1').innerText();
   const roomCode = heading.replace('Room', '').trim();
 
   await guest.goto('/');
-  await guest.getByLabel('Your name').fill('Maya');
+  await guest.getByPlaceholder('Enter your name').fill('Maya');
+  await guest.getByRole('button', { name: 'Continue' }).click();
   await guest.getByLabel('Room code').fill(roomCode);
   await guest.getByRole('button', { name: 'Join' }).click();
-  await expect(guest.getByText('Private table')).toBeVisible();
+  await expect(guest.locator('.waiting h1')).toBeVisible();
   await expect(host.getByText('Maya')).toBeVisible();
 
   await host.getByRole('button', { name: 'Deal the cards' }).click();

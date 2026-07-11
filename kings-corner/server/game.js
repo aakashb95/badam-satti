@@ -117,7 +117,10 @@ class KingsCornerGame {
   canPlayCard(card, targetPileId) {
     if (!PILE_IDS.includes(targetPileId)) return false;
     const pile = this.piles[targetPileId];
-    if (pile.length === 0) return CORNERS.includes(targetPileId) ? card.rank === 13 : true;
+    if (pile.length === 0) {
+      if (card.rank === 13) return CORNERS.includes(targetPileId);
+      return CARDINALS.includes(targetPileId);
+    }
     return canStack(card, pile[pile.length - 1]);
   }
 
@@ -136,12 +139,16 @@ class KingsCornerGame {
       const source = this.piles[sourcePileId];
       if (source.length === 0) continue;
       const baseCard = source[0];
+      const kingAnchoredInCorner = baseCard.rank === 13 && CORNERS.includes(sourcePileId);
+      if (kingAnchoredInCorner) continue;
       for (const targetPileId of PILE_IDS) {
         if (sourcePileId === targetPileId) continue;
         const target = this.piles[targetPileId];
         const fillsEmptyCardinal = target.length === 0 && CARDINALS.includes(targetPileId);
-        if (target.length === 0 && !fillsEmptyCardinal) continue;
-        if (progressiveOnly && fillsEmptyCardinal) continue;
+        const movesKingToCorner = baseCard.rank === 13 && target.length === 0 && CORNERS.includes(targetPileId);
+        if (baseCard.rank === 13 && !movesKingToCorner) continue;
+        if (baseCard.rank !== 13 && target.length === 0 && !fillsEmptyCardinal) continue;
+        if (progressiveOnly && fillsEmptyCardinal && !movesKingToCorner) continue;
         if (target.length > 0 && !canStack(baseCard, target[target.length - 1])) continue;
         const nextPiles = { ...this.piles, [sourcePileId]: [], [targetPileId]: [...target, ...source] };
         if (unseenOnly && this.turnBoardSignatures.has(this.boardSignature(nextPiles))) continue;
@@ -153,11 +160,7 @@ class KingsCornerGame {
 
   suggestedActions() {
     const handActions = this.handActions();
-    const pileActions = this.pileActions({ unseenOnly: true }).sort((left, right) => {
-      const leftEmpty = this.piles[left.targetPileId].length === 0 ? 1 : 0;
-      const rightEmpty = this.piles[right.targetPileId].length === 0 ? 1 : 0;
-      return leftEmpty - rightEmpty;
-    });
+    const pileActions = this.pileActions({ unseenOnly: true, progressiveOnly: true });
     return [...handActions, ...pileActions];
   }
 
