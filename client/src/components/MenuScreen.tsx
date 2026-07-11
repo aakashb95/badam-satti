@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { ReactNode, useState } from 'react';
 import HelpModal from './HelpModal';
 
 interface MenuScreenProps {
@@ -6,9 +6,10 @@ interface MenuScreenProps {
   onCreateRoom: () => void;
   onJoinRoom: (roomCode: string) => void;
   onReconnectToRoom?: (roomCode: string) => void;
+  themeToggle?: ReactNode;
 }
 
-const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinRoom, onReconnectToRoom }) => {
+const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinRoom, onReconnectToRoom, themeToggle }) => {
   const [roomCode, setRoomCode] = useState('');
   const [showHelpModal, setShowHelpModal] = useState(false);
 
@@ -37,7 +38,10 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinR
       <div className="app-shell menu-shell">
         <header className="app-header">
           <div className="mini-brand"><span className="brand-mark">7<span>♥</span></span><span>Badam Satti</span></div>
-          <button className="quiet-button" onClick={() => setShowHelpModal(true)}>How to play</button>
+          <div className="header-actions">
+            {themeToggle}
+            <button className="quiet-button" onClick={() => setShowHelpModal(true)}>How to play</button>
+          </div>
         </header>
 
         <section className="menu-hero">

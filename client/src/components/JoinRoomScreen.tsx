@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { ReactNode, useState } from 'react';
 
 interface JoinRoomScreenProps {
   roomCode: string;
@@ -6,9 +6,10 @@ interface JoinRoomScreenProps {
   onBackToMenu: () => void;
   error?: string | null;
   onClearError?: () => void;
+  themeToggle?: ReactNode;
 }
 
-const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({ roomCode, onJoinRoom, onBackToMenu, error, onClearError }) => {
+const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({ roomCode, onJoinRoom, onBackToMenu, error, onClearError, themeToggle }) => {
   const [username, setUsername] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -33,7 +34,10 @@ const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({ roomCode, onJoinRoom, o
   return (
     <main className="screen join-screen">
       <div className="join-shell surface-panel">
-        <button className="back-link" type="button" onClick={onBackToMenu} disabled={isSubmitting}>← Back</button>
+        <div className="join-top-actions">
+          <button className="back-link" type="button" onClick={onBackToMenu} disabled={isSubmitting}>← Back</button>
+          {themeToggle}
+        </div>
         <div className="join-brand"><span className="brand-mark">7<span>♥</span></span></div>
         <span className="eyebrow">You’ve been invited</span>
         <h2>Take your seat</h2>

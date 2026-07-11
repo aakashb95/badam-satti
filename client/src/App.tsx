@@ -11,6 +11,7 @@ import LoginScreen from './components/LoginScreen';
 import MenuScreen from './components/MenuScreen';
 import Notification from './components/Notification';
 import SummaryScreen from './components/SummaryScreen';
+import ThemeToggle, { ThemeMode } from './components/ThemeToggle';
 import WaitingRoom from './components/WaitingRoom';
 import { AppState, Card, GameSummary, Winner } from './types';
 
@@ -43,16 +44,44 @@ const initialState: AppState = {
 const rankLabel = (rank: number) => ({ 1: 'A', 11: 'J', 12: 'Q', 13: 'K' }[rank] || rank.toString());
 const suitLabel = (suit: string) => ({ hearts: 'Hearts', diamonds: 'Diamonds', clubs: 'Clubs', spades: 'Spades' }[suit] || suit);
 
-const App: React.FC = () => (
-  <BrowserRouter>
-    <Routes>
-      <Route path="/r/:roomCode" element={<JoinRoomRoute />} />
-      <Route path="/*" element={<MainApp />} />
-    </Routes>
-  </BrowserRouter>
-);
+const THEME_STORAGE_KEY = 'badam-satti-theme';
 
-const JoinRoomRoute: React.FC = () => {
+const getInitialTheme = (): ThemeMode => {
+  try {
+    return window.localStorage.getItem(THEME_STORAGE_KEY) === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
+};
+
+const App: React.FC = () => {
+  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
+  const toggleTheme = () => setTheme((current) => (current === 'light' ? 'dark' : 'light'));
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // Ignore storage failures; the visible theme still changes for the session.
+    }
+  }, [theme]);
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/r/:roomCode" element={<JoinRoomRoute theme={theme} onToggleTheme={toggleTheme} />} />
+        <Route path="/*" element={<MainApp theme={theme} onToggleTheme={toggleTheme} />} />
+      </Routes>
+    </BrowserRouter>
+  );
+};
+
+interface ThemeProps {
+  theme: ThemeMode;
+  onToggleTheme: () => void;
+}
+
+const JoinRoomRoute: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
   const routeState = useLocation().state as RouteState | null;
@@ -60,19 +89,20 @@ const JoinRoomRoute: React.FC = () => {
   if (!roomCode) return <div>Invalid room code</div>;
 
   return (
-    <div className="app">
+    <div className="app" data-theme={theme}>
       <JoinRoomScreen
         roomCode={roomCode.toUpperCase()}
         onJoinRoom={(code, username) => navigate('/', { state: { joinRoom: { roomCode: code, username } } })}
         onBackToMenu={() => navigate('/')}
         error={routeState?.error || null}
         onClearError={() => navigate(`/r/${roomCode}`, { replace: true })}
+        themeToggle={<ThemeToggle theme={theme} onToggle={onToggleTheme} />}
       />
     </div>
   );
 };
 
-const MainApp: React.FC = () => {
+const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [appState, setAppState] = useState<AppState>(initialState);
@@ -377,15 +407,18 @@ const MainApp: React.FC = () => {
   }
 
   function renderScreen() {
+    const themeToggle = <ThemeToggle theme={theme} onToggle={onToggleTheme} />;
+    const compactThemeToggle = <ThemeToggle theme={theme} onToggle={onToggleTheme} compact />;
+
     switch (appState.currentScreen) {
       case 'login':
-        return <LoginScreen onContinue={(username) => setAppState((previous) => ({ ...previous, username, currentScreen: 'menu' }))} />;
+        return <LoginScreen onContinue={(username) => setAppState((previous) => ({ ...previous, username, currentScreen: 'menu' }))} themeToggle={themeToggle} />;
       case 'menu':
-        return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} onReconnectToRoom={reconnectToRoom} />;
+        return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} onReconnectToRoom={reconnectToRoom} themeToggle={themeToggle} />;
       case 'waiting':
-        return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} />;
+        return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} themeToggle={themeToggle} />;
       case 'game':
-        return <GameScreen gameState={appState.gameState} myCards={appState.myCards} validMoves={appState.validMoves} isMyTurn={appState.isMyTurn} canPass={appState.canPass} username={appState.username} onPlayCard={playCard} onPassTurn={passTurn} onLeaveGame={leaveRoom} />;
+        return <GameScreen gameState={appState.gameState} myCards={appState.myCards} validMoves={appState.validMoves} isMyTurn={appState.isMyTurn} canPass={appState.canPass} username={appState.username} onPlayCard={playCard} onPassTurn={passTurn} onLeaveGame={leaveRoom} themeToggle={compactThemeToggle} />;
       case 'game-over':
         return <GameOverScreen winner={appState.winner} onContinueRound={() => { showLoading('Starting next round…'); socketRef.current?.emit('continue_round'); }} onExitGame={() => { showLoading('Calculating results…'); socketRef.current?.emit('exit_game'); }} showingDelay={showingGameOverDelay} />;
       case 'summary':
@@ -396,7 +429,7 @@ const MainApp: React.FC = () => {
   }
 
   return (
-    <div className="app">
+    <div className="app" data-theme={theme}>
       {renderScreen()}
       {appState.error && <ErrorModal message={appState.error} onClose={() => setAppState((previous) => ({ ...previous, error: null }))} />}
       {appState.notification && <Notification message={appState.notification} />}
