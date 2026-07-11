@@ -44,6 +44,33 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
     }
   };
 
+  const copyRoomLink = async () => {
+    const roomLink = `${window.location.origin}/r/${roomCode}`;
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(roomLink);
+        onShowNotification('Room link copied to clipboard!');
+      } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = roomLink;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          onShowNotification('Room link copied to clipboard!');
+        } catch (err) {
+          console.error('Failed to copy: ', err);
+          onShowNotification('Failed to copy room link');
+        }
+        document.body.removeChild(textArea);
+      }
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+      onShowNotification('Failed to copy room link');
+    }
+  };
+
   const isCreator = gameState?.players && gameState.players.length > 0 && gameState.players[0].name === username;
 
   return (
@@ -51,8 +78,22 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
       <div className="container">
         <h2>Room: <span>{roomCode}</span></h2>
         <div className="room-info">
-          <p>Share this code with others to join!</p>
-          <button onClick={copyRoomCode}>Copy Code</button>
+          <p>Share with others to join!</p>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <button onClick={copyRoomCode}>Copy Code</button>
+            <button onClick={copyRoomLink} style={{ backgroundColor: '#2196F3' }}>Copy Link</button>
+          </div>
+          <div style={{ 
+            marginTop: '10px', 
+            padding: '8px', 
+            backgroundColor: '#f5f5f5', 
+            borderRadius: '4px',
+            fontSize: '12px',
+            color: '#666',
+            wordBreak: 'break-all'
+          }}>
+            Link: {window.location.origin}/r/{roomCode}
+          </div>
         </div>
         
         <div className="players-section">
@@ -63,7 +104,12 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
                 key={player.name}
                 className={`player-item ${player.connected ? 'connected' : 'disconnected'}`}
               >
-                <span className="player-name">{player.name}</span>
+                <span className="player-name">
+                  {player.name}
+                  {player.isDealer && (
+                    <span className="dealer-badge" title="Dealer">D</span>
+                  )}
+                </span>
                 <span className="player-status">{player.connected ? '🔵' : '🔴'}</span>
               </div>
             ))}

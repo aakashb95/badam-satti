@@ -13,11 +13,12 @@ A complete multiplayer Progressive Web App (PWA) implementation of the Indian ca
 
 ### Client Side (`/client/`)
 - **React 18 + TypeScript** - Modern component-based architecture
+- **React Router** - URL routing with link-based room joining support
 - **Vite Build System** - Fast development and optimized production builds
 - **Progressive Web App** - Offline support, installable
 - **Responsive Design** - Mobile-first approach for phones/tablets
 - **Real-time Updates** - Socket.io client with auto-reconnection
-- **Auto-play System** - 15-second countdown with random card selection
+- **Auto-play System** - 20-second countdown with random card selection
 - **React Hooks** - State management with useState and useEffect
 
 ## Game Features
@@ -31,7 +32,8 @@ A complete multiplayer Progressive Web App (PWA) implementation of the Indian ca
 - **Scoring**: Points based on remaining cards (A=1, J=11, Q=12, K=13, numbers=face value)
 
 ### Technical Features
-- **Auto-play**: Random card selection after 15 seconds of inactivity (client-side only)
+- **Auto-play**: Random card selection after 20 seconds of inactivity (client-side only)
+- **Link-based Room Joining**: Direct URL links (`/r/ABC123`) for easy room sharing
 - **Game Persistence**: SQLite database ensures games survive server restarts
 - **Card Redistribution**: Disconnected players' cards redistributed for fair, fast gameplay
 - **Rate Limiting**: Spam protection (10 rooms/min, 20 joins/min per IP)
@@ -61,6 +63,7 @@ A complete multiplayer Progressive Web App (PWA) implementation of the Indian ca
       SummaryScreen.tsx
       ErrorModal.tsx
       Notification.tsx
+      JoinRoomScreen.tsx  - URL-based room joining screen
     types/         - TypeScript type definitions
       index.ts     - Game state, card, player interfaces
     App.tsx        - Main React app with state management
@@ -88,7 +91,7 @@ A complete multiplayer Progressive Web App (PWA) implementation of the Indian ca
 
 ### Socket Events
 **Room Management:**
-- `create_room` / `join_room` - Room creation and joining
+- `create_room` / `join_room` - Room creation and joining (supports URL-based joining)
 - `get_state` - Request current game state
 
 **Game Actions:**
@@ -104,11 +107,19 @@ A complete multiplayer Progressive Web App (PWA) implementation of the Indian ca
 - `game_totals` - Final cumulative scores
 
 ### Auto-play System
-- 15-second countdown timer with visual feedback
+- 20-second countdown timer with visual feedback
 - Random valid move selection using `Math.random()`
 - Auto-pass when no moves available
 - Client-side only (no server-side auto-play)
 - Countdown display shows remaining time in turn indicator
+
+### Link-based Room Joining System
+- Direct URL access via `/r/ROOMCODE` format (e.g., `/r/ABC123`)
+- JoinRoomScreen component for name entry from URL links
+- Automatic room joining after name submission
+- Error handling for invalid/full/started rooms with user-friendly messages
+- Copy Link button in waiting room for easy sharing
+- Maintains backward compatibility with manual room code entry
 
 ### Connection Management
 - Socket timeout: 60 seconds ping timeout, 25 seconds ping interval
@@ -283,11 +294,83 @@ http://localhost:3000
     - **Context-Aware Labels**: "Your Turn" vs "Current Turn" based on player perspective
     - **Single Source of Truth**: Current player indicator is primary turn information
     - **Reduced Cognitive Load**: Clear, non-duplicated turn status throughout interface
+41. **Enhanced Card Playability Detection** - Fixed server-side indicator logic for red critical warnings:
+    - **Fixed Edge Cases**: Corrected `isCardPlayableOnBoard()` logic to properly detect all playable cards
+    - **7-Based Sequences**: Added special handling for 6 and 8 cards when 7 is the only card played
+    - **Accurate Critical Indicators**: Red warnings now correctly appear when all remaining cards are playable
+    - **Turn-Agnostic Analysis**: Real-time position analysis updates instantly as board state changes
+42. **Toast Notification System** - Replaced alert popups with clean toast notifications:
+    - **Copy Room Code**: Replaced browser alert with elegant toast notification
+    - **Consistent UX**: Uses existing notification system for seamless user experience
+    - **Non-Intrusive**: Toast notifications don't interrupt gameplay flow
+    - **Cross-Platform**: Works consistently across all devices and browsers
+43. **Simplified Player Card Display** - Clean numeric-only card counts for non-active players:
+    - **Minimalist Design**: Removed "cards" suffix for other players, showing just numbers
+    - **Context-Aware**: Current player still shows "X cards" for clarity
+    - **Reduced Clutter**: Cleaner UI with essential information only
+    - **Visual Hierarchy**: Clear distinction between active and inactive players
+44. **Refined Visual Indicators** - Streamlined warning system with color-only approach:
+    - **Removed Emoji Dots**: Eliminated redundant 🟡/🔴 emojis from player indicators
+    - **Background Color Focus**: Warning levels shown through background colors only
+    - **Clean Aesthetic**: Reduced visual noise while maintaining functionality
+    - **Consistent Design**: Uniform indicator system across all player displays
+45. **Fixed Card Stacking Edge Cases** - Corrected sequence detection for proper 7-centered stacking:
+    - **Downward-Only Fix**: Properly detects 7,6,5,4 sequences as downward-only (not mixed)
+    - **Upward-Only Logic**: Correctly handles 7,8,9,10 sequences with proper card display
+    - **7-Centered Display**: Ensures 7 always appears in center position for both sequence types
+    - **Edge Case Handling**: Fixed logic to distinguish between mixed and single-direction sequences
+46. **Critical Security Hardening** - Comprehensive security vulnerability fixes (2025-07-10):
+    - **CORS Protection**: Restricted origins to specific allowed domains (localhost, production domain)
+    - **IP Privacy**: Implemented IP address hashing with crypto.createHash() for user privacy
+    - **Security Headers**: Added Helmet.js with CSP, HSTS, and anti-clickjacking protection
+    - **HTTPS Enforcement**: Automatic HTTPS redirection in production environment
+    - **Health Endpoint Security**: Removed sensitive data exposure (PID, memory details, room codes)
+    - **Admin Authentication**: Added `/health/admin` endpoint with API key authentication
+    - **Error Sanitization**: Implemented error message sanitization to prevent information disclosure
+    - **Rate Limiting Enhancement**: Updated rate limiting to use hashed IPs instead of raw addresses
+47. **Critical Mobile Viewport Fixes** - Comprehensive mobile display optimization (2025-07-11):
+    - **Dynamic Viewport Height**: Implemented `100dvh` for proper mobile browser UI handling
+    - **iOS Safe Area Support**: Added `env(safe-area-inset-*)` with `viewport-fit=cover` for iPhone notch/home indicator
+    - **iPhone Model-Specific Optimization**: Tailored card container heights for iPhone SE, iPhone 14 Pro, landscape modes
+    - **Mobile-Only CSS Targeting**: Used `@media (hover: none) and (pointer: coarse)` to preserve desktop experience
+    - **Card Visibility Guarantee**: Ensured cards are always visible above safe areas with proper flex-shrink controls
+    - **Flexible Game Board**: Made board height responsive to prevent card cutoff on small screens
+48. **Fixed Card Stacking Logic** - Completely resolved board sequence display issues (2025-07-11):
+    - **Proper Sequence Building**: Fixed server data parsing to correctly combine up/down card arrays
+    - **Visual Card Hierarchy**: Higher-ranked cards always display above lower-ranked cards
+    - **Sequence-Aware Stacking**: Upward-only (7,8,9,10) shows 10→7, downward-only (7,6,5,4) shows 7→4
+    - **Mixed Sequence Logic**: Bidirectional sequences (5,6,7,8,9) display as 9→7→5 with proper centering
+    - **Eliminated Wrong Cards**: Fixed phantom card display and incorrect sequence representation
+    - **Consistent 7-Card Position**: 7 maintains logical position in all sequence types
+49. **Link-based Room Joining System** - Complete URL-based room sharing implementation (2025-07-11):
+    - **React Router Integration**: Added react-router-dom for URL routing with `/r/ROOMCODE` format
+    - **JoinRoomScreen Component**: Dedicated screen for URL-based room joining with name entry
+    - **Enhanced WaitingRoom**: Added "Copy Link" button alongside existing "Copy Code" functionality
+    - **Robust Error Handling**: Invalid/full/started room errors display on join screen with retry capability
+    - **Race Condition Fix**: Resolved state timing issue in URL join flow by passing username directly
+    - **Backward Compatibility**: Maintains all existing manual room code entry functionality
+    - **User-Friendly Sharing**: Easy room sharing via direct links instead of complex 6-character codes
+50. **Clockwise Dealing and Dealer Rotation System** - Traditional card game dealer mechanics (2025-07-12):
+    - **Dealer Tracking**: Room creator starts as dealer with visual "D" badge indicators
+    - **Clockwise Card Dealing**: Cards dealt in proper clockwise order starting from player after dealer
+    - **Highest Scorer Rotation**: Player with most remaining card points after each round becomes next dealer
+    - **UI Integration**: Orange dealer badges displayed in waiting room and game screen throughout gameplay
+    - **Edge Case Handling**: Dealer index properly adjusts when players disconnect or leave rooms
+    - **Database Persistence**: Dealer state persists across server restarts and room restoration
+51. **Critical Connection and Room State Fixes** - Comprehensive multiplayer stability improvements (2025-07-12):
+    - **Room Restoration System**: Automatic room restoration from database when memory cache is cleared
+    - **Robust Room Validation**: All socket events now use `ensureRoomExists()` to prevent "Not in a valid room" errors
+    - **Smart Username Validation**: Prevents duplicate usernames while allowing proper cleanup of orphaned disconnected players
+    - **Mid-Game Reconnection**: 30-second reconnection window during active games with automatic card redistribution
+    - **Improved Disconnection Flow**: Distinguishes between waiting room (10min reconnection) and active game (30sec + redistribution)
+    - **Database Consistency**: Added new database methods for reconnection timeout management and player socket ID updates
+    - **Race Condition Prevention**: Fixed timing issues between disconnection detection and reconnection attempts
 
 ## Known Working Features
 - ✅ **React Frontend** - Modern component-based architecture with TypeScript
+- ✅ **React Router** - URL routing with link-based room joining system
 - ✅ **Vite Build System** - Fast development and optimized production builds  
-- ✅ Room creation and joining (2-11 players)
+- ✅ Room creation and joining (2-11 players) with URL sharing support
 - ✅ Multi-round gameplay (up to 7 rounds)
 - ✅ Complete game logic with auto-start (7♥)
 - ✅ Real-time multiplayer synchronization
@@ -323,6 +406,17 @@ http://localhost:3000
 - ✅ **Enhanced Auto-Play Timing** - 20-second countdown with visual feedback and touch-friendly card states
 - ✅ **Optimized Desktop Layout** - Balanced proportions with proper card visibility and space distribution
 - ✅ **Clean Turn Information UX** - Simplified interface eliminating information overload
+- ✅ **Enhanced Card Playability Detection** - Fixed server-side red indicator logic for accurate critical warnings
+- ✅ **Toast Notification System** - Replaced alert popups with elegant toast notifications for room code copying
+- ✅ **Simplified Player Card Display** - Clean numeric-only counts for non-active players with context-aware labeling
+- ✅ **Refined Visual Indicators** - Streamlined color-only warning system without redundant emoji dots
+- ✅ **Fixed Card Stacking Edge Cases** - Proper 7-centered stacking with accurate sequence direction detection
+- ✅ **Critical Security Hardening** - CORS protection, IP hashing, security headers, HTTPS enforcement, secure health endpoints
+- ✅ **Critical Mobile Viewport Fixes** - Dynamic viewport height (100dvh), iOS safe area support, iPhone model-specific optimization
+- ✅ **Fixed Card Stacking Logic** - Completely resolved board sequence display with proper visual hierarchy and accurate card positioning
+- ✅ **Link-based Room Joining System** - Complete URL-based room sharing with React Router, JoinRoomScreen component, and race condition fix
+- ✅ **Clockwise Dealing and Dealer Rotation** - Traditional card game mechanics with room creator as initial dealer, highest scorer rotation, and visual indicators
+- ✅ **Critical Connection Stability** - Robust room validation, automatic database restoration, smart disconnection handling with 30-second mid-game reconnection
 
 ## Development Notes
 - **Frontend**: React 18 + TypeScript with Vite build system
@@ -336,7 +430,7 @@ http://localhost:3000
 - Game state fully synchronized across all connected clients
 - Room cleanup runs every 60 seconds (database + memory)
 - Graceful shutdown saves all active games to database
-- Disconnected players immediately removed with card redistribution
+- Disconnected players: 30-second reconnection window during games, then card redistribution for continued gameplay
 - Complete SVG card set with custom design (optimized to 5.2MB total)
 - Sophisticated card sorting: hearts, diamonds, clubs, spades by rank
 - Server auto-plays 7♥ to start each round
@@ -369,6 +463,33 @@ http://localhost:3000
 - **Risk**: Server message changes break error handling, causing infinite loading
 - **Priority**: Medium (works for now, but fragile)
 
+### Additional Security Enhancements (Future)
+**Medium Priority Security Items:**
+- **Database File Permissions**: Set restrictive permissions on `badam-satti.db` (600 or 640)
+- **Input Sanitization**: Add comprehensive input validation for all user inputs
+- **Socket Event Rate Limiting**: Implement rate limiting on socket events (play_card, etc.)
+- **Session Management**: Implement proper session tokens instead of socket IDs
+- **Logging Security**: Implement secure logging with log rotation and sanitization
+- **Dependency Scanning**: Regular automated dependency vulnerability scanning
+- **Environment Variables**: Move sensitive config to environment variables (.env file)
+
+**Low Priority Security Items:**
+- **Content Security Policy Enhancement**: Fine-tune CSP for tighter security
+- **Request Size Limiting**: Add body parser limits for DoS protection
+- **Brute Force Protection**: Enhanced protection for repeated invalid requests
+- **Security Headers Testing**: Regular security header validation testing
+- **Penetration Testing**: Professional security assessment
+- **SSL Certificate Automation**: Automated certificate renewal (Let's Encrypt)
+
+### Development Environment Security
+**Items to Consider:**
+- **Development HTTPS**: Local HTTPS setup for development environment
+- **Environment Separation**: Ensure dev/staging/prod environment isolation
+- **Secret Management**: Implement proper secret management system
+- **Access Control**: Role-based access control for admin functions
+- **Audit Logging**: Comprehensive audit trail for admin actions
+- **Backup Security**: Encrypted database backups with secure storage
+
 ---
-*Last Updated: 2025-07-10*
-*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, robust reconnection (socket stability fix by o3), working auto-play (20s), enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), Cloudflare CDN integration for global performance, clean turn-agnostic server-side player position indicators (optimal UX), pre-game help system with blue "How to Play" button, smart 7-centered card stacking with proper edge case handling, fixed touch device card hover states, optimized desktop layout with balanced proportions, and clean turn information UX eliminating information overload*
+*Last Updated: 2025-07-12*
+*Status: Production-ready with React frontend, TypeScript, SQLite persistence, rate limiting, critical connection stability fixes, clockwise dealing with dealer rotation, robust room validation with automatic database restoration, smart disconnection handling (30s mid-game reconnection + card redistribution), working auto-play (20s), enhanced game over UX with visual cards, professional winner highlighting, fair 7♥ starter logic, true card randomization, optimized mobile card display with 2x2 grid layout, compact board stacking, cross-platform desktop/mobile interface, accurate card sequence display, clean board rendering without duplicate 7♥, optimized SVG card assets (35% smaller), Cloudflare CDN integration for global performance, clean turn-agnostic server-side player position indicators with fixed red critical detection, pre-game help system with blue "How to Play" button, smart 7-centered card stacking with proper edge case handling, fixed touch device card hover states, optimized desktop layout with balanced proportions, clean turn information UX eliminating information overload, toast notification system replacing alert popups, simplified numeric-only player card displays, refined color-only visual indicators, fixed card stacking edge cases for accurate sequence direction detection, critical security hardening with CORS protection, IP privacy, security headers, HTTPS enforcement, and secure health endpoints, critical mobile viewport fixes with dynamic viewport height and iOS safe area support for all iPhone models, completely fixed card stacking logic with proper visual hierarchy and accurate sequence representation, and full link-based room joining system with React Router integration, JoinRoomScreen component, enhanced WaitingRoom with copy link functionality, and race condition fix for URL-based room joining*

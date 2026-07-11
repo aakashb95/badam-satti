@@ -113,36 +113,43 @@ const GameScreen: React.FC<GameScreenProps> = ({
       <div id="game-board">
         {suitOrder.map((suit) => {
           const suitObj = gameState.board[suit as keyof typeof gameState.board];
-          const lower = (suitObj.down || []).slice();
-          const higher = (suitObj.up || []).slice().reverse();
-          // Combine higher and lower sequences (7 is already included in higher when played)
-          const allRanks = higher.length > 0 || lower.length > 0 
-            ? [...higher, ...lower] 
-            : [];
+          const upCards = (suitObj.up || []).slice(); // Cards above 7 (8, 9, 10, etc.)
+          const downCards = (suitObj.down || []).slice(); // Cards below 7 (6, 5, 4, etc.)
+          
+          // Build the complete sequence from highest to lowest
+          // Server sends: up=[8,9,10], down=[6,5] for sequence 10,9,8,7,6,5
+          let allRanks: number[] = [];
+          
+          if (upCards.length > 0 || downCards.length > 0) {
+            // Build complete sequence from server data
+            // Server stores 7 in up array, so don't manually add it
+            const upSequence = upCards.slice().sort((a, b) => b - a); // Sort descending: [10,9,8,7]
+            const downSequence = downCards.slice().sort((a, b) => b - a); // Sort descending: [6,5]
+            
+            allRanks = [...upSequence, ...downSequence];
+          }
 
           const MAX_VISIBLE_CARDS = 3;
           let ranksForDisplay = allRanks;
 
           if (allRanks.length > MAX_VISIBLE_CARDS) {
-            ranksForDisplay = [];
+            // Show key cards ensuring 7 is always visible when present
+            const sevenIndex = allRanks.indexOf(7);
             
-            // Handle edge cases for one-direction sequences
-            // Upward-only: higher.length > 1 (more than just 7) and lower.length === 0
-            if (higher.length > 1 && lower.length === 0) {
-              // Only upward sequence (7,8,9,10...) - show 7 and highest
-              ranksForDisplay.push(7);
-              ranksForDisplay.push(allRanks[0]); // highest card
-            } 
-            // Downward-only: higher.length === 1 (just 7) and lower.length > 0
-            else if (higher.length === 1 && higher[0] === 7 && lower.length > 0) {
-              // Only downward sequence (7,6,5,4...) - show 7 and lowest
-              ranksForDisplay.push(7);
-              ranksForDisplay.push(allRanks[allRanks.length - 1]); // lowest card
+            if (sevenIndex !== -1) {
+              // 7 is in sequence - always show it as the middle card
+              ranksForDisplay = [
+                allRanks[0], // Highest
+                allRanks[sevenIndex], // 7 (the key base card)
+                allRanks[allRanks.length - 1] // Lowest
+              ];
             } else {
-              // Mixed sequence - show highest, 7 (center), and lowest
-              ranksForDisplay.push(allRanks[0]); // highest
-              ranksForDisplay.push(7); // center (always present)
-              ranksForDisplay.push(allRanks[allRanks.length - 1]); // lowest
+              // 7 not in sequence - use regular middle
+              ranksForDisplay = [
+                allRanks[0], // Highest
+                allRanks[Math.floor(allRanks.length / 2)], // Middle
+                allRanks[allRanks.length - 1] // Lowest
+              ];
             }
           }
 
@@ -195,7 +202,12 @@ const GameScreen: React.FC<GameScreenProps> = ({
               getWarningLevel(currentPlayer) === 'warning' ? 'warning-indicator' : ''
             }`}>
               <div className="current-player-info">
-                <span className="current-player-name">{currentPlayer.name}</span>
+                <span className="current-player-name">
+                  {currentPlayer.name}
+                  {currentPlayer.isDealer && (
+                    <span className="dealer-badge" title="Dealer">D</span>
+                  )}
+                </span>
                 <span className="current-player-turn">{isMyTurn ? "Your Turn" : "Current Turn"}</span>
               </div>
               <div className="current-player-details">
@@ -215,7 +227,12 @@ const GameScreen: React.FC<GameScreenProps> = ({
                       player.connected ? 'connected' : 'disconnected'
                     } ${warningLevel === 'critical' ? 'critical-warning' : ''} ${warningLevel === 'warning' ? 'warning-indicator' : ''}`}
                   >
-                    <div className="player-name">{player.name}</div>
+                    <div className="player-name">
+                      {player.name}
+                      {player.isDealer && (
+                        <span className="dealer-badge" title="Dealer">D</span>
+                      )}
+                    </div>
                     <div className="player-status-indicators">
                       <span className="card-count">
                         {player.cardCount}

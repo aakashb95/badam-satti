@@ -9,6 +9,7 @@ export interface Player {
   connected: boolean;
   cardCount: number;
   isCurrentPlayer: boolean;
+  isDealer: boolean;
   totalScore?: number;
   indicator?: 'none' | 'warning' | 'critical';
 }
@@ -26,6 +27,7 @@ export interface GameState {
   board: GameBoard;
   currentPlayerIndex: number;
   currentPlayerName: string;
+  dealerName: string;
   round: number;
   maxRounds: number;
   started: boolean;

@@ -1,11 +1,26 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
+const helmet = require("helmet");
+const cors = require("cors");
+const crypto = require("crypto");
 const app = express();
 const server = require("http").createServer(app);
+
+// Security configuration
+const ALLOWED_ORIGINS = [
+  "http://localhost:3000",
+  "https://localhost:3000",
+  "http://localhost:5173", // Vite dev server
+  "https://localhost:5173",
+  "https://badam7.aakashb.xyz",
+  "https://www.badam7.aakashb.xyz"
+];
+
 const io = require("socket.io")(server, {
   cors: {
-    origin: "*",
+    origin: ALLOWED_ORIGINS,
     methods: ["GET", "POST"],
+    credentials: true
   },
   pingTimeout: 120000,  // 2 minutes - allow for mobile app switching
   pingInterval: 30000,  // 30 seconds - more lenient for mobile
@@ -15,19 +30,126 @@ const path = require("path");
 const { GameRoom } = require("./gameLogic");
 const Database = require("./database");
 
+// Security utility functions
+function hashIP(ip) {
+  // Create a consistent hash of the IP address for privacy
+  return crypto.createHash('sha256').update(ip + process.env.IP_HASH_SALT || 'default-salt').digest('hex').substring(0, 16);
+}
+
+function sanitizeError(error) {
+  // Remove sensitive information from error messages
+  if (typeof error === 'string') {
+    return error.replace(/\/[^\s]+/g, '[PATH]').replace(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, '[IP]');
+  }
+  return 'Internal server error';
+}
+
+// Room validation and restoration utility
+async function ensureRoomExists(roomCode) {
+  // If room exists in memory, return it
+  if (rooms[roomCode]) {
+    return rooms[roomCode];
+  }
+
+  // Try to restore room from database
+  try {
+    console.log(`Attempting to restore room ${roomCode} from database`);
+    const dbRoom = await db.getGameRoom(roomCode);
+    
+    if (dbRoom && dbRoom.is_active) {
+      // Recreate room in memory from stored game state
+      const room = new GameRoom(roomCode);
+      const storedState = dbRoom.game_state;
+      
+      // Restore all properties from stored state
+      Object.assign(room, storedState);
+      
+      // Ensure players array is properly structured with current socket connections
+      const players = await db.getPlayersInRoom(roomCode);
+      room.players = [];
+      room.playerScores = {};
+      
+      players.forEach(player => {
+        room.players.push({
+          id: player.socket_id,
+          name: player.username,
+          cards: player.cards ? JSON.parse(player.cards) : [],
+          connected: player.connected,
+          totalScore: player.total_score || 0
+        });
+        room.playerScores[player.socket_id] = player.total_score || 0;
+      });
+      
+      // Validate current player index
+      if (room.currentPlayerIndex >= room.players.length) {
+        room.currentPlayerIndex = 0;
+      }
+      
+      // Validate dealer index  
+      if (room.dealerIndex >= room.players.length) {
+        room.dealerIndex = 0;
+      }
+      
+      // Add to memory cache
+      rooms[roomCode] = room;
+      console.log(`Successfully restored room ${roomCode} with ${room.players.length} players`);
+      return room;
+    }
+  } catch (error) {
+    console.error(`Failed to restore room ${roomCode} from database:`, error);
+  }
+  
+  return null;
+}
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "wss:", "ws:"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"]
+    }
+  },
+  crossOriginEmbedderPolicy: false // Allow for PWA features
+}));
+
+app.use(cors({
+  origin: ALLOWED_ORIGINS,
+  credentials: true,
+  optionsSuccessStatus: 200
+}));
+
+// HTTPS enforcement (except for localhost development)
+app.use((req, res, next) => {
+  if (req.header('x-forwarded-proto') !== 'https' && 
+      !req.hostname.includes('localhost') && 
+      process.env.NODE_ENV === 'production') {
+    return res.redirect(`https://${req.hostname}${req.url}`);
+  }
+  next();
+});
+
 // Initialize database
 const db = new Database();
 
 // Store all game rooms (in-memory cache + database persistence)
 const rooms = {};
 
-// Rate limiting middleware
+// Rate limiting middleware with IP hashing
 const createRoomLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 10, // limit each IP to 10 room creations per windowMs
   message: { error: "Too many room creation attempts, please try again later" },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => hashIP(req.ip || req.connection.remoteAddress || 'unknown'),
 });
 
 const joinRoomLimiter = rateLimit({
@@ -36,6 +158,7 @@ const joinRoomLimiter = rateLimit({
   message: { error: "Too many join attempts, please try again later" },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => hashIP(req.ip || req.connection.remoteAddress || 'unknown'),
 });
 
 // Middleware for parsing JSON
@@ -113,60 +236,58 @@ app.use(express.static(path.join(__dirname, "../client/dist"), {
   }
 }));
 
-// Health check endpoint
+// Secure health check endpoint - minimal information exposure
 app.get("/health", async (req, res) => {
   try {
-    const dbHealth = await db.healthCheck();
-    const activeRooms = await db.getAllActiveRooms();
+    // Simple health check without exposing sensitive data
+    await db.healthCheck();
     
     res.json({
       status: "ok",
-      memory_rooms: Object.keys(rooms).length,
-      database_rooms: activeRooms.length,
-      database: dbHealth,
-      uptime: process.uptime(),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Health check error:', error);
+    console.error('Health check error:', sanitizeError(error.message));
     res.status(500).json({
       status: "error",
-      error: error.message,
       timestamp: new Date().toISOString(),
     });
   }
 });
 
-// Detailed health endpoint
-app.get("/health/detailed", async (req, res) => {
+// Admin-only detailed health endpoint (requires authentication)
+app.get("/health/admin", async (req, res) => {
   try {
+    // Check for admin authentication
+    const adminKey = req.headers['x-admin-key'];
+    if (!adminKey || adminKey !== process.env.ADMIN_KEY) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    
     const dbHealth = await db.healthCheck();
     const activeRooms = await db.getAllActiveRooms();
     
     res.json({
       status: "ok",
       server: {
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        pid: process.pid,
+        uptime: Math.floor(process.uptime()), // Rounded for less precision
+        memory_usage_mb: Math.floor(process.memoryUsage().heapUsed / 1024 / 1024),
+        node_env: process.env.NODE_ENV || 'development'
       },
       rooms: {
-        memory_count: Object.keys(rooms).length,
-        database_count: activeRooms.length,
-        active_rooms: activeRooms.map(room => ({
-          room_code: room.room_code,
-          created_at: room.created_at,
-          updated_at: room.updated_at
-        })),
+        active_count: activeRooms.length,
+        memory_count: Object.keys(rooms).length
       },
-      database: dbHealth,
+      database: {
+        status: dbHealth.database,
+        active_rooms: dbHealth.active_rooms
+      },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Detailed health check error:', error);
+    console.error('Admin health check error:', sanitizeError(error.message));
     res.status(500).json({
       status: "error",
-      error: error.message,
       timestamp: new Date().toISOString(),
     });
   }
@@ -188,8 +309,8 @@ io.on("connection", (socket) => {
         return;
       }
 
-      // Check rate limit
-      const clientIP = socket.handshake.address;
+      // Check rate limit using hashed IP
+      const clientIP = hashIP(socket.handshake.address || 'unknown');
       const rateLimitCheck = await db.checkRateLimit(clientIP, 10, 1);
       if (!rateLimitCheck.allowed) {
         socket.emit("error", "Too many room creation attempts. Please wait.");
@@ -232,8 +353,8 @@ io.on("connection", (socket) => {
         return;
       }
 
-      // Check rate limit
-      const clientIP = socket.handshake.address;
+      // Check rate limit using hashed IP
+      const clientIP = hashIP(socket.handshake.address || 'unknown');
       const rateLimitCheck = await db.checkRateLimit(clientIP, 20, 1);
       if (!rateLimitCheck.allowed) {
         socket.emit("error", "Too many join attempts. Please wait.");
@@ -254,9 +375,88 @@ io.on("connection", (socket) => {
       }
 
       // Check if username already exists in room
-      if (rooms[cleanRoomCode].players.find((p) => p.name === cleanUsername)) {
-        socket.emit("error", "Username already taken in this room");
-        return;
+      // For waiting rooms: only check connected players or those with active reconnection window
+      // For active games: check all players (including disconnected, since they may reconnect)
+      const existingPlayer = rooms[cleanRoomCode].players.find((p) => p.name === cleanUsername);
+      if (existingPlayer) {
+        const isWaitingRoom = !rooms[cleanRoomCode].started;
+        if (isWaitingRoom) {
+          // In waiting room: allow joining if previous user was disconnected and cleaned up
+          if (existingPlayer.connected) {
+            socket.emit("error", "Username already taken in this room");
+            return;
+          }
+          // Check if the disconnected player has an active reconnection window
+          try {
+            const reconnectionData = await db.getPlayerReconnectionData(cleanUsername, cleanRoomCode);
+            if (reconnectionData && reconnectionData.can_reconnect) {
+              socket.emit("error", "Username already taken in this room (previous player can still reconnect)");
+              return;
+            }
+            // Clean up the orphaned disconnected player
+            console.log(`Cleaning up orphaned disconnected player: ${cleanUsername} in room ${cleanRoomCode}`);
+            rooms[cleanRoomCode].removePlayer(existingPlayer.id, false);
+            await db.removePlayerFromRoom(existingPlayer.id, cleanRoomCode);
+          } catch (error) {
+            console.warn(`Failed to check/cleanup reconnection data for ${cleanUsername}:`, error);
+          }
+        } else {
+          // During active game: check if this is a reconnection attempt
+          if (!existingPlayer.connected) {
+            // This is a disconnected player trying to reconnect during active game
+            try {
+              const reconnectionData = await db.getPlayerReconnectionData(cleanUsername, cleanRoomCode);
+              if (reconnectionData && reconnectionData.can_reconnect) {
+                console.log(`Reconnecting player ${cleanUsername} to active game in room ${cleanRoomCode}`);
+                
+                // Update player connection and socket ID
+                existingPlayer.connected = true;
+                existingPlayer.id = socket.id;
+                
+                // Update database
+                await db.updatePlayerSocketId(reconnectionData.player_id, socket.id);
+                await db.clearPlayerReconnectionData(reconnectionData.player_id);
+                
+                socket.join(cleanRoomCode);
+                currentRoom = cleanRoomCode;
+                playerName = cleanUsername;
+                
+                // Save updated room state
+                await db.saveGameRoom(cleanRoomCode, rooms[cleanRoomCode]);
+                
+                // Send game state to reconnected player
+                socket.emit("room_joined", {
+                  roomCode: cleanRoomCode,
+                  gameState: rooms[cleanRoomCode].getState(),
+                });
+                
+                // Send their cards
+                socket.emit("your_cards", {
+                  cards: rooms[cleanRoomCode].getPlayerCards(socket.id),
+                  validMoves: rooms[cleanRoomCode].getValidMoves(socket.id),
+                });
+                
+                // Broadcast reconnection to other players
+                socket.to(cleanRoomCode).emit("player_reconnected", {
+                  playerName: cleanUsername,
+                  gameState: rooms[cleanRoomCode].getState(),
+                });
+                
+                console.log(`Successfully reconnected ${cleanUsername} to active game in room ${cleanRoomCode}`);
+                return;
+              } else {
+                // Reconnection window has expired - player was likely already removed
+                console.log(`Reconnection window expired for ${cleanUsername} in room ${cleanRoomCode}`);
+              }
+            } catch (error) {
+              console.error(`Error during game reconnection for ${cleanUsername}:`, error);
+            }
+          }
+          
+          // Username is taken by connected player or reconnection failed
+          socket.emit("error", "Username already taken in this room");
+          return;
+        }
       }
 
       const success = rooms[cleanRoomCode].addPlayer(socket.id, cleanUsername);
@@ -359,41 +559,47 @@ io.on("connection", (socket) => {
   // Start the game
   socket.on("start_game", async () => {
     try {
-      if (!currentRoom || !rooms[currentRoom]) {
+      if (!currentRoom) {
+        socket.emit("error", "Not in a valid room");
+        return;
+      }
+
+      const room = await ensureRoomExists(currentRoom);
+      if (!room) {
         socket.emit("error", "Not in a valid room");
         return;
       }
 
       // Only the first player (room creator) can start the game
-      if (rooms[currentRoom].players[0].id !== socket.id) {
+      if (room.players[0].id !== socket.id) {
         socket.emit("error", "Only room creator can start the game");
         return;
       }
 
-      if (rooms[currentRoom].players.length <= 1) {
+      if (room.players.length <= 1) {
         socket.emit("error", "Need at least 2 players to start");
         return;
       }
 
-      const success = rooms[currentRoom].startGame();
+      const success = room.startGame();
       if (!success) {
         socket.emit("error", "Failed to start game");
         return;
       }
 
       // Save game state to database
-      await db.saveGameRoom(currentRoom, rooms[currentRoom]);
+      await db.saveGameRoom(currentRoom, room);
 
       console.log(`Game started in room: ${currentRoom}`);
       io.to(currentRoom).emit("game_started", {
-        gameState: rooms[currentRoom].getState(),
+        gameState: room.getState(),
       });
 
       // Send each player their cards
-      rooms[currentRoom].players.forEach((player) => {
+      room.players.forEach((player) => {
         io.to(player.id).emit("your_cards", {
-          cards: rooms[currentRoom].getPlayerCards(player.id),
-          validMoves: rooms[currentRoom].getValidMoves(player.id),
+          cards: room.getPlayerCards(player.id),
+          validMoves: room.getValidMoves(player.id),
         });
       });
     } catch (error) {
@@ -405,12 +611,16 @@ io.on("connection", (socket) => {
   // Play a card
   socket.on("play_card", async (card) => {
     try {
-      if (!currentRoom || !rooms[currentRoom]) {
+      if (!currentRoom) {
         socket.emit("error", "Not in a valid room");
         return;
       }
 
-      const room = rooms[currentRoom];
+      const room = await ensureRoomExists(currentRoom);
+      if (!room) {
+        socket.emit("error", "Not in a valid room");
+        return;
+      }
       const success = room.playCard(socket.id, card);
 
       if (!success) {
@@ -456,12 +666,16 @@ io.on("connection", (socket) => {
   // Pass turn
   socket.on("pass_turn", async () => {
     try {
-      if (!currentRoom || !rooms[currentRoom]) {
+      if (!currentRoom) {
         socket.emit("error", "Not in a valid room");
         return;
       }
 
-      const room = rooms[currentRoom];
+      const room = await ensureRoomExists(currentRoom);
+      if (!room) {
+        socket.emit("error", "Not in a valid room");
+        return;
+      }
       const success = room.passTurn(socket.id);
 
       if (!success) {
@@ -496,12 +710,16 @@ io.on("connection", (socket) => {
   // Continue to the next round while keeping cumulative scores
   socket.on("continue_round", async () => {
     try {
-      if (!currentRoom || !rooms[currentRoom]) {
+      if (!currentRoom) {
         socket.emit("error", "Not in a valid room");
         return;
       }
 
-      const room = rooms[currentRoom];
+      const room = await ensureRoomExists(currentRoom);
+      if (!room) {
+        socket.emit("error", "Not in a valid room");
+        return;
+      }
       if (!room.gameFinished) {
         socket.emit("error", "Round not finished yet");
         return;
@@ -536,12 +754,16 @@ io.on("connection", (socket) => {
   // Exit the game and broadcast cumulative results
   socket.on("exit_game", async () => {
     try {
-      if (!currentRoom || !rooms[currentRoom]) {
+      if (!currentRoom) {
         socket.emit("error", "Not in a valid room");
         return;
       }
 
-      const room = rooms[currentRoom];
+      const room = await ensureRoomExists(currentRoom);
+      if (!room) {
+        socket.emit("error", "Not in a valid room");
+        return;
+      }
 
       const totals = room.players
         .map((p) => ({ name: p.name, totalScore: p.totalScore }))
@@ -568,14 +790,20 @@ io.on("connection", (socket) => {
   });
 
   // Get current game state
-  socket.on("get_state", () => {
+  socket.on("get_state", async () => {
     try {
-      if (!currentRoom || !rooms[currentRoom]) {
+      if (!currentRoom) {
         socket.emit("error", "Not in a valid room");
         return;
       }
 
-      socket.emit("game_state", rooms[currentRoom].getPlayerState(socket.id));
+      const room = await ensureRoomExists(currentRoom);
+      if (!room) {
+        socket.emit("error", "Not in a valid room");
+        return;
+      }
+
+      socket.emit("game_state", room.getPlayerState(socket.id));
     } catch (error) {
       console.error("Error getting state:", error);
       socket.emit("error", "Failed to get game state");
@@ -594,53 +822,49 @@ io.on("connection", (socket) => {
           room.players[room.currentPlayerIndex]?.id === socket.id;
 
         if (wasGameStarted) {
-          // Game has started - remove player immediately and redistribute cards
-          room.removePlayer(socket.id, true);
+          // Game has started - immediately redistribute cards for faster gameplay
+          console.log(`Player ${playerName} disconnected during game. Immediately redistributing cards.`);
 
-          // If the disconnected player was the current turn, move to next player
+          // If the disconnected player was the current turn, automatically pass their turn
           if (wasCurrentPlayer && !room.gameFinished) {
+            console.log(`Auto-passing turn for disconnected player ${playerName}`);
             room.nextTurn();
           }
 
-          // Save updated game state
+          // Remove player and redistribute their cards immediately to keep game playable
+          room.removePlayer(socket.id, true);
+          await db.removePlayerFromRoom(socket.id, currentRoom);
           await db.saveGameRoom(currentRoom, room);
-
-          // Broadcast updated state to remaining players
+          
+          // Broadcast cards redistribution
+          io.to(currentRoom).emit("cards_redistributed", {
+            message: `${playerName} was removed. Cards redistributed to continue the game.`,
+          });
+          
+          // Send updated cards to all remaining players
+          room.players.forEach((player) => {
+            io.to(player.id).emit("your_cards", {
+              cards: room.getPlayerCards(player.id),
+              validMoves: room.getValidMoves(player.id),
+            });
+          });
+          
+          // Update game state for all players
           io.to(currentRoom).emit("player_disconnected", {
             playerName,
             gameState: room.getState(),
           });
 
-          // Send updated cards to all remaining players if cards were redistributed
-          if (!room.gameFinished) {
-            // Check if only one player remains
-            if (room.players.length === 1) {
-              // Notify the last player that all others left and end the game
-              io.to(currentRoom).emit("game_over", {
-                type: "all_players_left",
-                winner: room.players[0].name,
-                message: "All other players have left the game",
-              });
-              room.gameFinished = true;
-              await db.saveGameRoom(currentRoom, room);
-            } else {
-              // Notify about card redistribution
-              io.to(currentRoom).emit("cards_redistributed", {
-                message: `${playerName}'s cards have been redistributed`,
-                redistributedCardCount:
-                  room.players.length > 0
-                    ? Math.floor(52 / room.players.length)
-                    : 0,
-              });
-
-              // Send updated cards to all remaining players
-              room.players.forEach((player) => {
-                io.to(player.id).emit("your_cards", {
-                  cards: room.getPlayerCards(player.id),
-                  validMoves: room.getValidMoves(player.id),
-                });
-              });
-            }
+          // Check if only one player remains after redistribution
+          if (!room.gameFinished && room.players.length === 1) {
+            // Notify the last player that all others left and end the game
+            io.to(currentRoom).emit("game_over", {
+              type: "all_players_left",
+              winner: room.players[0].name,
+              message: "All other players have left the game",
+            });
+            room.gameFinished = true;
+            await db.saveGameRoom(currentRoom, room);
           }
         } else {
           // Game hasn't started - allow reconnection
