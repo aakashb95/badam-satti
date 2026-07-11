@@ -5,22 +5,15 @@ interface MenuScreenProps {
   username: string;
   onCreateRoom: () => void;
   onJoinRoom: (roomCode: string) => void;
-  onReconnectToRoom?: (roomCode: string) => void;
   themeToggle?: ReactNode;
 }
 
-const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinRoom, onReconnectToRoom, themeToggle }) => {
+const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinRoom, themeToggle }) => {
   const [roomCode, setRoomCode] = useState('');
   const [showHelpModal, setShowHelpModal] = useState(false);
 
   const handleJoinRoom = () => {
     onJoinRoom(roomCode);
-  };
-
-  const handleReconnectRoom = () => {
-    if (onReconnectToRoom) {
-      onReconnectToRoom(roomCode);
-    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -82,12 +75,6 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinR
             </div>
           </section>
         </div>
-
-        {onReconnectToRoom && (
-          <button className="reconnect-link" onClick={handleReconnectRoom} disabled={roomCode.length !== 6}>
-            <span className="status-dot" /> Returning after a disconnect? Reconnect to this room
-          </button>
-        )}
 
         <footer className="app-footer"><span>Classic rules</span><span>Seven rounds</span><a href="/simulation">Simulation lab</a></footer>
       </div>

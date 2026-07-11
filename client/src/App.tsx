@@ -415,14 +415,6 @@ const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
     socket.emit('join_room', { roomCode: roomCode.toUpperCase(), username });
   }
 
-  function reconnectToRoom(roomCode: string) {
-    const socket = requireConnection();
-    if (!socket || !appState.username) return;
-    if (roomCode.length !== 6) return showError('Enter a valid six-character room code.');
-    showLoading('Reconnecting…');
-    socket.emit('reconnect_to_room', { roomCode: roomCode.toUpperCase(), username: appState.username });
-  }
-
   function startGame() {
     const count = appState.gameState?.players.length || 0;
     if (count < 2 || count > 11) return showError('A game needs between 2 and 11 players.');
@@ -471,7 +463,7 @@ const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
       case 'login':
         return <LoginScreen onContinue={(username) => setAppState((previous) => ({ ...previous, username, currentScreen: 'menu' }))} themeToggle={themeToggle} />;
       case 'menu':
-        return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} onReconnectToRoom={reconnectToRoom} themeToggle={themeToggle} />;
+        return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} themeToggle={themeToggle} />;
       case 'waiting':
         return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} themeToggle={themeToggle} />;
       case 'game':

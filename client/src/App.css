@@ -220,8 +220,7 @@ p { margin-top: 0; }
 }
 
 .quiet-button,
-.back-link,
-.reconnect-link {
+.back-link {
   cursor: pointer;
   color: var(--muted);
   background: transparent;
@@ -230,8 +229,7 @@ p { margin-top: 0; }
 }
 
 .quiet-button:hover,
-.back-link:hover,
-.reconnect-link:hover:not(:disabled) { color: var(--text); }
+.back-link:hover { color: var(--text); }
 .danger-text:hover { color: var(--red); }
 
 .primary-button,
@@ -488,9 +486,6 @@ button.action-card:hover { background: transparent; transform: none; }
 .code-submit { padding: 0 20px; cursor: pointer; color: var(--accent-text); background: var(--accent); border-radius: var(--radius); font-weight: 500; }
 .code-submit:disabled { opacity: .35; }
 
-.reconnect-link { display: flex; margin: 18px auto 0; align-items: center; gap: 8px; }
-.reconnect-link:disabled { opacity: .35; }
-.status-dot,
 .connection-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%; }
 
 .app-footer {
