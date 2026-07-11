@@ -31,10 +31,10 @@ jobs:
             kings-corner/server/package-lock.json
       - name: Install dependencies
         run: |
-          npm ci --prefix client
-          npm ci --prefix server
-          npm ci --prefix kings-corner/client
-          npm ci --prefix kings-corner/server
+          npm install --prefix client
+          npm install --prefix server
+          npm install --prefix kings-corner/client
+          npm install --prefix kings-corner/server
       - name: Build clients
         run: |
           npm run build --prefix client
