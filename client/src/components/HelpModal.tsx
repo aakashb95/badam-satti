@@ -12,32 +12,37 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
     <div className="help-modal-overlay" onClick={onClose} role="presentation">
       <section className="help-modal-content" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="help-title">
         <div className="help-modal-header">
-          <div><span className="eyebrow">A two-minute guide</span><h3 id="help-title">How to play</h3></div>
+          <div><span className="eyebrow">Tiny guide</span><h3 id="help-title">How to play</h3></div>
           <button className="help-close-btn" onClick={onClose} aria-label="Close help">×</button>
+        </div>
+
+        <div className="help-demo" aria-label="A card moves next to seven">
+          <div className="help-demo-board" aria-hidden="true">
+            <span className="demo-slot">6</span>
+            <span className="demo-card demo-seven">7<span>♥</span></span>
+            <span className="demo-slot is-target">8</span>
+            <span className="demo-card demo-moving-card">8<span>♥</span></span>
+          </div>
+          <p>Cards grow out from 7. If 7 is down, 6 or 8 can join.</p>
         </div>
         
         <div className="help-modal-body">
           <div className="help-section">
             <span className="help-number">01</span>
-            <div><h4>Lose your hand</h4><p>Be the first player to put down every card. Lower cumulative score wins across seven rounds.</p></div>
+            <div><h4>Get rid of your cards</h4><p>First player with no cards wins the round.</p></div>
           </div>
 
           <div className="help-section">
             <span className="help-number">02</span>
-            <div><h4>Build from seven</h4><p>The 7♥ opens the table. Continue each suit outward in order: 6 ← 7 → 8, then 5 and 9, and so on.</p></div>
+            <div><h4>Tap the glowing card</h4><p>If a card lifts up, you can play it. No move? Pass.</p></div>
           </div>
 
           <div className="help-section">
             <span className="help-number">03</span>
-            <div><h4>Play what glows</h4><p>On your turn, playable cards lift and glow. If nothing is available, pass. After 20 seconds, the game keeps things moving for you.</p></div>
-          </div>
-
-          <div className="help-section">
-            <span className="help-number">04</span>
-            <div><h4>Read the table</h4><p>Amber players have three cards or fewer. Red players can immediately play everything they have—stop them if you can.</p></div>
+            <div><h4>Lowest score wins</h4><p>Cards left in your hand add points. Keep that number small.</p></div>
           </div>
         </div>
-        <button className="primary-button full-button" onClick={onClose}>Got it</button>
+        <button className="primary-button full-button" onClick={onClose}>Okay, let’s play</button>
       </section>
     </div>
   );
