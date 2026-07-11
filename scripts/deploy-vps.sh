@@ -17,39 +17,60 @@ NODE_ENV="${NODE_ENV:-production}"
 NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 DB_PATH="${DB_PATH:-$APP_ROOT/data/badam-satti.db}"
 
-if [ ! -s "$NVM_DIR/nvm.sh" ]; then
-  echo "nvm not found at $NVM_DIR/nvm.sh" >&2
-  echo "Install it first: https://github.com/nvm-sh/nvm#installing-and-updating" >&2
-  exit 1
-fi
+log() {
+  printf '\n==> %s\n' "$1"
+}
+
+require_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "Missing required command: $1" >&2
+    exit 1
+  fi
+}
+
+require_command curl
+require_command git
 
 mkdir -p "$APP_ROOT/data" "$APP_ROOT/logs"
+
+if [ ! -s "$NVM_DIR/nvm.sh" ]; then
+  log "Installing nvm"
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+fi
 
 # shellcheck source=/dev/null
 . "$NVM_DIR/nvm.sh"
 
-echo "==> Updating code"
+log "Updating code"
 git pull --ff-only
 
-echo "==> Using Node via nvm"
+log "Using Node via nvm"
 nvm install
 nvm use
 
-echo "==> Installing dependencies"
-npm --prefix client install --include=dev
-npm --prefix server install --omit=dev
+log "Installing client build dependencies"
+(
+  unset NODE_ENV
+  npm --prefix client install --include=dev --package-lock=false --no-audit --no-fund
+)
 
-echo "==> Building client"
-npm --prefix client run build
+log "Building client"
+(
+  unset NODE_ENV
+  npm --prefix client run build
+)
+
+log "Installing server runtime dependencies"
+npm --prefix server install --omit=dev --package-lock=false --no-audit --no-fund
 
 if ! command -v pm2 >/dev/null 2>&1; then
-  echo "==> Installing pm2"
+  log "Installing pm2"
   npm install -g pm2
 fi
 
 export NODE_ENV HOST PORT DB_PATH
 
-echo "==> Restarting $APP_NAME with pm2"
+log "Restarting $APP_NAME with pm2"
 if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
   pm2 restart "$APP_NAME" --update-env
 else
@@ -63,10 +84,10 @@ fi
 
 pm2 save
 
-echo "==> Waiting for health check"
+log "Waiting for health check"
 for attempt in {1..20}; do
   if curl -fsS "$APP_URL/health" >/dev/null; then
-    echo "==> Deployed: $APP_URL"
+    log "Deployed: $APP_URL"
     exit 0
   fi
 
