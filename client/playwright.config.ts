@@ -43,6 +43,16 @@ export default defineConfig({
       },
     },
     {
+      name: 'phone-landscape-844',
+      use: {
+        browserName: 'chromium',
+        viewport: { width: 844, height: 390 },
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 3,
+      },
+    },
+    {
       name: 'desktop-125-zoom',
       use: {
         browserName: 'chromium',
