@@ -84,7 +84,11 @@ const GameScreen: React.FC<GameScreenProps> = ({
     if (!gameState) return null;
 
     return (
-      <section className="table-players" aria-label="Players at the table">
+      <section
+        className="table-players"
+        style={{ '--player-count': gameState.players.length } as React.CSSProperties}
+        aria-label="Players at the table"
+      >
         {gameState.players.map((player) => (
           <div
             key={player.name}

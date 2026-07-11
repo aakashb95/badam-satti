@@ -658,12 +658,14 @@ button.action-card:hover { background: transparent; transform: none; }
 .round-icon-button:hover { color: var(--text); background: var(--surface-2); }
 .round-icon-button.leave-button:hover { color: var(--red); }
 .table-players {
-  display: flex;
+  display: grid;
+  width: 100%;
   min-width: 0;
-  justify-content: center;
-  gap: 5px;
+  grid-template-columns: repeat(var(--player-count, 1), minmax(92px, 1fr));
+  justify-items: center;
+  gap: 7px;
   overflow-x: auto;
-  padding: 2px 3px 4px;
+  padding: 2px 4px 5px;
   scrollbar-width: none;
 }
 
@@ -672,8 +674,8 @@ button.action-card:hover { background: transparent; transform: none; }
 .table-player {
   position: relative;
   display: grid;
-  min-width: 96px;
-  max-width: 150px;
+  width: min(100%, 150px);
+  min-width: 0;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 7px;
@@ -1056,7 +1058,8 @@ button.action-card:hover { background: transparent; transform: none; }
 
 @media (max-width: 900px) {
   .game-brand > div { display: none; }
-  .table-player { min-width: 104px; }
+  .table-players { grid-template-columns: repeat(var(--player-count, 1), minmax(86px, 1fr)); }
+  .table-player { width: min(100%, 136px); }
   .hand-card + .hand-card { margin-left: -27px; }
 }
 
@@ -1094,8 +1097,12 @@ button.action-card:hover { background: transparent; transform: none; }
   .turn-status strong { font-size: .64rem; }
   .round-icon-button { width: 31px; height: 31px; }
   .game-toolbar .round-icon-button:first-child { display: none; }
-  .table-players { justify-content: flex-start; }
-  .table-player { min-width: 98px; padding: 5px 7px; }
+  .table-players {
+    grid-template-columns: repeat(var(--player-count, 1), minmax(78px, 1fr));
+    justify-items: center;
+    gap: 6px;
+  }
+  .table-player { width: min(100%, 120px); padding: 5px 7px; }
   .table-player-avatar { width: 23px; height: 23px; }
 
   .game-board { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); gap: 3px 8px; padding: 8px 10px; border-radius: var(--radius); }
@@ -1148,7 +1155,8 @@ button.action-card:hover { background: transparent; transform: none; }
   .game-top-bar { grid-template-columns: 1fr auto; }
   .turn-status { justify-self: start; }
   .game-shell { grid-template-rows: auto auto clamp(230px, 43dvh, 300px) auto; }
-  .table-player { min-width: 90px; }
+  .table-players { grid-template-columns: repeat(var(--player-count, 1), minmax(72px, 1fr)); }
+  .table-player { width: min(100%, 108px); }
   .hand-card { width: 37px; }
   .hand-card + .hand-card { margin-left: -22px; }
 }
