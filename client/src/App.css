@@ -23,6 +23,7 @@
 }
 
 :root {
+  font-size: 16px;
   color-scheme: dark;
   --bg: #050806;
   --surface: #09110e;
@@ -53,6 +54,50 @@
   --ambient-shadow: #0007;
   --radius: 8px;
   --font-body: "Haskoy", -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, "Helvetica Neue", Arial, sans-serif;
+  --board-card-width: clamp(58px, 5.8vw, 80px);
+  --board-card-mobile-width: clamp(45px, 13vw, 58px);
+  --board-stack-offset: 20px;
+  --board-stack-mobile-offset: 13px;
+  --hand-card-width: clamp(48px, 4.5vw, 64px);
+  --hand-card-mobile-width: clamp(35px, 9.8vw, 46px);
+  --hand-card-small-width: 37px;
+  --hand-card-overlap: clamp(-29px, -2.15vw, -21px);
+  --hand-card-mobile-overlap: -20px;
+  --hand-card-small-overlap: -22px;
+  --table-player-min: 92px;
+  --table-player-mobile-min: 78px;
+}
+
+html[data-comfort-size="large"] {
+  font-size: 18px;
+  --board-card-width: clamp(68px, 6.8vw, 94px);
+  --board-card-mobile-width: clamp(52px, 15vw, 66px);
+  --board-stack-offset: 24px;
+  --board-stack-mobile-offset: 16px;
+  --hand-card-width: clamp(56px, 5.25vw, 74px);
+  --hand-card-mobile-width: clamp(42px, 11.2vw, 54px);
+  --hand-card-small-width: 44px;
+  --hand-card-overlap: clamp(-37px, -2.75vw, -27px);
+  --hand-card-mobile-overlap: -27px;
+  --hand-card-small-overlap: -28px;
+  --table-player-min: 106px;
+  --table-player-mobile-min: 92px;
+}
+
+html[data-comfort-size="extra-large"] {
+  font-size: 20px;
+  --board-card-width: clamp(76px, 7.6vw, 106px);
+  --board-card-mobile-width: clamp(58px, 16vw, 74px);
+  --board-stack-offset: 29px;
+  --board-stack-mobile-offset: 19px;
+  --hand-card-width: clamp(64px, 6vw, 86px);
+  --hand-card-mobile-width: clamp(48px, 12vw, 62px);
+  --hand-card-small-width: 50px;
+  --hand-card-overlap: clamp(-48px, -3.55vw, -36px);
+  --hand-card-mobile-overlap: -34px;
+  --hand-card-small-overlap: -34px;
+  --table-player-min: 120px;
+  --table-player-mobile-min: 104px;
 }
 
 .app[data-theme="light"] {
@@ -915,7 +960,7 @@ button.action-card:hover { background: transparent; transform: none; }
   display: grid;
   width: 100%;
   min-width: 0;
-  grid-template-columns: repeat(var(--player-count, 1), minmax(92px, 1fr));
+  grid-template-columns: repeat(var(--player-count, 1), minmax(var(--table-player-min), 1fr));
   justify-items: center;
   gap: 7px;
   overflow-x: auto;
@@ -965,12 +1010,12 @@ button.action-card:hover { background: transparent; transform: none; }
 .suit-pile { position: relative; display: flex; min-width: 0; align-items: center; justify-content: center; }
 
 .cards-display { position: relative; display: flex; min-width: 76px; min-height: 106px; align-items: center; justify-content: center; }
-.board-card-img { position: absolute; width: clamp(58px, 5.8vw, 80px); background: var(--card-face); border-radius: 5px; box-shadow: 0 3px 8px var(--card-shadow); }
-.board-card-img.stack-0 { transform: translateY(-20px) rotate(-1deg); }
+.board-card-img { position: absolute; width: var(--board-card-width); background: var(--card-face); border-radius: 5px; box-shadow: 0 3px 8px var(--card-shadow); }
+.board-card-img.stack-0 { transform: translateY(calc(-1 * var(--board-stack-offset))) rotate(-1deg); }
 .board-card-img.stack-1 { transform: translateY(0); }
-.board-card-img.stack-2 { transform: translateY(20px) rotate(1deg); }
+.board-card-img.stack-2 { transform: translateY(var(--board-stack-offset)) rotate(1deg); }
 
-.empty-pile { display: flex; width: clamp(58px, 5.8vw, 80px); aspect-ratio: 5 / 7; align-items: center; justify-content: center; flex-direction: column; gap: 4px; color: var(--empty-pile); border: 1px solid color-mix(in srgb, var(--line) 45%, transparent); border-radius: 6px; }
+.empty-pile { display: flex; width: var(--board-card-width); aspect-ratio: 5 / 7; align-items: center; justify-content: center; flex-direction: column; gap: 4px; color: var(--empty-pile); border: 1px solid color-mix(in srgb, var(--line) 45%, transparent); border-radius: 6px; }
 .empty-pile span { font-family: var(--font-body); font-size: 1.1rem; }
 
 .hand-dock {
@@ -1021,7 +1066,7 @@ button.action-card:hover { background: transparent; transform: none; }
 .hand-card {
   position: relative;
   display: block;
-  width: clamp(48px, 4.5vw, 64px);
+  width: var(--hand-card-width);
   min-width: 0;
   padding: 0;
   cursor: default;
@@ -1035,7 +1080,7 @@ button.action-card:hover { background: transparent; transform: none; }
   transition: filter .15s ease, transform .15s ease;
 }
 
-.hand-card + .hand-card { margin-left: clamp(-29px, -2.15vw, -21px); }
+.hand-card + .hand-card { margin-left: var(--hand-card-overlap); }
 
 .hand-card img {
   display: block;
@@ -1233,6 +1278,87 @@ button.action-card:hover { background: transparent; transform: none; }
   line-height: 1.45;
 }
 
+.comfort-control {
+  margin: 0 0 16px;
+  padding: 14px 15px 13px;
+  background: color-mix(in srgb, var(--surface-2) 58%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.comfort-copy {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.comfort-copy label {
+  color: var(--text);
+  font-size: .82rem;
+  font-weight: 500;
+}
+
+.comfort-copy span {
+  color: var(--accent);
+  font-size: .72rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.comfort-control input[type="range"] {
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.comfort-control input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  background: var(--line);
+  border-radius: 999px;
+}
+
+.comfort-control input[type="range"]::-webkit-slider-thumb {
+  width: 24px;
+  height: 24px;
+  margin-top: -9px;
+  background: var(--accent);
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+  box-shadow: 0 3px 10px var(--ambient-shadow);
+  -webkit-appearance: none;
+}
+
+.comfort-control input[type="range"]::-moz-range-track {
+  height: 6px;
+  background: var(--line);
+  border-radius: 999px;
+}
+
+.comfort-control input[type="range"]::-moz-range-thumb {
+  width: 19px;
+  height: 19px;
+  background: var(--accent);
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+  box-shadow: 0 3px 10px var(--ambient-shadow);
+}
+
+.comfort-scale-labels {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: var(--faint);
+  line-height: 1;
+}
+
+.comfort-scale-labels span:nth-child(1) { font-size: .68rem; }
+.comfort-scale-labels span:nth-child(2) { font-size: .84rem; }
+.comfort-scale-labels span:nth-child(3) { font-size: 1rem; }
+
 @keyframes demo-eight-play {
   0%, 12% { translate: -80px 112px; rotate: -6deg; opacity: 0; }
   20% { opacity: 1; }
@@ -1296,9 +1422,9 @@ button.action-card:hover { background: transparent; transform: none; }
 
 @media (max-width: 900px) {
   .game-brand > div { display: none; }
-  .table-players { grid-template-columns: repeat(var(--player-count, 1), minmax(86px, 1fr)); }
+  .table-players { grid-template-columns: repeat(var(--player-count, 1), minmax(calc(var(--table-player-min) - 6px), 1fr)); }
   .table-player { width: min(100%, 136px); }
-  .hand-card + .hand-card { margin-left: -27px; }
+  .hand-card + .hand-card { margin-left: var(--hand-card-mobile-overlap); }
 }
 
 @media (max-width: 680px) {
@@ -1390,7 +1516,7 @@ button.action-card:hover { background: transparent; transform: none; }
   .round-icon-button { width: 31px; height: 31px; }
   .game-toolbar .round-icon-button:first-child { display: none; }
   .table-players {
-    grid-template-columns: repeat(var(--player-count, 1), minmax(78px, 1fr));
+    grid-template-columns: repeat(var(--player-count, 1), minmax(var(--table-player-mobile-min), 1fr));
     justify-items: center;
     gap: 6px;
   }
@@ -1399,11 +1525,11 @@ button.action-card:hover { background: transparent; transform: none; }
 
   .game-board { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); gap: 3px 8px; padding: 8px 10px; border-radius: var(--radius); }
   .cards-display { min-height: 80px; }
-  .board-card-img { width: clamp(45px, 13vw, 58px); }
-  .board-card-img.stack-0 { transform: translateY(-13px) rotate(-1deg); }
+  .board-card-img { width: var(--board-card-mobile-width); }
+  .board-card-img.stack-0 { transform: translateY(calc(-1 * var(--board-stack-mobile-offset))) rotate(-1deg); }
   .board-card-img.stack-1 { transform: translateY(0); }
-  .board-card-img.stack-2 { transform: translateY(13px) rotate(1deg); }
-  .empty-pile { width: clamp(45px, 13vw, 58px); }
+  .board-card-img.stack-2 { transform: translateY(var(--board-stack-mobile-offset)) rotate(1deg); }
+  .empty-pile { width: var(--board-card-mobile-width); }
 
   .hand-dock { min-height: 154px; padding: 7px 7px 3px; border-radius: var(--radius); }
   .hand-heading { min-height: 25px; }
@@ -1415,8 +1541,8 @@ button.action-card:hover { background: transparent; transform: none; }
   .hand-suit:nth-child(even),
   .hand-suit:nth-child(n+3) { border: 0 !important; }
   .hand-card-fan { padding-left: 0; }
-  .hand-card { width: clamp(35px, 9.8vw, 46px); }
-  .hand-card + .hand-card { margin-left: -20px; }
+  .hand-card { width: var(--hand-card-mobile-width); }
+  .hand-card + .hand-card { margin-left: var(--hand-card-mobile-overlap); }
   .hand-card.playable { transform: translateY(-2px); }
   .results-header { padding: 8px 0 22px; }
   .results-header h2 { font-size: 2.2rem; }
@@ -1449,10 +1575,10 @@ button.action-card:hover { background: transparent; transform: none; }
   .game-top-bar { grid-template-columns: 1fr auto; }
   .turn-status { justify-self: start; }
   .game-shell { grid-template-rows: auto auto clamp(230px, 43dvh, 300px) auto; }
-  .table-players { grid-template-columns: repeat(var(--player-count, 1), minmax(72px, 1fr)); }
+  .table-players { grid-template-columns: repeat(var(--player-count, 1), minmax(calc(var(--table-player-mobile-min) - 6px), 1fr)); }
   .table-player { width: min(100%, 108px); }
-  .hand-card { width: 37px; }
-  .hand-card + .hand-card { margin-left: -22px; }
+  .hand-card { width: var(--hand-card-small-width); }
+  .hand-card + .hand-card { margin-left: var(--hand-card-small-overlap); }
 }
 
 @media (orientation: landscape) and (max-height: 600px) {

@@ -1,12 +1,26 @@
 import React from 'react';
+import { ComfortSize } from '../types';
 
 interface HelpModalProps {
   isOpen: boolean;
   onClose: () => void;
+  comfortSize: ComfortSize;
+  onComfortSizeChange: (size: ComfortSize) => void;
 }
 
-const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
+const COMFORT_SIZES: ComfortSize[] = ['standard', 'large', 'extra-large'];
+
+const COMFORT_LABELS: Record<ComfortSize, string> = {
+  standard: 'Standard',
+  large: 'Large',
+  'extra-large': 'Extra large',
+};
+
+const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, comfortSize, onComfortSizeChange }) => {
   if (!isOpen) return null;
+
+  const currentIndex = COMFORT_SIZES.indexOf(comfortSize);
+  const sliderValue = currentIndex === -1 ? 0 : currentIndex;
 
   return (
     <div className="help-modal-overlay" onClick={onClose} role="presentation">
@@ -28,6 +42,28 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
             <span className="demo-card demo-moving-card demo-moving-six">6<span>♥</span></span>
           </div>
           <p>8 goes above 7. 6 goes below. Any 7 starts a side pile.</p>
+        </div>
+
+        <div className="comfort-control" aria-label="Display size">
+          <div className="comfort-copy">
+            <label htmlFor="comfort-size">Comfort size</label>
+            <span>{COMFORT_LABELS[comfortSize]}</span>
+          </div>
+          <input
+            id="comfort-size"
+            type="range"
+            min="0"
+            max="2"
+            step="1"
+            value={sliderValue}
+            onChange={(event) => onComfortSizeChange(COMFORT_SIZES[Number(event.target.value)] || 'standard')}
+            aria-valuetext={COMFORT_LABELS[comfortSize]}
+          />
+          <div className="comfort-scale-labels" aria-hidden="true">
+            <span>A</span>
+            <span>A</span>
+            <span>A</span>
+          </div>
         </div>
         
         <div className="help-modal-body">

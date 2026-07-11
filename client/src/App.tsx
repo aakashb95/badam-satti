@@ -14,7 +14,7 @@ import SimulationScreen from './components/SimulationScreen';
 import SummaryScreen from './components/SummaryScreen';
 import ThemeToggle, { ThemeMode } from './components/ThemeToggle';
 import WaitingRoom from './components/WaitingRoom';
-import { AppState, Card, GameSummary, Winner } from './types';
+import { AppState, Card, ComfortSize, GameSummary, Winner } from './types';
 
 interface JoinRequest {
   roomCode: string;
@@ -52,6 +52,8 @@ const rankLabel = (rank: number) => ({ 1: 'A', 11: 'J', 12: 'Q', 13: 'K' }[rank]
 const suitLabel = (suit: string) => ({ hearts: 'Hearts', diamonds: 'Diamonds', clubs: 'Clubs', spades: 'Spades' }[suit] || suit);
 
 const THEME_STORAGE_KEY = 'badam-satti-theme';
+const COMFORT_SIZE_STORAGE_KEY = 'badam-satti-comfort-size';
+const COMFORT_SIZES: ComfortSize[] = ['standard', 'large', 'extra-large'];
 
 function getServerErrorMessage(message: string | Error | ServerErrorPayload): string {
   if (typeof message === 'object' && !(message instanceof Error)) {
@@ -82,8 +84,18 @@ const getInitialTheme = (): ThemeMode => {
   }
 };
 
+const getInitialComfortSize = (): ComfortSize => {
+  try {
+    const stored = window.localStorage.getItem(COMFORT_SIZE_STORAGE_KEY) as ComfortSize | null;
+    return stored && COMFORT_SIZES.includes(stored) ? stored : 'standard';
+  } catch {
+    return 'standard';
+  }
+};
+
 const App: React.FC = () => {
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
+  const [comfortSize, setComfortSize] = useState<ComfortSize>(getInitialComfortSize);
   const toggleTheme = () => setTheme((current) => (current === 'light' ? 'dark' : 'light'));
 
   useEffect(() => {
@@ -94,12 +106,21 @@ const App: React.FC = () => {
     }
   }, [theme]);
 
+  useEffect(() => {
+    document.documentElement.dataset.comfortSize = comfortSize;
+    try {
+      window.localStorage.setItem(COMFORT_SIZE_STORAGE_KEY, comfortSize);
+    } catch {
+      // Ignore storage failures; the visible size still changes for the session.
+    }
+  }, [comfortSize]);
+
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/r/:roomCode" element={<JoinRoomRoute theme={theme} onToggleTheme={toggleTheme} />} />
-        <Route path="/simulation" element={<SimulationRoute theme={theme} onToggleTheme={toggleTheme} />} />
-        <Route path="/*" element={<MainApp theme={theme} onToggleTheme={toggleTheme} />} />
+        <Route path="/r/:roomCode" element={<JoinRoomRoute theme={theme} onToggleTheme={toggleTheme} comfortSize={comfortSize} />} />
+        <Route path="/simulation" element={<SimulationRoute theme={theme} onToggleTheme={toggleTheme} comfortSize={comfortSize} />} />
+        <Route path="/*" element={<MainApp theme={theme} onToggleTheme={toggleTheme} comfortSize={comfortSize} onComfortSizeChange={setComfortSize} />} />
       </Routes>
     </BrowserRouter>
   );
@@ -108,6 +129,7 @@ const App: React.FC = () => {
 interface ThemeProps {
   theme: ThemeMode;
   onToggleTheme: () => void;
+  comfortSize: ComfortSize;
 }
 
 const JoinRoomRoute: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
@@ -138,7 +160,11 @@ const SimulationRoute: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => (
   </div>
 );
 
-const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
+interface MainAppProps extends ThemeProps {
+  onComfortSizeChange: (size: ComfortSize) => void;
+}
+
+const MainApp: React.FC<MainAppProps> = ({ theme, onToggleTheme, comfortSize, onComfortSizeChange }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [appState, setAppState] = useState<AppState>(initialState);
@@ -463,11 +489,11 @@ const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
       case 'login':
         return <LoginScreen onContinue={(username) => setAppState((previous) => ({ ...previous, username, currentScreen: 'menu' }))} themeToggle={themeToggle} />;
       case 'menu':
-        return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} themeToggle={themeToggle} />;
+        return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} themeToggle={themeToggle} />;
       case 'waiting':
         return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} themeToggle={themeToggle} />;
       case 'game':
-        return <GameScreen gameState={appState.gameState} myCards={appState.myCards} validMoves={appState.validMoves} isMyTurn={appState.isMyTurn} canPass={appState.canPass} username={appState.username} onPlayCard={playCard} onPassTurn={passTurn} onLeaveGame={leaveRoom} themeToggle={compactThemeToggle} />;
+        return <GameScreen gameState={appState.gameState} myCards={appState.myCards} validMoves={appState.validMoves} isMyTurn={appState.isMyTurn} canPass={appState.canPass} username={appState.username} onPlayCard={playCard} onPassTurn={passTurn} onLeaveGame={leaveRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} themeToggle={compactThemeToggle} />;
       case 'game-over':
         return <GameOverScreen winner={appState.winner} onContinueRound={() => { showLoading('Starting next round…'); socketRef.current?.emit('continue_round'); }} onExitGame={() => { showLoading('Calculating results…'); socketRef.current?.emit('exit_game'); }} showingDelay={showingGameOverDelay} />;
       case 'summary':
@@ -478,7 +504,7 @@ const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
   }
 
   return (
-    <div className="app" data-theme={theme}>
+    <div className="app" data-theme={theme} data-comfort-size={comfortSize}>
       {renderScreen()}
       {appState.error && <ErrorModal message={appState.error} onClose={() => setAppState((previous) => ({ ...previous, error: null }))} />}
       {appState.notification && <Notification message={appState.notification} />}

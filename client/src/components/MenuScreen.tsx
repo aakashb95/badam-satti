@@ -1,14 +1,17 @@
 import React, { ReactNode, useState } from 'react';
 import HelpModal from './HelpModal';
+import { ComfortSize } from '../types';
 
 interface MenuScreenProps {
   username: string;
   onCreateRoom: () => void;
   onJoinRoom: (roomCode: string) => void;
+  comfortSize: ComfortSize;
+  onComfortSizeChange: (size: ComfortSize) => void;
   themeToggle?: ReactNode;
 }
 
-const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinRoom, themeToggle }) => {
+const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinRoom, comfortSize, onComfortSizeChange, themeToggle }) => {
   const [roomCode, setRoomCode] = useState('');
   const [showHelpModal, setShowHelpModal] = useState(false);
 
@@ -81,6 +84,8 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinR
       <HelpModal 
         isOpen={showHelpModal} 
         onClose={() => setShowHelpModal(false)} 
+        comfortSize={comfortSize}
+        onComfortSizeChange={onComfortSizeChange}
       />
     </main>
   );

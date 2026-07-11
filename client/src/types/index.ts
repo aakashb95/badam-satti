@@ -56,6 +56,8 @@ export interface GameSummary {
   }>;
 }
 
+export type ComfortSize = 'standard' | 'large' | 'extra-large';
+
 // UI States
 export type Screen = 
   | 'login' 

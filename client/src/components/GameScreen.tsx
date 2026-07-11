@@ -1,5 +1,5 @@
 import React, { ReactNode, useEffect, useState } from 'react';
-import { Card, GameState, Player } from '../types';
+import { Card, ComfortSize, GameState, Player } from '../types';
 import HelpModal from './HelpModal';
 
 interface GameScreenProps {
@@ -12,6 +12,8 @@ interface GameScreenProps {
   onPlayCard: (card: Card) => void;
   onPassTurn: () => void;
   onLeaveGame: () => void;
+  comfortSize: ComfortSize;
+  onComfortSizeChange: (size: ComfortSize) => void;
   themeToggle?: ReactNode;
 }
 
@@ -34,6 +36,8 @@ const GameScreen: React.FC<GameScreenProps> = ({
   onPlayCard,
   onPassTurn,
   onLeaveGame,
+  comfortSize,
+  onComfortSizeChange,
   themeToggle,
 }) => {
   const [timeLeft, setTimeLeft] = useState(20);
@@ -231,7 +235,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
         {renderBoard()}
         {renderHand()}
       </div>
-      <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
+      <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />
     </main>
   );
 };
