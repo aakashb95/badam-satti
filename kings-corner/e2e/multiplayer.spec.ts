@@ -33,3 +33,31 @@ test('two players create, join, and begin a game', async ({ browser }) => {
   await hostContext.close();
   await guestContext.close();
 });
+
+test('phone menu and animated help stay inside a narrow viewport', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 393, height: 852 } });
+  const page = await context.newPage();
+  await page.goto('/');
+  await page.getByPlaceholder('Enter your name').fill('Phone Player');
+  await page.getByRole('button', { name: 'Continue' }).click();
+
+  const layout = await page.evaluate(() => {
+    const codeEntry = document.querySelector('.code-entry')?.getBoundingClientRect();
+    return {
+      viewportWidth: window.innerWidth,
+      bodyWidth: document.body.scrollWidth,
+      codeLeft: codeEntry?.left || 0,
+      codeRight: codeEntry?.right || 0,
+    };
+  });
+  expect(layout.bodyWidth).toBeLessThanOrEqual(layout.viewportWidth);
+  expect(layout.codeLeft).toBeGreaterThanOrEqual(0);
+  expect(layout.codeRight).toBeLessThanOrEqual(layout.viewportWidth);
+
+  await page.getByRole('button', { name: 'How to play' }).click();
+  await expect(page.getByRole('dialog', { name: 'How to play' })).toBeVisible();
+  await expect(page.getByText('Move complete piles')).toBeVisible();
+  await page.getByRole('button', { name: 'Okay, let’s play' }).click();
+  await expect(page.getByRole('dialog', { name: 'How to play' })).not.toBeVisible();
+  await context.close();
+});

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import CardView from './CardView';
 import GameBoard from './GameBoard';
+import HelpModal from './HelpModal';
 import ResultsScreen from './ResultsScreen';
 import type { Card, GameState, MovePileAction, PlayCardAction } from './types';
 
@@ -28,6 +29,7 @@ export default function App() {
   const [identityConfirmed, setIdentityConfirmed] = useState(false);
   const [showingResultDelay, setShowingResultDelay] = useState(false);
   const [copiedRoomCode, setCopiedRoomCode] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const countdown = useCountdown(state?.actionDeadline || null);
 
   useEffect(() => {
@@ -125,12 +127,12 @@ export default function App() {
       );
     }
 
-    return (
+    return (<>
       <main className="shell menu-screen">
         <section className="menu-shell">
           <header className="menu-header">
             <div className="mini-brand"><span>K</span><strong>King’s Corner</strong></div>
-            <button className="change-name" onClick={() => setIdentityConfirmed(false)}>Change name</button>
+            <div className="header-actions"><button className="how-to-button" onClick={() => setShowHelp(true)}>How to play</button><button className="change-name" onClick={() => setIdentityConfirmed(false)}>Change name</button></div>
           </header>
           <div className="menu-hero">
             <p className="eyebrow">Welcome to the table</p>
@@ -164,17 +166,18 @@ export default function App() {
           {error && <p role="alert" className="error">{error}</p>}
         </section>
       </main>
-    );
+      <HelpModal open={showHelp} onClose={() => setShowHelp(false)} />
+    </>);
   }
 
   if (!state.started) {
     const isHost = state.players[0]?.name === name;
-    return (
+    return (<>
       <main className="shell waiting-screen">
         <section className="waiting-shell">
           <header className="menu-header">
             <div className="mini-brand"><span>K</span><strong>King’s Corner</strong></div>
-            <button className="change-name danger" onClick={returnToLobby}>Leave room</button>
+            <div className="header-actions"><button className="how-to-button" onClick={() => setShowHelp(true)}>How to play</button><button className="change-name danger" onClick={returnToLobby}>Leave room</button></div>
           </header>
           <div className="waiting-heading">
             <div><p className="eyebrow">Private table</p><h1>Waiting for players</h1></div>
@@ -205,18 +208,19 @@ export default function App() {
           {error && <p role="alert" className="error">{error}</p>}
         </section>
       </main>
-    );
+      <HelpModal open={showHelp} onClose={() => setShowHelp(false)} />
+    </>);
   }
 
   if (state.finished) {
     return <ResultsScreen state={state} username={name} showingDelay={showingResultDelay} onRestart={() => socketRef.current?.emit('restart_game')} onReturnToLobby={returnToLobby} />;
   }
 
-  return (
+  return (<>
     <main className="game-shell">
       <header className="game-header">
         <div><p className="eyebrow">Room {state.roomCode}</p><h2>King’s Corner</h2></div>
-        <div className={`turn-clock ${state.isMyTurn ? 'active' : ''}`}><span>{countdown}</span><div><strong>{state.isMyTurn ? 'Your turn' : state.currentPlayerName}</strong><small>{state.isMyTurn ? 'Auto move in seconds' : 'is playing'}</small></div></div>
+        <div className="game-header-actions"><button className="game-help-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button><div className={`turn-clock ${state.isMyTurn ? 'active' : ''}`}><span>{countdown}</span><div><strong>{state.isMyTurn ? 'Your turn' : state.currentPlayerName}</strong><small>{state.isMyTurn ? 'Auto move in seconds' : 'is playing'}</small></div></div></div>
       </header>
       {automaticAction && <div className="last-action" role="status"><span>✦</span> Automatic move <small>{String(state.lastAction?.playerName || '')}</small></div>}
       <aside className="players-strip">{state.players.map((player) => <div key={player.name} className={player.name === state.currentPlayerName ? 'current' : ''}><span>{player.name.slice(0, 1)}</span><strong>{player.name}</strong><small>{player.cardCount}</small>{player.isDealer && <i>D</i>}</div>)}</aside>
@@ -230,5 +234,6 @@ export default function App() {
         {state.isMyTurn && <p className={`action-note ${state.suggestedActions.length === 0 ? 'ready' : ''}`}>{state.suggestedActions.length === 0 ? 'You’re done here — finish your turn.' : 'Glowing cards and piles are suggested moves. Tap one to play it instantly.'}</p>}
       </section>
     </main>
-  );
+    <HelpModal open={showHelp} onClose={() => setShowHelp(false)} />
+  </>);
 }
