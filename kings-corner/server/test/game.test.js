@@ -106,3 +106,28 @@ test('auto action ends the turn when no progressive action exists', () => {
   assert.equal(game.currentPlayer().id, 'b');
   assert.equal(game.players[1].hand.length, 1);
 });
+
+test('drawing a king places it in a corner and draws a replacement card', () => {
+  const game = startedGame();
+  game.players[0].hand = [];
+  game.piles.northWest = [];
+  game.stock = [card(5, 'clubs'), card(13, 'spades')];
+  game.beginTurn();
+  assert.deepEqual(game.piles.northWest, [card(13, 'spades')]);
+  assert.deepEqual(game.players[0].hand, [card(5, 'clubs')]);
+  assert.equal(game.stock.length, 0);
+  assert.equal(game.lastAction.drawnKings, 1);
+});
+
+test('the host can restart a finished table with a rotated dealer', () => {
+  const game = startedGame();
+  game.finished = true;
+  game.winnerId = 'a';
+  game.started = true;
+  game.makeDeck = () => createDeck();
+  assert.equal(game.restart('a'), true);
+  assert.equal(game.finished, false);
+  assert.equal(game.started, true);
+  assert.equal(game.dealerIndex, 1);
+  assert.equal(game.players.every((player) => player.hand.length >= 7), true);
+});

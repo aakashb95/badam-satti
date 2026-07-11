@@ -107,6 +107,24 @@ io.on('connection', (socket) => {
   socket.on('play_card', ({ card, targetPileId } = {}) => act(socket, (room) => room.playCard(socket.id, card, targetPileId)));
   socket.on('move_pile', ({ sourcePileId, targetPileId } = {}) => act(socket, (room) => room.movePile(socket.id, sourcePileId, targetPileId)));
   socket.on('end_turn', () => act(socket, (room) => room.endTurn(socket.id)));
+  socket.on('restart_game', () => {
+    const room = currentRoom(socket);
+    if (!room?.restart(socket.id)) return socket.emit('error_message', 'Only the host can replay while everyone is connected.');
+    emitState(room);
+    scheduleAutoAction(room);
+  });
+  socket.on('leave_room', () => {
+    const room = currentRoom(socket);
+    if (!room) return;
+    room.disconnectPlayer(socket.id);
+    socket.leave(room.roomCode);
+    socket.data.roomCode = null;
+    if (room.players.every((player) => !player.connected)) {
+      clearTimeout(roomTimers.get(room.roomCode));
+      roomTimers.delete(room.roomCode);
+      rooms.delete(room.roomCode);
+    }
+  });
 
   socket.on('disconnect', () => {
     const room = currentRoom(socket);

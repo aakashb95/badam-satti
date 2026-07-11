@@ -95,15 +95,27 @@ class KingsCornerGame {
 
   beginTurn() {
     this.turnNumber += 1;
-    this.turnBoardSignatures = new Set([this.boardSignature()]);
     const player = this.currentPlayer();
-    if (this.stock.length > 0) {
+    let drawnKings = 0;
+    let receivedCard = false;
+    while (this.stock.length > 0) {
       const card = this.stock.pop();
+      if (card.rank === 13) {
+        const corner = CORNERS.find((id) => this.piles[id].length === 0);
+        if (corner) {
+          this.piles[corner].push(card);
+          drawnKings += 1;
+          continue;
+        }
+      }
       player.hand.push(card);
-      this.lastAction = { type: 'draw', playerName: player.name };
-    } else {
-      this.lastAction = { type: 'turn_started', playerName: player.name };
+      receivedCard = true;
+      break;
     }
+    this.turnBoardSignatures = new Set([this.boardSignature()]);
+    this.lastAction = receivedCard || drawnKings > 0
+      ? { type: 'draw', playerName: player.name, drawnKings }
+      : { type: 'turn_started', playerName: player.name, drawnKings };
   }
 
   currentPlayer() {
@@ -198,6 +210,23 @@ class KingsCornerGame {
     this.beginTurn();
     this.lastAction = { type: automatic ? 'auto_end_turn' : 'end_turn', playerName: previousPlayer.name };
     return true;
+  }
+
+  restart(playerId) {
+    if (!this.finished || this.players[0]?.id !== playerId || this.players.length < 2 || this.players.some((player) => !player.connected)) return false;
+    this.dealerIndex = (this.dealerIndex + 1) % this.players.length;
+    this.started = false;
+    this.finished = false;
+    this.winnerId = null;
+    this.currentPlayerIndex = 0;
+    this.stock = [];
+    this.piles = Object.fromEntries(PILE_IDS.map((id) => [id, []]));
+    this.turnNumber = 0;
+    this.lastAction = null;
+    this.actionDeadline = null;
+    this.turnBoardSignatures = new Set();
+    this.players.forEach((player) => { player.hand = []; });
+    return this.start(playerId);
   }
 
   performAutoAction() {

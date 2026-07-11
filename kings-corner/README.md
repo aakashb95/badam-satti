@@ -6,12 +6,14 @@ An independent real-time multiplayer implementation of Bicycle King's Corner for
 
 - Seven cards per player; player left of the dealer starts.
 - Draw one card automatically at the start of each turn.
+- If that stock card is a King, it opens an empty corner automatically and the player draws a replacement.
 - Build downward in alternating colours.
 - Only Kings can open the four corner piles.
 - A complete board pile can move onto another compatible pile.
 - A player may perform any number of actions and then finish the turn.
 - Every 10 seconds of inactivity, the server performs one suggested action. It prefers a hand play, then an unseen board-pile move. If neither makes progress, it ends the turn.
 - The first empty hand wins immediately.
+- The host can deal a rematch from the results screen, or each player can return to the lobby.
 
 ## Development
 

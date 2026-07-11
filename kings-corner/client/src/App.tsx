@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import CardView from './CardView';
 import GameBoard from './GameBoard';
+import ResultsScreen from './ResultsScreen';
 import type { Card, GameState, MovePileAction, PlayCardAction } from './types';
 
 const SESSION_KEY = 'kings-corner-session';
@@ -25,6 +26,8 @@ export default function App() {
   const [error, setError] = useState('');
   const [connected, setConnected] = useState(false);
   const [identityConfirmed, setIdentityConfirmed] = useState(false);
+  const [showingResultDelay, setShowingResultDelay] = useState(false);
+  const [copiedRoomCode, setCopiedRoomCode] = useState(false);
   const countdown = useCountdown(state?.actionDeadline || null);
 
   useEffect(() => {
@@ -51,6 +54,16 @@ export default function App() {
     return () => { socket.disconnect(); };
   }, []);
 
+  useEffect(() => {
+    if (!state?.finished) {
+      setShowingResultDelay(false);
+      return undefined;
+    }
+    setShowingResultDelay(true);
+    const timer = window.setTimeout(() => setShowingResultDelay(false), 1600);
+    return () => window.clearTimeout(timer);
+  }, [state?.finished]);
+
   const createRoom = () => {
     setError('');
     socketRef.current?.emit('create_room', { name });
@@ -61,6 +74,14 @@ export default function App() {
   };
   const playCard = (action: PlayCardAction) => socketRef.current?.emit('play_card', action);
   const movePile = (action: MovePileAction) => socketRef.current?.emit('move_pile', action);
+  const returnToLobby = () => {
+    socketRef.current?.emit('leave_room');
+    window.localStorage.removeItem(SESSION_KEY);
+    setState(null);
+    setRoomCode('');
+    setError('');
+    setIdentityConfirmed(true);
+  };
 
   const cardSuggestion = useMemo(() => {
     const map = new Map<string, PlayCardAction>();
@@ -81,7 +102,6 @@ export default function App() {
               <div className="brand-mark" aria-hidden="true"><span>K</span><i>♛</i></div>
               <div><h1>King’s Corner</h1><p className="eyebrow">The classic table game</p></div>
             </div>
-            <p className="welcome-intro">Build downward, alternate colours, and clear your hand before everyone else.</p>
             <label htmlFor="player-name">Play with your friends and family</label>
             <div className="identity-entry">
               <input
@@ -97,6 +117,7 @@ export default function App() {
               />
               <button aria-label="Continue" onClick={() => setIdentityConfirmed(Boolean(name.trim()))} disabled={!name.trim()}>→</button>
             </div>
+            <div className="field-message">Up to 20 characters</div>
             <div className="welcome-meta"><span>2–4 players</span><span>Private rooms</span><span>No sign-up</span></div>
             {!connected && <p className="status">Connecting to the table…</p>}
           </section>
@@ -149,24 +170,46 @@ export default function App() {
   if (!state.started) {
     const isHost = state.players[0]?.name === name;
     return (
-      <main className="shell waiting">
-        <p className="eyebrow">Private table</p>
-        <h1>Room <em>{state.roomCode}</em></h1>
-        <button className="copy-code" onClick={() => navigator.clipboard?.writeText(state.roomCode)}>Copy room code</button>
-        <section className="seats">
-          {state.players.map((player) => <div className="seat" key={player.name}><span>{player.name.slice(0, 1).toUpperCase()}</span><strong>{player.name}</strong>{player.isDealer && <small>HOST</small>}</div>)}
-          {Array.from({ length: 4 - state.players.length }, (_, index) => <div className="seat empty-seat" key={index}><span>+</span><strong>Open seat</strong></div>)}
+      <main className="shell waiting-screen">
+        <section className="waiting-shell">
+          <header className="menu-header">
+            <div className="mini-brand"><span>K</span><strong>King’s Corner</strong></div>
+            <button className="change-name danger" onClick={returnToLobby}>Leave room</button>
+          </header>
+          <div className="waiting-heading">
+            <div><p className="eyebrow">Private table</p><h1>Waiting for players</h1></div>
+            <p>{isHost ? 'Invite your people, then start whenever everyone is ready.' : 'The host will start the game when everyone is ready.'}</p>
+          </div>
+          <section className="invite-card">
+            <div className="invite-copy"><span>Room code</span><strong>{state.roomCode}</strong></div>
+            <button className="copy-code" onClick={async () => {
+              await navigator.clipboard?.writeText(state.roomCode);
+              setCopiedRoomCode(true);
+              window.setTimeout(() => setCopiedRoomCode(false), 1600);
+            }}>{copiedRoomCode ? 'Copied' : 'Copy code'}</button>
+          </section>
+          <section className="players-section">
+            <div className="section-heading"><h2>Players</h2><span>{state.players.length} / 4</span></div>
+            <div className="waiting-players">{state.players.map((player, index) => (
+              <div className="waiting-player" key={player.name}>
+                <span className="waiting-avatar">{player.name.slice(0, 1).toUpperCase()}</span>
+                <div><strong>{player.name}{player.name === name && <small> You</small>}</strong><small>{index === 0 ? 'Host' : player.connected ? 'Ready at the table' : 'Away'}</small></div>
+                {player.isDealer && <span className="waiting-dealer">Dealer</span>}
+                <i className={player.connected ? 'connected' : ''} aria-label={player.connected ? 'Connected' : 'Disconnected'} />
+              </div>
+            ))}</div>
+          </section>
+          <div className="waiting-actions">
+            {isHost ? <button className="result-primary" onClick={() => socketRef.current?.emit('start_game')} disabled={state.players.length < 2}>{state.players.length < 2 ? 'Waiting for one more player' : <>Start game <span>→</span></>}</button> : <div className="waiting-pulse"><span /> Waiting for the host</div>}
+          </div>
+          {error && <p role="alert" className="error">{error}</p>}
         </section>
-        <p className="waiting-copy">Two to four players. Everyone begins with seven cards.</p>
-        {isHost ? <button className="primary" onClick={() => socketRef.current?.emit('start_game')} disabled={state.players.length < 2}>Deal the cards</button> : <p className="status">Waiting for {state.players[0]?.name} to deal…</p>}
-        {error && <p role="alert" className="error">{error}</p>}
       </main>
     );
   }
 
   if (state.finished) {
-    const won = state.winnerName === name;
-    return <main className="shell result"><div className="crown">♛</div><p className="eyebrow">The table is settled</p><h1>{won ? 'You rule the corner.' : `${state.winnerName} wins.`}</h1><p>{won ? 'Every card found its place.' : 'A clean hand takes the crown.'}</p></main>;
+    return <ResultsScreen state={state} username={name} showingDelay={showingResultDelay} onRestart={() => socketRef.current?.emit('restart_game')} onReturnToLobby={returnToLobby} />;
   }
 
   return (
