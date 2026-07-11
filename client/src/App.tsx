@@ -439,7 +439,7 @@ const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
       case 'game-over':
         return <GameOverScreen winner={appState.winner} onContinueRound={() => { showLoading('Starting next round…'); socketRef.current?.emit('continue_round'); }} onExitGame={() => { showLoading('Calculating results…'); socketRef.current?.emit('exit_game'); }} showingDelay={showingGameOverDelay} />;
       case 'summary':
-        return <SummaryScreen summary={appState.summary} onReturnToMenu={leaveRoom} />;
+        return <SummaryScreen summary={appState.summary} username={appState.username} onReturnToMenu={leaveRoom} />;
       case 'loading':
         return <LoadingScreen message={appState.loading || 'Loading…'} />;
     }
