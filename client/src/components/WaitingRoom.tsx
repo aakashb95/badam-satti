@@ -93,7 +93,7 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
                 <span className="player-avatar">{player.name.charAt(0).toUpperCase()}</span>
                 <span className="player-item-copy">
                   <strong>{player.name}{player.name === username && <small> You</small>}</strong>
-                  <small>{index === 0 ? 'Host' : player.connected ? 'Ready at the table' : 'Reconnecting'}</small>
+                  <small>{index === 0 ? 'Host' : player.connected ? 'Ready at the table' : 'Away'}</small>
                 </span>
                 {player.isDealer && <span className="dealer-badge" title="Dealer">Dealer</span>}
                 <span className="connection-dot" aria-label={player.connected ? 'Connected' : 'Disconnected'} />

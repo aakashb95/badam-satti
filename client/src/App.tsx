@@ -212,9 +212,8 @@ const MainApp: React.FC<ThemeProps> = ({ theme, onToggleTheme }) => {
       notify(`${playerName} disconnected`);
     });
 
-    socket.on('player_temporarily_disconnected', ({ playerName, gameState }) => {
+    socket.on('player_temporarily_disconnected', ({ gameState }) => {
       setAppState((previous) => ({ ...previous, gameState }));
-      notify(`${playerName} can still reconnect`);
     });
 
     socket.on('player_reconnected', ({ gameState }) => {
