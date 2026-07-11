@@ -1,11 +1,10 @@
-import React, { ReactNode, useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface LoginScreenProps {
   onContinue: (username: string) => void;
-  themeToggle?: ReactNode;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue, themeToggle }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue }) => {
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -44,7 +43,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue, themeToggle }) =>
     <main className="screen welcome-screen">
       <div className="welcome-shell">
         <section className="welcome-copy">
-          {themeToggle && <div className="screen-corner-action">{themeToggle}</div>}
           <div className="brand-lockup">
             <span className="brand-mark">7<span>♥</span></span>
             <div className="brand-title">

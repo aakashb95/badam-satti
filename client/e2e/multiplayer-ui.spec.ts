@@ -11,10 +11,11 @@ async function applyZoom(page: Page, zoom: number) {
 async function login(page: Page, name: string) {
   await page.goto('/');
   await expect(page.locator('#player-name')).toBeVisible();
-  await expectThemeToggleVisible(page);
+  await expectNoThemeToggle(page);
   await page.locator('#player-name').fill(name);
   await page.locator('button.icon-submit').click();
   await expect(page.locator('.lobby-screen')).toBeVisible();
+  await expectNoThemeToggle(page);
 }
 
 async function createRoom(page: Page) {
@@ -28,39 +29,16 @@ async function createRoom(page: Page) {
 async function joinRoom(page: Page, roomCode: string, name: string) {
   await page.goto(`/r/${roomCode}`);
   await expect(page.locator('#username')).toBeVisible();
-  await expectThemeToggleVisible(page);
+  await expectNoThemeToggle(page);
   await page.locator('#username').fill(name);
   await page.getByRole('button', { name: /Join room/ }).click();
   await expect(page.locator('.waiting-screen')).toBeVisible();
+  await expectNoThemeToggle(page);
 }
 
-async function expectThemeToggleVisible(page: Page) {
-  const metrics = await page.locator('.theme-toggle').evaluate((element) => {
-    const buttonRect = element.getBoundingClientRect();
-    const iconRect = element.querySelector('.theme-toggle-icon svg')?.getBoundingClientRect();
-    const style = getComputedStyle(element);
-    return {
-      buttonWidth: buttonRect.width,
-      buttonHeight: buttonRect.height,
-      iconWidth: iconRect?.width || 0,
-      iconHeight: iconRect?.height || 0,
-      color: style.color,
-      backgroundColor: style.backgroundColor,
-      borderColor: style.borderColor,
-      visible:
-        buttonRect.width > 0 &&
-        buttonRect.height > 0 &&
-        style.display !== 'none' &&
-        style.visibility !== 'hidden',
-    };
-  });
-
-  expect(metrics.visible).toBe(true);
-  expect(metrics.buttonWidth).toBeGreaterThanOrEqual(32);
-  expect(metrics.buttonHeight).toBeGreaterThanOrEqual(32);
-  expect(metrics.iconWidth).toBeGreaterThanOrEqual(15);
-  expect(metrics.iconHeight).toBeGreaterThanOrEqual(15);
-  expect(metrics.borderColor).not.toBe('rgba(0, 0, 0, 0)');
+async function expectNoThemeToggle(page: Page) {
+  await expect(page.locator('.theme-toggle')).toHaveCount(0);
+  await expect(page.locator('.app')).not.toHaveAttribute('data-theme', /.+/);
 }
 
 async function expectGameLayoutStable(page: Page, label: string) {
@@ -88,7 +66,6 @@ async function expectGameLayoutStable(page: Page, label: string) {
       Boolean(a && b && a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y);
 
     const rects = {
-      theme: rectOf('.theme-toggle'),
       top: rectOf('.game-top-bar'),
       players: rectOf('.table-players'),
       board: rectOf('.game-board'),
@@ -149,13 +126,10 @@ test('four-player game renders and starts across responsive viewports', async ({
   };
 
   await login(page, PLAYERS[0]);
-
-  const beforeTheme = await page.locator('.app').getAttribute('data-theme');
-  await page.locator('.theme-toggle').click();
-  await expect(page.locator('.app')).not.toHaveAttribute('data-theme', beforeTheme || '');
-  await expectThemeToggleVisible(page);
+  await expectNoThemeToggle(page);
 
   const roomCode = await createRoom(page);
+  await expectNoThemeToggle(page);
   const extraPlayers = [];
   for (const name of PLAYERS.slice(1)) {
     const player = await newPlayerPage(browser, contextOptions, baseURL || '');
@@ -170,7 +144,7 @@ test('four-player game renders and starts across responsive viewports', async ({
   for (const [index, playerPage] of pages.entries()) {
     await expect(playerPage.locator('.game-screen')).toBeVisible();
     await applyZoom(playerPage, zoom);
-    await expectThemeToggleVisible(playerPage);
+    await expectNoThemeToggle(playerPage);
     await expectGameLayoutStable(playerPage, `${testInfo.project.name}:player-${index + 1}`);
   }
 

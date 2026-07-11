@@ -1,9 +1,5 @@
-import React, { ReactNode, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, GameBoard } from '../types';
-
-interface SimulationScreenProps {
-  themeToggle?: ReactNode;
-}
 
 interface SimPlayer {
   name: string;
@@ -203,7 +199,7 @@ const dealSimulation = (): SimulationState => {
   };
 };
 
-const SimulationScreen: React.FC<SimulationScreenProps> = ({ themeToggle }) => {
+const SimulationScreen: React.FC = () => {
   const [sim, setSim] = useState<SimulationState>(() => initialState());
   const currentPlayer = sim.players[sim.currentPlayerIndex];
   const currentMoves = useMemo(() => currentPlayer ? validMoves(sim.board, currentPlayer.hand) : [], [currentPlayer, sim.board]);
@@ -244,7 +240,6 @@ const SimulationScreen: React.FC<SimulationScreenProps> = ({ themeToggle }) => {
             <p>Fast test a full table without opening room links on every device.</p>
           </div>
           <div className="simulation-header-actions">
-            {themeToggle}
             <a className="quiet-button" href="/">Lobby</a>
           </div>
         </header>

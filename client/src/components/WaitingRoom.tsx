@@ -1,4 +1,4 @@
-import React, { ReactNode, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { GameState } from '../types';
 
 interface WaitingRoomProps {
@@ -8,7 +8,6 @@ interface WaitingRoomProps {
   onStartGame: () => void;
   onLeaveRoom: () => void;
   onShowNotification: (message: string) => void;
-  themeToggle?: ReactNode;
 }
 
 const WaitingRoom: React.FC<WaitingRoomProps> = ({
@@ -18,7 +17,6 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
   onStartGame,
   onLeaveRoom,
   onShowNotification,
-  themeToggle,
 }) => {
   const [lanOrigin, setLanOrigin] = useState<string | null>(null);
 
@@ -56,7 +54,6 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
         <header className="app-header">
           <div className="mini-brand"><span className="brand-mark">7<span>♥</span></span><span>Badam Satti</span></div>
           <div className="header-actions">
-            {themeToggle}
             <button className="quiet-button danger-text" onClick={onLeaveRoom}>Leave room</button>
           </div>
         </header>
