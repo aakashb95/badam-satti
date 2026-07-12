@@ -48,8 +48,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue }) => {
           <div className="brand-lockup">
             <span className="brand-mark">7<span>♥</span></span>
             <div className="brand-title">
-              <h1>Badam Satti</h1>
-              <span className="eyebrow">The classic card game</span>
+              <h1>Badam 7</h1>
+              <span className="eyebrow">Also known as Sevens or Badam Satti</span>
             </div>
           </div>
           <div className="form-group welcome-form">

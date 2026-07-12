@@ -12,7 +12,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ message, onReturnToGameDe
       <div className="loading-content">
         <GameDeskLink onBeforeNavigate={onReturnToGameDesk} className="loading-game-desk" />
         <div className="shuffle-loader" aria-hidden="true"><span /><span /><span /></div>
-        <span className="eyebrow">Badam Satti</span>
+        <span className="eyebrow">Badam 7</span>
         <p>{message}</p>
       </div>
     </main>

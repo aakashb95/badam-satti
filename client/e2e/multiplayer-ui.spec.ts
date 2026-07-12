@@ -15,7 +15,7 @@ async function login(page: Page, name: string) {
   await page.locator('#player-name').fill(name);
   await page.locator('button.icon-submit').click();
   await expect(page.locator('.lobby-screen')).toBeVisible();
-  await expect(page.getByText('Badam Satti table')).toBeVisible();
+  await expect(page.getByText('Badam 7 table')).toBeVisible();
   const greeting = (await page.locator('.menu-hero h2').innerText()).replace(/\s+/g, ' ').trim();
   expect([
     `Welcome, ${name}.`,
@@ -27,7 +27,7 @@ async function login(page: Page, name: string) {
 }
 
 async function createRoom(page: Page) {
-  await page.getByRole('button', { name: /Create a room/ }).click();
+  await page.getByRole('button', { name: /Host a new room/ }).click();
   await expect(page.locator('.waiting-screen')).toBeVisible();
   const roomCode = await page.locator('.invite-copy strong').innerText();
   expect(roomCode).toMatch(/^[A-Z0-9]{6}$/);
@@ -126,6 +126,36 @@ async function newPlayerPage(browser: Browser, options: BrowserContextOptions, b
   return { context, page };
 }
 
+test('first-time guide completes the rules and table walkthrough on a phone', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 393, height: 852 }, hasTouch: true, serviceWorkers: 'block' });
+  const page = await context.newPage();
+  await login(page, 'First Timer');
+  await page.getByRole('button', { name: 'How to play' }).click();
+  const dialog = page.getByRole('dialog', { name: 'How to play' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('Empty your hand first')).toBeVisible();
+
+  const expectedSteps = [
+    'The 7♥ starts the table',
+    'Higher above. Lower below.',
+    'Play one card — or pass',
+    'Keep the lowest score',
+    'Look for the lifted card',
+  ];
+  for (const title of expectedSteps) {
+    await dialog.getByRole('button', { name: 'Next' }).click();
+    await expect(dialog.getByText(title)).toBeVisible();
+  }
+
+  await expect(dialog.getByText('Using the table', { exact: true })).toHaveClass(/active/);
+  await dialog.getByRole('button', { name: 'A+++' }).click();
+  await dialog.getByRole('button', { name: /Got it/ }).click();
+  await expect(dialog).not.toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.dataset.comfortSize)).toBe('maximum');
+  expect(await page.evaluate(() => document.body.scrollWidth <= window.innerWidth)).toBe(true);
+  await context.close();
+});
+
 test('four-player game renders and starts across responsive viewports', async ({ browser, page, baseURL }, testInfo) => {
   const projectUse = testInfo.project.use as BrowserContextOptions;
   const zoom = testInfo.project.name.includes('125-zoom') ? 1.25 : 1;
@@ -159,7 +189,7 @@ test('four-player game renders and starts across responsive viewports', async ({
     await expectGameLayoutStable(playerPage, `${testInfo.project.name}:player-${index + 1}`);
   }
 
-  await extraPlayers[0].page.getByRole('link', { name: 'Game Desk — choose a game' }).click();
+  await extraPlayers[0].page.getByRole('link', { name: 'Main menu — choose a game' }).click();
   await expect(extraPlayers[0].page).toHaveURL(/\/$/);
   await expect(page.locator('.table-player')).toHaveCount(PLAYERS.length - 1);
 
