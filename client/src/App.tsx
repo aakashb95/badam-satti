@@ -491,7 +491,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
   function renderScreen() {
     switch (appState.currentScreen) {
       case 'login':
-        return <LoginScreen onContinue={(username) => setAppState((previous) => ({ ...previous, username, currentScreen: 'menu' }))} />;
+        return <LoginScreen onContinue={(username) => setAppState((previous) => ({ ...previous, username, currentScreen: 'menu' }))} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />;
       case 'menu':
         return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />;
       case 'waiting':

@@ -129,17 +129,18 @@ async function newPlayerPage(browser: Browser, options: BrowserContextOptions, b
 test('first-time guide completes the rules and table walkthrough on a phone', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 393, height: 852 }, hasTouch: true, serviceWorkers: 'block' });
   const page = await context.newPage();
-  await login(page, 'First Timer');
-  await page.getByRole('button', { name: 'How to play' }).click();
+  await page.goto('/badam7/');
+  await page.getByRole('button', { name: /New to Badam 7/ }).click();
   const dialog = page.getByRole('dialog', { name: 'How to play' });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText('Empty your hand first')).toBeVisible();
+  await expect(dialog.getByText('Every card is dealt')).toBeVisible();
 
   const expectedSteps = [
     'The 7♥ starts the table',
-    'Higher above. Lower below.',
-    'Play one card — or pass',
-    'Keep the lowest score',
+    'Three kinds of move can open',
+    'Only the next card fits',
+    'Get out first for zero points',
+    'Lowest total wins seven rounds',
     'Look for the lifted card',
   ];
   for (const title of expectedSteps) {
