@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test('two players create, join, and begin a game', async ({ browser }) => {
+  test.setTimeout(45_000);
   const hostContext = await browser.newContext();
   const guestContext = await browser.newContext();
   const host = await hostContext.newPage();
@@ -9,7 +10,7 @@ test('two players create, join, and begin a game', async ({ browser }) => {
   await host.goto('/kings-corner/');
   await host.getByPlaceholder('Enter your name').fill('Aakash');
   await host.getByRole('button', { name: 'Continue' }).click();
-  await host.getByRole('button', { name: 'Create a table' }).click();
+  await host.getByRole('button', { name: /Host a new table/ }).click();
   await expect(host.locator('.waiting-screen h1')).toBeVisible();
   const roomCode = await host.locator('.invite-copy strong').innerText();
 
@@ -17,7 +18,7 @@ test('two players create, join, and begin a game', async ({ browser }) => {
   await guest.getByPlaceholder('Enter your name').fill('Maya');
   await guest.getByRole('button', { name: 'Continue' }).click();
   await guest.getByLabel('Room code').fill(roomCode);
-  await guest.getByRole('button', { name: 'Join' }).click();
+  await guest.getByRole('button', { name: 'Join table' }).click();
   await expect(guest.locator('.waiting-screen h1')).toBeVisible();
   await expect(host.getByText('Maya')).toBeVisible();
 
@@ -27,8 +28,8 @@ test('two players create, join, and begin a game', async ({ browser }) => {
   await expect(host.getByText('Your hand')).toBeVisible();
   await expect(guest.getByText('Your hand')).toBeVisible();
 
-  // The server, rather than either browser, must take one action after 10 seconds.
-  await expect(host.getByText('Automatic move')).toBeVisible({ timeout: 12_000 });
+  // The server, rather than either browser, must take one action after the inactivity window.
+  await expect(host.getByText('Automatic move')).toBeVisible({ timeout: 22_000 });
 
   await guest.getByRole('link', { name: 'Game Desk — choose a game' }).click();
   await expect(guest).toHaveURL(/\/$/);
@@ -112,7 +113,7 @@ test('phone landscape gameplay fits while card images load slowly', async ({ bro
   await host.goto('/kings-corner/');
   await host.getByPlaceholder('Enter your name').fill('Landscape Host');
   await host.getByRole('button', { name: 'Continue' }).click();
-  await host.getByRole('button', { name: 'Create a table' }).click();
+  await host.getByRole('button', { name: /Host a new table/ }).click();
   await expect(host.locator('.waiting-screen h1')).toBeVisible();
   const roomCode = await host.locator('.invite-copy strong').innerText();
 
@@ -120,7 +121,7 @@ test('phone landscape gameplay fits while card images load slowly', async ({ bro
   await guest.getByPlaceholder('Enter your name').fill('Landscape Guest');
   await guest.getByRole('button', { name: 'Continue' }).click();
   await guest.getByLabel('Room code').fill(roomCode);
-  await guest.getByRole('button', { name: 'Join' }).click();
+  await guest.getByRole('button', { name: 'Join table' }).click();
   await expect(host.getByText('Landscape Guest')).toBeVisible();
   await host.getByRole('button', { name: 'Start game' }).click();
   await expect(host.getByText('Your hand')).toBeVisible();

@@ -12,7 +12,11 @@ const cornerIds = new Set<PileId>(['northWest', 'northEast', 'southEast', 'south
 interface Props { state: GameState; onMovePile: (action: MovePileAction) => void }
 
 export default function GameBoard({ state, onMovePile }: Props) {
-  const suggestionFor = (pileId: PileId) => state.suggestedActions.find(
+  const recommendedAction = state.suggestedActions[0];
+  const actionFor = (pileId: PileId) => state.pileActions.find(
+    (action): action is MovePileAction => action.type === 'move_pile' && action.sourcePileId === pileId,
+  );
+  const recommendationFor = (pileId: PileId) => state.suggestedActions.find(
     (action): action is MovePileAction => action.type === 'move_pile' && action.sourcePileId === pileId,
   );
 
@@ -26,7 +30,8 @@ export default function GameBoard({ state, onMovePile }: Props) {
       </div>
       {layout.map((pileId) => {
         const cards = state.piles[pileId];
-        const suggestion = suggestionFor(pileId);
+        const recommendation = recommendationFor(pileId);
+        const action = recommendation || actionFor(pileId);
         const visibleCards = cards.length <= 1
           ? cards.map((card) => ({ card, position: 'single' }))
           : [
@@ -34,12 +39,12 @@ export default function GameBoard({ state, onMovePile }: Props) {
               { card: cards[cards.length - 1], position: 'top' },
             ];
         return (
-          <div key={pileId} className={`pile pile-${pileId} ${suggestion ? 'pile-suggested' : ''}`} data-card-count={cards.length}>
+          <div key={pileId} className={`pile pile-${pileId} ${action ? 'pile-playable' : ''} ${recommendation ? 'pile-suggested' : ''} ${recommendedAction?.targetPileId === pileId ? 'pile-recommended-target' : ''}`} data-card-count={cards.length}>
             <button
               className="pile-hitbox"
-              disabled={!suggestion}
-              onClick={() => suggestion && onMovePile(suggestion)}
-              aria-label={suggestion ? `Move ${pileNames[pileId]} pile to ${pileNames[suggestion.targetPileId]}` : pileNames[pileId]}
+              disabled={!action}
+              onClick={() => action && onMovePile(action)}
+              aria-label={action ? `Move ${pileNames[pileId]} pile to ${pileNames[action.targetPileId]}` : pileNames[pileId]}
             >
               {cards.length === 0 ? <span className="empty-slot">{cornerIds.has(pileId) ? 'K' : '+'}</span> : visibleCards.map(({ card, position }) => (
                 <span className={`stacked-card stack-position-${position}`} key={`${card.rank}-${card.suit}-${position}`}>
@@ -48,7 +53,7 @@ export default function GameBoard({ state, onMovePile }: Props) {
               ))}
               {cards.length > 2 && <span className="hidden-card-count" aria-label={`${cards.length - 2} cards hidden between endpoints`}>+{cards.length - 2}</span>}
             </button>
-            {suggestion && <span className="move-hint">Tap to move ↗</span>}
+            {recommendation && <><span className="best-move-arrow pile-arrow" aria-hidden="true">↓</span><span className="move-hint">Helpful move →</span></>}
           </div>
         );
       })}

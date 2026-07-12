@@ -11,7 +11,7 @@ An independent real-time multiplayer implementation of Bicycle King's Corner for
 - Only Kings can open the four corner piles.
 - A complete board pile can move onto another compatible pile.
 - A player may perform any number of actions and then finish the turn.
-- Every 10 seconds of inactivity, the server performs one suggested action. It prefers a hand play, then an unseen board-pile move. If neither makes progress, it ends the turn.
+- Every 20 seconds of inactivity, the server performs one suggested action. It prefers a hand play, then an unseen board-pile move. If neither makes progress, it ends the turn.
 - The first empty hand wins immediately.
 - The host can deal a rematch from the results screen, or each player can return to the lobby.
 

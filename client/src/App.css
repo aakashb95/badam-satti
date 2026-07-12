@@ -475,16 +475,16 @@ input::placeholder { color: var(--faint); }
 
 .action-card {
   display: grid;
-  min-height: 150px;
+  min-height: 170px;
   grid-template-columns: auto 1fr auto;
   align-items: start;
   gap: 16px;
-  padding: 20px 0;
+  padding: 22px;
   text-align: left;
-  background: transparent;
-  border: 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0;
+  background: #ffffff08;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 14px 36px #0002;
 }
 
 button.action-card {
@@ -494,7 +494,7 @@ button.action-card {
   transition: background-color .15s ease, transform .15s ease;
 }
 
-button.action-card:hover { background: transparent; transform: none; }
+button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; transform: translateY(-2px); }
 
 .action-card-icon {
   display: grid;
@@ -511,6 +511,7 @@ button.action-card:hover { background: transparent; transform: none; }
 .action-card-copy strong { font-size: 1rem; font-weight: 500; }
 .action-card-copy small { color: var(--muted); font-size: .8rem; line-height: 1.45; }
 .action-card-arrow { color: var(--muted); font-size: 1.15rem; }
+.action-card-primary { background: linear-gradient(145deg, #e8b85c16, #ffffff08 62%); border-color: #e8b85c44; }
 .join-card { grid-template-rows: auto 1fr; }
 
 .code-entry {
@@ -1448,7 +1449,7 @@ button.action-card:hover { background: transparent; transform: none; }
   .menu-hero { padding: 32px 2px 22px; }
   .menu-hero h2 { font-size: clamp(1.75rem, 8vw, 2.15rem); }
   .menu-grid { grid-template-columns: 1fr; }
-  .action-card { min-height: auto; padding: 18px 0; border-radius: 0; }
+  .action-card { min-height: auto; margin-bottom: 10px; padding: 18px; border-radius: 15px; }
   .app-footer { padding: 26px 0 8px; gap: 10px; font-size: .52rem; }
 
   .simulation-screen { padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
