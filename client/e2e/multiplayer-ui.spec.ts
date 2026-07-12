@@ -15,6 +15,14 @@ async function login(page: Page, name: string) {
   await page.locator('#player-name').fill(name);
   await page.locator('button.icon-submit').click();
   await expect(page.locator('.lobby-screen')).toBeVisible();
+  await expect(page.getByText('Badam Satti table')).toBeVisible();
+  const greeting = (await page.locator('.menu-hero h2').innerText()).replace(/\s+/g, ' ').trim();
+  expect([
+    `Welcome, ${name}.`,
+    `Ready, ${name}?`,
+    `Table’s open, ${name}.`,
+    `All set, ${name}?`,
+  ]).toContain(greeting);
   await expectNoThemeToggle(page);
 }
 

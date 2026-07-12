@@ -67,9 +67,11 @@ h1 em { color: var(--gold); font-style: normal; }
 .change-name { padding: 9px 12px; color: #a9c0b7; background: transparent; border: 1px solid #ffffff1d; border-radius: 10px; cursor: pointer; font-size: 11px; }
 .header-actions { display: flex; align-items: center; gap: 8px; }
 .how-to-button { padding: 9px 12px; color: var(--cream); background: transparent; border: 1px solid #e8b85c66; border-radius: 10px; cursor: pointer; font-size: 11px; }
-.menu-hero { padding: clamp(42px, 7vh, 72px) 0 30px; }
-.menu-hero h1 { margin: 10px 0 12px; font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 1.08; letter-spacing: 0; font-weight: 500; }
+.menu-hero { padding: clamp(32px, 5vh, 52px) 0 28px; }
+.menu-hero h1 { max-width: 760px; margin: 11px 0 12px; font-size: clamp(1.8rem, 3.25vw, 2.65rem); line-height: 1.12; letter-spacing: 0; font-weight: 500; overflow-wrap: anywhere; }
 .menu-hero > p:last-child { max-width: 500px; margin: 0; color: #a9c0b7; font-size: .96rem; line-height: 1.6; }
+.game-lobby-label { display: flex; align-items: center; gap: 8px; color: #b9d0c7; font-size: .66rem; font-weight: 600; letter-spacing: .15em; text-transform: uppercase; }
+.game-lobby-label b { color: var(--gold); font-size: .72rem; font-weight: 600; letter-spacing: 0; }
 .menu-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .action-card { min-height: 150px; padding: 20px 0; display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 16px; color: var(--cream); background: transparent; border: 0; border-top: 1px solid #ffffff1b; border-radius: 0; text-align: left; position: relative; box-shadow: none; }
 button.action-card { width: 100%; cursor: pointer; }
@@ -235,7 +237,7 @@ button:disabled { cursor: default; opacity: .42; }
   .menu-screen { min-height: 100dvh; align-items: stretch; justify-content: flex-start; padding-top: max(24px, env(safe-area-inset-top)); padding-bottom: max(24px, env(safe-area-inset-bottom)); }
   .menu-shell { min-width: 0; }
   .menu-header { gap: 12px; }.header-actions { gap: 5px; }.how-to-button,.change-name { padding: 8px 9px; font-size: 9px; white-space: nowrap; }
-  .menu-hero { padding: 38px 2px 22px; }.menu-hero h1 { max-width: 100%; font-size: clamp(2.15rem, 10.5vw, 2.8rem); overflow-wrap: anywhere; }.menu-hero > p:last-child { font-size: .82rem; }
+  .menu-hero { padding: 32px 2px 22px; }.menu-hero h1 { max-width: 100%; font-size: clamp(1.75rem, 8vw, 2.15rem); }.menu-hero > p:last-child { font-size: .82rem; }
   .menu-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .action-card,.create-card,.join-card { width: 100%; min-width: 0; min-height: auto; padding: 18px 0; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; background: transparent; border: 0; border-top: 1px solid #ffffff1b; border-radius: 0; box-shadow: none; }
   .action-card > span:nth-child(2) { min-width: 0; }.action-card b { align-self: center; }
@@ -268,7 +270,7 @@ button:disabled { cursor: default; opacity: .42; }
   .mini-brand strong, .game-desk-wordmark { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .game-desk-link { width: 44px; justify-content: center; padding-inline: 0; }
   .welcome-game-desk { left: 12px; }
-  .menu-hero { padding-top: 32px; }.menu-hero h1 { font-size: clamp(2rem, 11vw, 2.65rem); }
+  .menu-hero { padding-top: 28px; }.menu-hero h1 { font-size: 1.8rem; }
   .welcome-meta { display: none; }
   .waiting-screen { padding-top: max(20px, env(safe-area-inset-top)); }
   .game-header-actions { gap: 5px; }.game-help-button { width: 34px; height: 34px; }.turn-clock { gap: 6px; }.turn-clock div { min-width: 70px; }

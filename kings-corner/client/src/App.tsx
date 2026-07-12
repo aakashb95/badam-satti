@@ -9,6 +9,17 @@ import type { Card, ComfortSize, GameState, MovePileAction, PlayCardAction } fro
 
 const SESSION_KEY = 'kings-corner-session';
 const COMFORT_KEY = 'kings-corner-comfort-size';
+const LOBBY_GREETINGS = [
+  { lead: 'Welcome', punctuation: '.' },
+  { lead: 'Ready', punctuation: '?' },
+  { lead: 'Table’s open', punctuation: '.' },
+  { lead: 'All set', punctuation: '?' },
+];
+
+function LobbyGreeting({ name }: { name: string }) {
+  const [greeting] = useState(() => LOBBY_GREETINGS[Math.floor(Math.random() * LOBBY_GREETINGS.length)] || LOBBY_GREETINGS[0]);
+  return <h1>{greeting.lead}, <em>{name}</em>{greeting.punctuation}</h1>;
+}
 
 function useCountdown(deadline: number | null) {
   const [remaining, setRemaining] = useState(10);
@@ -177,8 +188,8 @@ export default function App() {
             <div className="header-actions"><button className="how-to-button" onClick={() => setShowHelp(true)}>How to play</button><button className="change-name" onClick={() => setIdentityConfirmed(false)}>Change name</button></div>
           </header>
           <div className="menu-hero">
-            <p className="eyebrow">Welcome to the table</p>
-            <h1>Good to see you,<br /><em>{name}</em>.</h1>
+            <p className="eyebrow game-lobby-label"><b aria-hidden="true">K♛</b> King’s Corner table</p>
+            <LobbyGreeting name={name} />
             <p>Start a private table or enter the six-character code from your host.</p>
           </div>
           <div className="menu-grid">

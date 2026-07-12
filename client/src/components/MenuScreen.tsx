@@ -11,6 +11,19 @@ interface MenuScreenProps {
   onComfortSizeChange: (size: ComfortSize) => void;
 }
 
+const LOBBY_GREETINGS = [
+  { lead: 'Welcome', punctuation: '.' },
+  { lead: 'Ready', punctuation: '?' },
+  { lead: 'Table’s open', punctuation: '.' },
+  { lead: 'All set', punctuation: '?' },
+];
+
+const LobbyGreeting: React.FC<{ username: string }> = ({ username }) => {
+  const [greeting] = useState(() => LOBBY_GREETINGS[Math.floor(Math.random() * LOBBY_GREETINGS.length)] || LOBBY_GREETINGS[0]);
+
+  return <h2>{greeting.lead}, <span>{username}</span>{greeting.punctuation}</h2>;
+};
+
 const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinRoom, comfortSize, onComfortSizeChange }) => {
   const [roomCode, setRoomCode] = useState('');
   const [showHelpModal, setShowHelpModal] = useState(false);
@@ -40,8 +53,8 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinR
         </header>
 
         <section className="menu-hero">
-          <span className="eyebrow">Welcome to the table</span>
-          <h2>Good to see you,<br /><span>{username}</span>.</h2>
+          <span className="eyebrow game-lobby-label"><b aria-hidden="true">7♥</b> Badam Satti table</span>
+          <LobbyGreeting username={username} />
           <p>Start a private room or enter a six-character invite code.</p>
         </section>
 

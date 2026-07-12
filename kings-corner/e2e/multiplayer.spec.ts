@@ -45,6 +45,14 @@ test('phone menu and animated help stay inside a narrow viewport', async ({ brow
   await page.goto('/kings-corner/');
   await page.getByPlaceholder('Enter your name').fill('Phone Player');
   await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(page.getByText('King’s Corner table')).toBeVisible();
+  const greeting = (await page.locator('.menu-hero h1').innerText()).replace(/\s+/g, ' ').trim();
+  expect([
+    'Welcome, Phone Player.',
+    'Ready, Phone Player?',
+    'Table’s open, Phone Player.',
+    'All set, Phone Player?',
+  ]).toContain(greeting);
 
   const layout = await page.evaluate(() => {
     const codeEntry = document.querySelector('.code-entry')?.getBoundingClientRect();

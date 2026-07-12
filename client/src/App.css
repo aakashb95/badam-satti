@@ -453,10 +453,12 @@ input::placeholder { color: var(--faint); }
 }
 
 /* Menu */
-.menu-hero { padding: clamp(42px, 7vh, 72px) 0 30px; }
-.menu-hero h2 { margin: 10px 0 12px; font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 1.08; }
+.menu-hero { padding: clamp(32px, 5vh, 52px) 0 28px; }
+.menu-hero h2 { max-width: 760px; margin: 11px 0 12px; font-size: clamp(1.8rem, 3.25vw, 2.65rem); line-height: 1.12; overflow-wrap: anywhere; }
 .menu-hero h2 span,
 .results-header h2 span { color: var(--accent); }
+.game-lobby-label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .66rem; font-weight: 600; letter-spacing: .15em; text-transform: uppercase; }
+.game-lobby-label b { color: var(--accent); font-size: .72rem; font-weight: 600; letter-spacing: 0; }
 
 .menu-hero p,
 .waiting-heading p,
@@ -1443,8 +1445,8 @@ button.action-card:hover { background: transparent; transform: none; }
   .welcome-form { max-width: none; }
   .welcome-meta { margin-top: 16px; }
 
-  .menu-hero { padding: 40px 2px 24px; }
-  .menu-hero h2 { font-size: 2.4rem; }
+  .menu-hero { padding: 32px 2px 22px; }
+  .menu-hero h2 { font-size: clamp(1.75rem, 8vw, 2.15rem); }
   .menu-grid { grid-template-columns: 1fr; }
   .action-card { min-height: auto; padding: 18px 0; border-radius: 0; }
   .app-footer { padding: 26px 0 8px; gap: 10px; font-size: .52rem; }
@@ -1556,7 +1558,7 @@ button.action-card:hover { background: transparent; transform: none; }
   .icon-submit { width: 40px; height: 40px; }
   .welcome-meta { display: none; }
   .mini-brand > span:last-child { display: none; }
-  .menu-hero h2,
+  .menu-hero h2 { font-size: 1.8rem; }
   .waiting-heading h2 { font-size: 2rem; }
   .app-footer { justify-content: space-between; gap: 3px; }
   .room-code-display { gap: 4px; }
