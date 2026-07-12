@@ -209,7 +209,22 @@ class KingsCornerGame {
   suggestedActions() {
     const handActions = this.handActions();
     const pileActions = this.pileActions({ unseenOnly: true, progressiveOnly: true });
-    return [...handActions, ...pileActions];
+    const actions = [...handActions, ...pileActions];
+    if (actions.length === 0) return [];
+
+    const score = (action) => {
+      const target = this.piles[action.targetPileId];
+      const opensCorner = action.type === 'play_card'
+        ? action.card.rank === 13 && target.length === 0 && CORNERS.includes(action.targetPileId)
+        : this.piles[action.sourcePileId][0]?.rank === 13 && target.length === 0 && CORNERS.includes(action.targetPileId);
+      if (opensCorner) return action.type === 'play_card' ? 500 : 450;
+      if (action.type === 'play_card' && target.length > 0) return 400 + action.card.rank;
+      if (action.type === 'move_pile' && target.length > 0) return 300 + this.piles[action.sourcePileId].length;
+      if (action.type === 'play_card') return 200 + action.card.rank;
+      return 100;
+    };
+
+    return [actions.reduce((best, action) => score(action) > score(best) ? action : best)];
   }
 
   playCard(playerId, card, targetPileId, automatic = false) {

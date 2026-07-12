@@ -8,7 +8,7 @@ const { KingsCornerGame } = require('./game');
 
 const PORT = Number(process.env.PORT || 5100);
 const HOST = process.env.HOST || '0.0.0.0';
-const AUTO_ACTION_MS = Number(process.env.AUTO_ACTION_MS || 10_000);
+const AUTO_ACTION_MS = Number(process.env.AUTO_ACTION_MS || 20_000);
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { path: '/kings-corner/socket.io', cors: { origin: true, credentials: true }, pingTimeout: 120_000 });

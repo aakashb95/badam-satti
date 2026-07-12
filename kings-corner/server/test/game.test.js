@@ -71,6 +71,18 @@ test('a king pile on the main board is suggested into an empty corner', () => {
   });
 });
 
+test('only the most helpful legal action is promoted', () => {
+  const game = startedGame();
+  game.players[0].hand = [card(7, 'clubs'), card(12, 'hearts')];
+  game.piles.north = [];
+  const suggestions = game.suggestedActions();
+  assert.equal(suggestions.length, 1);
+  assert.deepEqual(suggestions[0], {
+    type: 'play_card', card: card(12, 'hearts'), targetPileId: 'north',
+  });
+  assert.equal(game.handActions().length > suggestions.length, true);
+});
+
 test('a king anchored in a corner can never move back to the main board', () => {
   const game = startedGame();
   game.piles.north = [];

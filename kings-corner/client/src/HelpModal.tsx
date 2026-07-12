@@ -36,7 +36,7 @@ export default function HelpModal({ open, onClose, comfortSize, onComfortSizeCha
           <div><span>01</span><section><h3>Clear your hand</h3><p>First player with no cards wins the table.</p></section></div>
           <div><span>02</span><section><h3>Build down, swap colours</h3><p>Put a black Jack on a red Queen, a red Ten on a black Jack, and so on.</p></section></div>
           <div><span>03</span><section><h3>Move complete piles</h3><p>Glowing piles can move as one sequence. Kings always stay in corners.</p></section></div>
-          <div><span>04</span><section><h3>Keep playing</h3><p>Make every useful move, then finish your turn. Inactivity triggers one move every 10 seconds.</p></section></div>
+          <div><span>04</span><section><h3>Keep playing</h3><p>Make every useful move, then finish your turn. Inactivity triggers one move every 20 seconds.</p></section></div>
         </div>
         <button className="help-done" onClick={onClose}>Okay, let’s play</button>
       </section>

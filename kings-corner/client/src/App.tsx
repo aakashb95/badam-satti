@@ -22,9 +22,9 @@ function LobbyGreeting({ name }: { name: string }) {
 }
 
 function useCountdown(deadline: number | null) {
-  const [remaining, setRemaining] = useState(10);
+  const [remaining, setRemaining] = useState(20);
   useEffect(() => {
-    const update = () => setRemaining(deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 1000)) : 10);
+    const update = () => setRemaining(deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 1000)) : 20);
     update();
     const timer = window.setInterval(update, 200);
     return () => window.clearInterval(timer);
@@ -136,12 +136,21 @@ export default function App() {
     });
   };
 
-  const cardSuggestion = useMemo(() => {
+  const playableCards = useMemo(() => {
     const map = new Map<string, PlayCardAction>();
+    state?.handActions.forEach((action) => {
+      const key = `${action.card.rank}:${action.card.suit}`;
+      if (!map.has(key)) map.set(key, action);
+    });
     state?.suggestedActions.forEach((action) => {
       if (action.type === 'play_card') map.set(`${action.card.rank}:${action.card.suit}`, action);
     });
     return map;
+  }, [state?.handActions, state?.suggestedActions]);
+
+  const recommendedCardKey = useMemo(() => {
+    const action = state?.suggestedActions.find((item): item is PlayCardAction => item.type === 'play_card');
+    return action ? `${action.card.rank}:${action.card.suit}` : null;
   }, [state?.suggestedActions]);
 
   const automaticAction = typeof state?.lastAction?.type === 'string' && state.lastAction.type.startsWith('auto_');
@@ -190,17 +199,17 @@ export default function App() {
           <div className="menu-hero">
             <p className="eyebrow game-lobby-label"><b aria-hidden="true">K♛</b> King’s Corner table</p>
             <LobbyGreeting name={name} />
-            <p>Start a private table or enter the six-character code from your host.</p>
+            <p>Choose one: host a new table, or join using a code someone sent you.</p>
           </div>
           <div className="menu-grid">
             <button className="action-card create-card" onClick={createRoom} disabled={!connected}>
               <span className="action-icon">＋</span>
-              <span><strong>Create a table</strong><small>You host and invite everyone</small></span>
+              <span><strong>Host a new table</strong><small>Choose this to create a fresh invite code</small></span>
               <b>→</b>
             </button>
             <section className="action-card join-card">
               <span className="action-icon">⌁</span>
-              <span><strong>Join a table</strong><small>Enter the code from your host</small></span>
+              <span><strong>I have an invite code</strong><small>Use the six characters your host sent you</small></span>
               <div className="code-entry">
                 <input
                   aria-label="Room code"
@@ -209,9 +218,9 @@ export default function App() {
                   autoComplete="off"
                   onChange={(event) => setRoomCode(event.target.value.toUpperCase())}
                   onKeyDown={(event) => { if (event.key === 'Enter' && roomCode.length === 6) joinRoom(); }}
-                  placeholder="ABC123"
+                  placeholder="ENTER CODE"
                 />
-                <button onClick={joinRoom} disabled={!connected || roomCode.length !== 6}>Join</button>
+                <button onClick={joinRoom} disabled={!connected || roomCode.length !== 6}>Join table</button>
               </div>
             </section>
           </div>
@@ -280,12 +289,14 @@ export default function App() {
       <aside className="players-strip">{state.players.map((player) => <div key={player.name} className={player.name === state.currentPlayerName ? 'current' : ''}><span>{player.name.slice(0, 1)}</span><strong>{player.name}</strong><small>{player.cardCount}</small>{player.isDealer && <i>D</i>}</div>)}</aside>
       <GameBoard state={state} onMovePile={movePile} />
       <section className="hand-area">
-        <div className="hand-heading"><div><p className="eyebrow">Your hand</p><strong>{state.myHand.length} cards</strong></div>{state.isMyTurn && <button className={`finish-turn ${state.suggestedActions.length === 0 ? 'ready' : ''}`} onClick={() => socketRef.current?.emit('end_turn')}>{state.suggestedActions.length === 0 ? 'No moves left · Finish turn' : 'Finish turn'} <span>→</span></button>}</div>
-        <div className="hand-cards">{state.myHand.map((card: Card, index) => {
-          const suggestion = cardSuggestion.get(`${card.rank}:${card.suit}`);
-          return <CardView key={`${card.rank}-${card.suit}`} card={card} className={suggestion ? 'suggested' : ''} onClick={suggestion ? () => playCard(suggestion) : undefined} label={suggestion ? `Play suggested ${card.rank} of ${card.suit}` : undefined} />;
+        <div className="hand-heading"><div><p className="eyebrow">Your hand</p><strong>{state.myHand.length} cards</strong></div>{state.isMyTurn && <button className={`finish-turn ${state.handActions.length === 0 && state.pileActions.length === 0 ? 'ready' : ''}`} onClick={() => socketRef.current?.emit('end_turn')}>{state.handActions.length === 0 && state.pileActions.length === 0 ? 'No moves left · Finish turn' : 'Finish turn'} <span>→</span></button>}</div>
+        <div className="hand-cards">{state.myHand.map((card: Card) => {
+          const key = `${card.rank}:${card.suit}`;
+          const action = playableCards.get(key);
+          const recommended = recommendedCardKey === key;
+          return <span className={`hand-card-wrap ${recommended ? 'recommended' : ''}`} key={`${card.rank}-${card.suit}`}>{recommended && <span className="best-move-arrow" aria-hidden="true">↓</span>}<CardView card={card} className={`${action ? 'playable' : ''} ${recommended ? 'suggested' : ''}`} onClick={action ? () => playCard(action) : undefined} label={action ? `Play ${card.rank} of ${card.suit}` : undefined} /></span>;
         })}</div>
-        {state.isMyTurn && <p className={`action-note ${state.suggestedActions.length === 0 ? 'ready' : ''}`}>{state.suggestedActions.length === 0 ? 'You’re done here — finish your turn.' : 'Glowing cards and piles are suggested moves. Tap one to play it instantly.'}</p>}
+        {state.isMyTurn && <p className={`action-note ${state.handActions.length === 0 && state.pileActions.length === 0 ? 'ready' : ''}`}>{state.handActions.length === 0 && state.pileActions.length === 0 ? 'You’re done here — finish your turn.' : 'The arrow marks a helpful move. Other playable cards and piles remain tappable.'}</p>}
       </section>
     </main>
     <HelpModal open={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={setComfortSize} onReturnToGameDesk={returnToGameDesk} />

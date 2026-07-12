@@ -55,15 +55,15 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinR
         <section className="menu-hero">
           <span className="eyebrow game-lobby-label"><b aria-hidden="true">7♥</b> Badam Satti table</span>
           <LobbyGreeting username={username} />
-          <p>Start a private room or enter a six-character invite code.</p>
+          <p>Choose one: host a new room, or join using a code someone sent you.</p>
         </section>
 
         <div className="menu-grid">
           <button className="action-card action-card-primary" onClick={onCreateRoom}>
             <span className="action-card-icon">＋</span>
             <span className="action-card-copy">
-              <strong>Create a room</strong>
-              <small>You set the table and invite everyone</small>
+              <strong>Host a new room</strong>
+              <small>Choose this to create a fresh invite code</small>
             </span>
             <span className="action-card-arrow">→</span>
           </button>
@@ -71,8 +71,8 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinR
           <section className="action-card join-card">
             <span className="action-card-icon">⌁</span>
             <div className="action-card-copy">
-              <strong>Join a room</strong>
-              <small>Enter the code from your host</small>
+              <strong>I have an invite code</strong>
+              <small>Use the six characters your host sent you</small>
             </div>
             <div className="code-entry">
               <input
@@ -81,12 +81,12 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinR
                 value={roomCode}
                 onChange={handleRoomCodeChange}
                 onKeyDown={handleKeyPress}
-                placeholder="ABC123"
+                placeholder="ENTER CODE"
                 maxLength={6}
                 autoComplete="off"
                 inputMode="text"
               />
-              <button className="code-submit" onClick={handleJoinRoom} disabled={roomCode.length !== 6}>Join</button>
+              <button className="code-submit" onClick={handleJoinRoom} disabled={roomCode.length !== 6}>Join room</button>
             </div>
           </section>
         </div>
