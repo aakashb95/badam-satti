@@ -1579,8 +1579,8 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 }
 
 @media (max-width: 420px) {
-  .game-desk-wordmark { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .game-desk-link { width: 44px; justify-content: center; padding-inline: 0; }
+  .game-desk-link { width: auto; justify-content: flex-start; padding-inline: 2px; }
+  .game-desk-wordmark { font-size: .54rem; letter-spacing: .08em; }
   .welcome-game-desk { left: 12px; }
 }
 

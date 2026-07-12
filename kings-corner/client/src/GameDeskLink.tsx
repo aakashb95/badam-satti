@@ -22,9 +22,9 @@ export default function GameDeskLink({ onBeforeNavigate, className = '' }: Props
   };
 
   return (
-    <a className={`game-desk-link ${className}`.trim()} href="/" aria-label="Game Desk — choose a game" aria-busy={isLeaving || undefined} onClick={handleClick}>
+    <a className={`game-desk-link ${className}`.trim()} href="/" aria-label="Main menu — choose a game" aria-busy={isLeaving || undefined} onClick={handleClick}>
       <span className="game-desk-mark" aria-hidden="true">♣</span>
-      <span className="game-desk-wordmark">Game Desk</span>
+      <span className="game-desk-wordmark">Main menu</span>
     </a>
   );
 }

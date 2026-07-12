@@ -40,7 +40,7 @@ test('two players create, join, and begin a game', async ({ browser }) => {
   // The server, rather than either browser, must take one action after the inactivity window.
   await expect(host.getByText('Automatic move')).toBeVisible({ timeout: 22_000 });
 
-  await guest.getByRole('link', { name: 'Game Desk — choose a game' }).click();
+  await guest.getByRole('link', { name: 'Main menu — choose a game' }).click();
   await expect(guest).toHaveURL(/\/$/);
   await expect(host.getByRole('heading', { name: 'Aakash rules the table.' })).toBeVisible();
   await expect(host.getByText('Maya')).toHaveCount(0);
@@ -92,7 +92,7 @@ test('phone menu and animated help stay inside a narrow viewport', async ({ brow
   await context.close();
 });
 
-test('Game Desk identity remains usable at 320px with large comfort text', async ({ browser }) => {
+test('Main menu identity remains usable at 320px with large comfort text', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 320, height: 568 }, hasTouch: true });
   const page = await context.newPage();
   await page.goto('/kings-corner/');
