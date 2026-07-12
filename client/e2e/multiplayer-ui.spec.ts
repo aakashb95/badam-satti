@@ -67,6 +67,7 @@ async function expectGameLayoutStable(page: Page, label: string) {
 
     const rects = {
       top: rectOf('.game-top-bar'),
+      desk: rectOf('.game-desk-link'),
       players: rectOf('.table-players'),
       board: rectOf('.game-board'),
       hand: rectOf('.hand-dock'),
@@ -92,6 +93,7 @@ async function expectGameLayoutStable(page: Page, label: string) {
         keyPiecesVisible: Object.values(rects).every((rect) => rect?.visible),
         noHorizontalOverflow: viewport.scrollWidth <= viewport.width + 1,
         noTopPlayersOverlap: !intersects(rects.top, rects.players),
+        deskHasTouchTarget: Boolean(rects.desk && rects.desk.width >= 44 && rects.desk.height >= 38),
         noBoardHandOverlap: !intersects(rects.board, rects.hand),
         offscreen,
       },
@@ -101,6 +103,7 @@ async function expectGameLayoutStable(page: Page, label: string) {
   expect(result.checks.keyPiecesVisible, `${label}: key game pieces should be visible`).toBe(true);
   expect(result.checks.noHorizontalOverflow, `${label}: no horizontal overflow`).toBe(true);
   expect(result.checks.noTopPlayersOverlap, `${label}: top bar should not overlap players`).toBe(true);
+  expect(result.checks.deskHasTouchTarget, `${label}: Game Desk should retain a usable touch target`).toBe(true);
   expect(result.checks.noBoardHandOverlap, `${label}: board should not overlap hand`).toBe(true);
   expect(result.checks.offscreen, `${label}: key pieces should stay onscreen`).toEqual([]);
 }
@@ -147,6 +150,10 @@ test('four-player game renders and starts across responsive viewports', async ({
     await expectNoThemeToggle(playerPage);
     await expectGameLayoutStable(playerPage, `${testInfo.project.name}:player-${index + 1}`);
   }
+
+  await extraPlayers[0].page.getByRole('link', { name: 'Game Desk — choose a game' }).click();
+  await expect(extraPlayers[0].page).toHaveURL(/\/$/);
+  await expect(page.locator('.table-player')).toHaveCount(PLAYERS.length - 1);
 
   await Promise.all(extraPlayers.map((player) => player.context.close()));
 });

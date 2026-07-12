@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import HelpModal from './HelpModal';
 import { ComfortSize } from '../types';
+import GameDeskLink from './GameDeskLink';
 
 interface MenuScreenProps {
   username: string;
@@ -32,7 +33,7 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinR
     <main className="screen lobby-screen">
       <div className="app-shell menu-shell">
         <header className="app-header">
-          <div className="mini-brand"><span className="brand-mark">7<span>♥</span></span><span>Badam Satti</span></div>
+          <GameDeskLink />
           <div className="header-actions">
             <button className="quiet-button" onClick={() => setShowHelpModal(true)}>How to play</button>
           </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import GameDeskLink from './GameDeskLink';
 
 interface LoginScreenProps {
   onContinue: (username: string) => void;
@@ -43,6 +44,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue }) => {
     <main className="screen welcome-screen">
       <div className="welcome-shell">
         <section className="welcome-copy">
+          <GameDeskLink className="welcome-game-desk" />
           <div className="brand-lockup">
             <span className="brand-mark">7<span>♥</span></span>
             <div className="brand-title">

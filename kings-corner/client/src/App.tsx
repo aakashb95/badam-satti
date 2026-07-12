@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import CardView from './CardView';
 import GameBoard from './GameBoard';
+import GameDeskLink from './GameDeskLink';
 import HelpModal from './HelpModal';
 import ResultsScreen from './ResultsScreen';
 import type { Card, ComfortSize, GameState, MovePileAction, PlayCardAction } from './types';
@@ -99,6 +100,30 @@ export default function App() {
     setError('');
     setIdentityConfirmed(true);
   };
+  const returnToGameDesk = (): Promise<void> => {
+    const socket = socketRef.current;
+    if (!socket) return Promise.resolve();
+
+    return new Promise((resolve) => {
+      let settled = false;
+      let timeoutId = 0;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeoutId);
+        socket.off('connect', leave);
+        window.localStorage.removeItem(SESSION_KEY);
+        resolve();
+      };
+      const leave = () => socket.emit('leave_room', finish);
+      timeoutId = window.setTimeout(finish, 1800);
+      if (socket.connected) leave();
+      else {
+        socket.once('connect', leave);
+        socket.connect();
+      }
+    });
+  };
 
   const cardSuggestion = useMemo(() => {
     const map = new Map<string, PlayCardAction>();
@@ -116,6 +141,7 @@ export default function App() {
       return (
         <main className="shell welcome-screen">
           <section className="welcome-card">
+            <GameDeskLink className="welcome-game-desk" />
             <div className="brand-lockup">
               <div className="brand-mark" aria-hidden="true"><span>K</span><i>♛</i></div>
               <div><h1>King’s Corner</h1><p className="eyebrow">The classic table game</p></div>
@@ -147,7 +173,7 @@ export default function App() {
       <main className="shell menu-screen">
         <section className="menu-shell">
           <header className="menu-header">
-            <div className="mini-brand"><span>K</span><strong>King’s Corner</strong></div>
+            <GameDeskLink />
             <div className="header-actions"><button className="how-to-button" onClick={() => setShowHelp(true)}>How to play</button><button className="change-name" onClick={() => setIdentityConfirmed(false)}>Change name</button></div>
           </header>
           <div className="menu-hero">
@@ -181,7 +207,7 @@ export default function App() {
           {error && <p role="alert" className="error">{error}</p>}
         </section>
       </main>
-      <HelpModal open={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={setComfortSize} />
+      <HelpModal open={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={setComfortSize} onReturnToGameDesk={returnToGameDesk} />
       {connectionBanner}
     </>);
   }
@@ -192,7 +218,7 @@ export default function App() {
       <main className="shell waiting-screen">
         <section className="waiting-shell">
           <header className="menu-header">
-            <div className="mini-brand"><span>K</span><strong>King’s Corner</strong></div>
+            <GameDeskLink onBeforeNavigate={returnToGameDesk} />
             <div className="header-actions"><button className="how-to-button" onClick={() => setShowHelp(true)}>How to play</button><button className="change-name danger" onClick={returnToLobby}>Leave room</button></div>
           </header>
           <div className="waiting-heading">
@@ -224,19 +250,19 @@ export default function App() {
           {error && <p role="alert" className="error">{error}</p>}
         </section>
       </main>
-      <HelpModal open={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={setComfortSize} />
+      <HelpModal open={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={setComfortSize} onReturnToGameDesk={returnToGameDesk} />
       {connectionBanner}
     </>);
   }
 
   if (state.finished) {
-    return <><ResultsScreen state={state} username={name} showingDelay={showingResultDelay} onRestart={() => socketRef.current?.emit('restart_game')} onReturnToLobby={returnToLobby} />{connectionBanner}</>;
+    return <><ResultsScreen state={state} username={name} showingDelay={showingResultDelay} onRestart={() => socketRef.current?.emit('restart_game')} onReturnToLobby={returnToLobby} onReturnToGameDesk={returnToGameDesk} />{connectionBanner}</>;
   }
 
   return (<>
     <main className="game-shell">
       <header className="game-header">
-        <div><p className="eyebrow">Room {state.roomCode}</p><h2>King’s Corner</h2></div>
+        <div className="game-header-identity"><GameDeskLink onBeforeNavigate={returnToGameDesk} /><div><p className="eyebrow">Room {state.roomCode}</p><h2>King’s Corner</h2></div></div>
         <div className="game-header-actions"><button className="game-help-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button><div className={`turn-clock ${state.isMyTurn ? 'active' : ''}`}><span>{countdown}</span><div><strong>{state.isMyTurn ? 'Your turn' : state.currentPlayerName}</strong><small>{state.isMyTurn ? 'Auto move in seconds' : 'is playing'}</small></div></div></div>
       </header>
       {automaticAction && <div className="last-action" role="status"><span>✦</span> Automatic move <small>{String(state.lastAction?.playerName || '')}</small></div>}
@@ -251,7 +277,7 @@ export default function App() {
         {state.isMyTurn && <p className={`action-note ${state.suggestedActions.length === 0 ? 'ready' : ''}`}>{state.suggestedActions.length === 0 ? 'You’re done here — finish your turn.' : 'Glowing cards and piles are suggested moves. Tap one to play it instantly.'}</p>}
       </section>
     </main>
-    <HelpModal open={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={setComfortSize} />
+    <HelpModal open={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={setComfortSize} onReturnToGameDesk={returnToGameDesk} />
     {connectionBanner}
   </>);
 }

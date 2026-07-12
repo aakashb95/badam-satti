@@ -1,5 +1,6 @@
 import React from 'react';
 import { Winner, Card } from '../types';
+import GameDeskLink from './GameDeskLink';
 
 interface GameOverScreenProps {
   winner: Winner | null;
@@ -7,11 +8,12 @@ interface GameOverScreenProps {
   onExitGame: () => void;
   showingDelay: boolean;
   canContinueRound: boolean;
+  onReturnToGameDesk: () => Promise<void>;
 }
 
 const CARD_ASSET_VERSION = 'v6';
 
-const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound, onExitGame, showingDelay, canContinueRound }) => {
+const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound, onExitGame, showingDelay, canContinueRound, onReturnToGameDesk }) => {
   const getRankDisplay = (rank: number): string => {
     if (rank === 1) return 'A';
     if (rank === 11) return 'J';
@@ -51,6 +53,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound
     return (
       <main className="screen results-reveal-screen">
         <div className="results-reveal">
+          <GameDeskLink onBeforeNavigate={onReturnToGameDesk} className="results-game-desk" />
           <span className="eyebrow">Round complete</span>
           <div className="game-over-delay">
             <div className="reveal-seven">7<span>♥</span></div>
@@ -70,6 +73,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound
   return (
     <main className="screen results-screen">
       <div className="app-shell results-shell">
+        <GameDeskLink onBeforeNavigate={onReturnToGameDesk} className="results-game-desk" />
         <header className="results-header">
           <span className="eyebrow">Round results</span>
           <h2><span>{winner?.winner}</span> takes the round.</h2>

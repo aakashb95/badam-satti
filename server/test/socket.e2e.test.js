@@ -178,11 +178,12 @@ test('explicit waiting-room leave removes the player immediately', async (t) => 
 
   const hostSawLeave = once(host, 'player_disconnected');
   const guestLeft = once(guest, 'left_room');
-  guest.emit('leave_room');
-  const [leaveEvent] = await Promise.all([hostSawLeave, guestLeft]);
+  const acknowledgement = guest.timeout(2000).emitWithAck('leave_room');
+  const [leaveEvent, , leaveResult] = await Promise.all([hostSawLeave, guestLeft, acknowledgement]);
 
   assert.deepEqual(leaveEvent.gameState.players.map((player) => player.name), ['Host']);
   assert.equal(leaveEvent.gameState.players[0].connected, true);
+  assert.deepEqual(leaveResult, { ok: true });
 });
 
 test('waiting-room reconnect restores the same player on a new socket', async (t) => {
@@ -237,8 +238,8 @@ test('explicit active-game leave redistributes cards without waiting for disconn
   const redistributed = once(host, 'cards_redistributed');
   const playerRemoved = once(host, 'player_disconnected');
   const guestLeft = once(guest, 'left_room');
-  guest.emit('leave_room');
-  const [, removedEvent] = await Promise.all([redistributed, playerRemoved, guestLeft]);
+  const acknowledgement = guest.timeout(2000).emitWithAck('leave_room');
+  const [, removedEvent, , leaveResult] = await Promise.all([redistributed, playerRemoved, guestLeft, acknowledgement]);
 
   const names = removedEvent.gameState.players.map((player) => player.name);
   const remainingCards = removedEvent.gameState.players.reduce((total, player) => total + player.cardCount, 0);
@@ -246,6 +247,7 @@ test('explicit active-game leave redistributes cards without waiting for disconn
   assert.deepEqual(names, ['Host', 'Third']);
   assert.equal(remainingCards, 51);
   assert.equal(removedEvent.gameState.players.every((player) => player.connected), true);
+  assert.deepEqual(leaveResult, { ok: true });
 });
 
 test('plays a complete round across four sockets with synchronized turns', async (t) => {

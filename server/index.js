@@ -966,9 +966,10 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("leave_room", async () => {
+  socket.on("leave_room", async (acknowledge) => {
     if (!currentRoom) {
       socket.emit("left_room");
+      if (typeof acknowledge === "function") acknowledge({ ok: true });
       return;
     }
 
@@ -990,9 +991,11 @@ io.on("connection", (socket) => {
       });
 
       socket.emit("left_room");
+      if (typeof acknowledge === "function") acknowledge({ ok: true });
     } catch (error) {
       console.error("Error leaving room:", error);
       socket.emit("error", "Failed to leave room");
+      if (typeof acknowledge === "function") acknowledge({ ok: false });
     }
   });
 

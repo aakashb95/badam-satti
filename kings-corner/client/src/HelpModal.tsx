@@ -1,13 +1,15 @@
 import type { ComfortSize } from './types';
+import GameDeskLink from './GameDeskLink';
 
-interface Props { open: boolean; onClose: () => void; comfortSize: ComfortSize; onComfortSizeChange: (size: ComfortSize) => void }
+interface Props { open: boolean; onClose: () => void; comfortSize: ComfortSize; onComfortSizeChange: (size: ComfortSize) => void; onReturnToGameDesk?: () => Promise<void> }
 
-export default function HelpModal({ open, onClose, comfortSize, onComfortSizeChange }: Props) {
+export default function HelpModal({ open, onClose, comfortSize, onComfortSizeChange, onReturnToGameDesk }: Props) {
   if (!open) return null;
 
   return (
     <div className="help-overlay" onClick={onClose} role="presentation">
       <section className="help-dialog" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <GameDeskLink onBeforeNavigate={onReturnToGameDesk} className="help-game-desk" />
         <header className="help-header">
           <div><p className="eyebrow">Tiny guide</p><h2 id="help-title">How to play</h2></div>
           <button onClick={onClose} aria-label="Close help">×</button>

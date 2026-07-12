@@ -30,6 +30,11 @@ test('two players create, join, and begin a game', async ({ browser }) => {
   // The server, rather than either browser, must take one action after 10 seconds.
   await expect(host.getByText('Automatic move')).toBeVisible({ timeout: 12_000 });
 
+  await guest.getByRole('link', { name: 'Game Desk — choose a game' }).click();
+  await expect(guest).toHaveURL(/\/$/);
+  await expect(host.getByRole('heading', { name: 'Aakash rules the table.' })).toBeVisible();
+  await expect(host.getByText('Maya')).toHaveCount(0);
+
   await hostContext.close();
   await guestContext.close();
 });
@@ -66,6 +71,26 @@ test('phone menu and animated help stay inside a narrow viewport', async ({ brow
   await context.close();
 });
 
+test('Game Desk identity remains usable at 320px with large comfort text', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 320, height: 568 }, hasTouch: true });
+  const page = await context.newPage();
+  await page.goto('/kings-corner/');
+  await page.getByPlaceholder('Enter your name').fill('Small Phone');
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'How to play' }).click();
+  await page.getByRole('button', { name: 'A++' }).click();
+  await page.getByRole('button', { name: 'Okay, let’s play' }).click();
+
+  const layout = await page.evaluate(() => {
+    const link = document.querySelector('.game-desk-link')?.getBoundingClientRect();
+    return { bodyWidth: document.body.scrollWidth, viewportWidth: innerWidth, linkWidth: link?.width || 0, linkHeight: link?.height || 0 };
+  });
+  expect(layout.bodyWidth).toBeLessThanOrEqual(layout.viewportWidth);
+  expect(layout.linkWidth).toBeGreaterThanOrEqual(44);
+  expect(layout.linkHeight).toBeGreaterThanOrEqual(44);
+  await context.close();
+});
+
 test('phone landscape gameplay fits while card images load slowly', async ({ browser }) => {
   const hostContext = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true });
   const guestContext = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true });
@@ -96,6 +121,8 @@ test('phone landscape gameplay fits while card images load slowly', async ({ bro
   const layout = await host.evaluate(() => {
     const board = document.querySelector('.tableau')?.getBoundingClientRect();
     const hand = document.querySelector('.hand-area')?.getBoundingClientRect();
+    const desk = document.querySelector('.game-desk-link')?.getBoundingClientRect();
+    const clock = document.querySelector('.turn-clock')?.getBoundingClientRect();
     return {
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
@@ -103,12 +130,15 @@ test('phone landscape gameplay fits while card images load slowly', async ({ bro
       bodyHeight: document.body.scrollHeight,
       boardHeight: board?.height || 0,
       handBottom: hand?.bottom || 0,
+      deskRight: desk?.right || 0,
+      clockLeft: clock?.left || 0,
     };
   });
   expect(layout.bodyWidth).toBeLessThanOrEqual(layout.viewportWidth);
   expect(layout.bodyHeight).toBeLessThanOrEqual(layout.viewportHeight);
   expect(layout.boardHeight).toBeGreaterThan(150);
   expect(layout.handBottom).toBeLessThanOrEqual(layout.viewportHeight);
+  expect(layout.deskRight).toBeLessThanOrEqual(layout.clockLeft);
   await hostContext.close();
   await guestContext.close();
 });

@@ -18,8 +18,9 @@ describe('ResultsScreen', () => {
   it('shows Badam-style standings, replay, and return controls to the host', () => {
     const onRestart = vi.fn();
     const onReturn = vi.fn();
-    render(<ResultsScreen state={state} username="Aakash" showingDelay={false} onRestart={onRestart} onReturnToLobby={onReturn} />);
+    render(<ResultsScreen state={state} username="Aakash" showingDelay={false} onRestart={onRestart} onReturnToLobby={onReturn} onReturnToGameDesk={vi.fn()} />);
     expect(screen.getByRole('heading', { name: 'Aakash rules the table.' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Game Desk — choose a game' })).toHaveAttribute('href', '/');
     screen.getByRole('button', { name: 'Play again →' }).click();
     screen.getByRole('button', { name: 'Return to lobby' }).click();
     expect(onRestart).toHaveBeenCalledOnce();
@@ -27,7 +28,7 @@ describe('ResultsScreen', () => {
   });
 
   it('shows the counting reveal before standings', () => {
-    render(<ResultsScreen state={state} username="Maya" showingDelay onRestart={vi.fn()} onReturnToLobby={vi.fn()} />);
+    render(<ResultsScreen state={state} username="Maya" showingDelay onRestart={vi.fn()} onReturnToLobby={vi.fn()} onReturnToGameDesk={vi.fn()} />);
     expect(screen.getByRole('heading', { name: 'Cards down.' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Return to lobby' })).not.toBeInTheDocument();
   });

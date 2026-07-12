@@ -1,4 +1,5 @@
 import type { GameState } from './types';
+import GameDeskLink from './GameDeskLink';
 
 interface Props {
   state: GameState;
@@ -6,11 +7,12 @@ interface Props {
   showingDelay: boolean;
   onRestart: () => void;
   onReturnToLobby: () => void;
+  onReturnToGameDesk: () => Promise<void>;
 }
 
-export default function ResultsScreen({ state, username, showingDelay, onRestart, onReturnToLobby }: Props) {
+export default function ResultsScreen({ state, username, showingDelay, onRestart, onReturnToLobby, onReturnToGameDesk }: Props) {
   if (showingDelay) {
-    return <main className="shell results-reveal-screen"><div className="results-reveal"><p className="eyebrow">Game complete</p><div className="reveal-card"><span>K</span><i>♛</i></div><h1>Cards down.</h1><p>Counting the table</p><div className="loading-dots"><span /><span /><span /></div></div></main>;
+    return <main className="shell results-reveal-screen"><div className="results-reveal"><GameDeskLink onBeforeNavigate={onReturnToGameDesk} className="results-game-desk" /><p className="eyebrow">Game complete</p><div className="reveal-card"><span>K</span><i>♛</i></div><h1>Cards down.</h1><p>Counting the table</p><div className="loading-dots"><span /><span /><span /></div></div></main>;
   }
 
   const won = state.winnerName === username;
@@ -24,6 +26,7 @@ export default function ResultsScreen({ state, username, showingDelay, onRestart
   return (
     <main className="shell results-screen">
       <section className="results-shell">
+        <GameDeskLink onBeforeNavigate={onReturnToGameDesk} className="results-game-desk" />
         <header className="results-header">
           {won && <div className="winner-confetti" aria-hidden="true">{Array.from({ length: 14 }, (_, index) => <span key={index} />)}</div>}
           <p className="eyebrow">Game results</p>

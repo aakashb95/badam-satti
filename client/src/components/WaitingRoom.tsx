@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { GameState } from '../types';
+import GameDeskLink from './GameDeskLink';
 
 interface WaitingRoomProps {
   roomCode: string;
@@ -8,6 +9,7 @@ interface WaitingRoomProps {
   onStartGame: () => void;
   onLeaveRoom: () => void;
   onShowNotification: (message: string) => void;
+  onReturnToGameDesk: () => Promise<void>;
 }
 
 const WaitingRoom: React.FC<WaitingRoomProps> = ({
@@ -17,6 +19,7 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
   onStartGame,
   onLeaveRoom,
   onShowNotification,
+  onReturnToGameDesk,
 }) => {
   const [lanOrigin, setLanOrigin] = useState<string | null>(null);
 
@@ -52,7 +55,7 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
     <main className="screen waiting-screen">
       <div className="app-shell waiting-shell">
         <header className="app-header">
-          <div className="mini-brand"><span className="brand-mark">7<span>♥</span></span><span>Badam Satti</span></div>
+          <GameDeskLink onBeforeNavigate={onReturnToGameDesk} />
           <div className="header-actions">
             <button className="quiet-button danger-text" onClick={onLeaveRoom}>Leave room</button>
           </div>

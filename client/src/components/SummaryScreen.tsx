@@ -1,20 +1,23 @@
 import React from 'react';
 import { GameSummary } from '../types';
+import GameDeskLink from './GameDeskLink';
 
 interface SummaryScreenProps {
   summary: GameSummary | null;
   username: string;
   onReturnToMenu: () => void;
+  onReturnToGameDesk: () => Promise<void>;
 }
 
 const CONFETTI_PIECES = Array.from({ length: 14 }, (_, index) => index);
 
-const SummaryScreen: React.FC<SummaryScreenProps> = ({ summary, username, onReturnToMenu }) => {
+const SummaryScreen: React.FC<SummaryScreenProps> = ({ summary, username, onReturnToMenu, onReturnToGameDesk }) => {
   const isWinner = Boolean(summary?.winner && summary.winner === username);
 
   return (
     <main className="screen results-screen summary-screen">
       <div className="app-shell results-shell">
+        <GameDeskLink onBeforeNavigate={onReturnToGameDesk} className="results-game-desk" />
         <header className="results-header">
           {isWinner && (
             <div className="winner-confetti" aria-hidden="true">

@@ -1,11 +1,13 @@
 import React from 'react';
 import { ComfortSize } from '../types';
+import GameDeskLink from './GameDeskLink';
 
 interface HelpModalProps {
   isOpen: boolean;
   onClose: () => void;
   comfortSize: ComfortSize;
   onComfortSizeChange: (size: ComfortSize) => void;
+  onReturnToGameDesk?: () => Promise<void>;
 }
 
 const COMFORT_SIZES: ComfortSize[] = ['standard', 'large', 'extra-large'];
@@ -16,7 +18,7 @@ const COMFORT_LABELS: Record<ComfortSize, string> = {
   'extra-large': 'Extra large',
 };
 
-const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, comfortSize, onComfortSizeChange }) => {
+const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, comfortSize, onComfortSizeChange, onReturnToGameDesk }) => {
   if (!isOpen) return null;
 
   const currentIndex = COMFORT_SIZES.indexOf(comfortSize);
@@ -25,6 +27,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, comfortSize, onC
   return (
     <div className="help-modal-overlay" onClick={onClose} role="presentation">
       <section className="help-modal-content" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <GameDeskLink onBeforeNavigate={onReturnToGameDesk} className="help-game-desk" />
         <div className="help-modal-header">
           <div><span className="eyebrow">Tiny guide</span><h3 id="help-title">How to play</h3></div>
           <button className="help-close-btn" onClick={onClose} aria-label="Close help">×</button>

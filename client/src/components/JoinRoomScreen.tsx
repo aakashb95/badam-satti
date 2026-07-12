@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import GameDeskLink from './GameDeskLink';
 
 interface JoinRoomScreenProps {
   roomCode: string;
@@ -39,7 +40,8 @@ const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({ roomCode, onJoinRoom, o
     <main className="screen join-screen">
       <div className="join-shell surface-panel">
         <div className="join-top-actions">
-          <button className="back-link" type="button" onClick={onBackToMenu} disabled={isSubmitting}>← Back</button>
+          <GameDeskLink />
+          <button className="back-link" type="button" onClick={onBackToMenu} disabled={isSubmitting}>Back to Badam 7</button>
         </div>
         <div className="join-brand"><span className="brand-mark">7<span>♥</span></span></div>
         <span className="eyebrow">You’ve been invited</span>

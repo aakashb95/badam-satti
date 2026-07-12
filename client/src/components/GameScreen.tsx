@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, ComfortSize, GameState, Player } from '../types';
 import HelpModal from './HelpModal';
+import GameDeskLink from './GameDeskLink';
 
 interface GameScreenProps {
   gameState: GameState | null;
@@ -14,6 +15,7 @@ interface GameScreenProps {
   onLeaveGame: () => void;
   comfortSize: ComfortSize;
   onComfortSizeChange: (size: ComfortSize) => void;
+  onReturnToGameDesk: () => Promise<void>;
 }
 
 const SUITS: Card['suit'][] = ['hearts', 'diamonds', 'clubs', 'spades'];
@@ -37,6 +39,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
   onLeaveGame,
   comfortSize,
   onComfortSizeChange,
+  onReturnToGameDesk,
 }) => {
   const [timeLeft, setTimeLeft] = useState(20);
   const [showHelp, setShowHelp] = useState(false);
@@ -211,7 +214,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
       <div className="game-shell">
         <header className="game-top-bar">
           <div className="game-brand">
-            <span className="brand-mark">7<span>♥</span></span>
+            <GameDeskLink onBeforeNavigate={onReturnToGameDesk} />
             <div><strong>Badam Satti</strong><small>Round {gameState?.round || 1} of {gameState?.maxRounds || 7}</small></div>
           </div>
 
@@ -232,7 +235,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
         {renderBoard()}
         {renderHand()}
       </div>
-      <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />
+      <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} onReturnToGameDesk={onReturnToGameDesk} />
     </main>
   );
 };

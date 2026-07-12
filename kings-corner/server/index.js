@@ -113,9 +113,12 @@ io.on('connection', (socket) => {
     emitState(room);
     scheduleAutoAction(room);
   });
-  socket.on('leave_room', () => {
+  socket.on('leave_room', (acknowledge) => {
     const room = currentRoom(socket);
-    if (!room) return;
+    if (!room) {
+      if (typeof acknowledge === 'function') acknowledge({ ok: true });
+      return;
+    }
     const removal = room.removePlayer(socket.id);
     socket.leave(room.roomCode);
     socket.data.roomCode = null;
@@ -132,6 +135,7 @@ io.on('connection', (socket) => {
     } else {
       emitState(room);
     }
+    if (typeof acknowledge === 'function') acknowledge({ ok: true });
   });
 
   socket.on('disconnect', () => {

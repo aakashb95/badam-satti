@@ -462,6 +462,32 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
     }));
   }
 
+  function leaveRoomForGameDesk(): Promise<void> {
+    actionPendingRef.current = false;
+    clearAutoPlay();
+    const socket = socketRef.current;
+    if (!socket) return Promise.resolve();
+
+    return new Promise((resolve) => {
+      let settled = false;
+      let timeoutId = 0;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeoutId);
+        socket.off('connect', leave);
+        resolve();
+      };
+      const leave = () => socket.emit('leave_room', finish);
+      timeoutId = window.setTimeout(finish, 1800);
+      if (socket.connected) leave();
+      else {
+        socket.once('connect', leave);
+        socket.connect();
+      }
+    });
+  }
+
   function renderScreen() {
     switch (appState.currentScreen) {
       case 'login':
@@ -469,15 +495,15 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
       case 'menu':
         return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />;
       case 'waiting':
-        return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} />;
+        return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} onReturnToGameDesk={leaveRoomForGameDesk} />;
       case 'game':
-        return <GameScreen gameState={appState.gameState} myCards={appState.myCards} validMoves={appState.validMoves} isMyTurn={appState.isMyTurn} canPass={appState.canPass} username={appState.username} onPlayCard={playCard} onPassTurn={passTurn} onLeaveGame={leaveRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />;
+        return <GameScreen gameState={appState.gameState} myCards={appState.myCards} validMoves={appState.validMoves} isMyTurn={appState.isMyTurn} canPass={appState.canPass} username={appState.username} onPlayCard={playCard} onPassTurn={passTurn} onLeaveGame={leaveRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} onReturnToGameDesk={leaveRoomForGameDesk} />;
       case 'game-over':
-        return <GameOverScreen winner={appState.winner} onContinueRound={() => { showLoading('Starting next round…'); socketRef.current?.emit('continue_round'); }} onExitGame={() => { showLoading('Calculating results…'); socketRef.current?.emit('exit_game'); }} showingDelay={showingGameOverDelay} canContinueRound={Boolean(appState.gameState && appState.gameState.round < appState.gameState.maxRounds)} />;
+        return <GameOverScreen winner={appState.winner} onContinueRound={() => { showLoading('Starting next round…'); socketRef.current?.emit('continue_round'); }} onExitGame={() => { showLoading('Calculating results…'); socketRef.current?.emit('exit_game'); }} showingDelay={showingGameOverDelay} canContinueRound={Boolean(appState.gameState && appState.gameState.round < appState.gameState.maxRounds)} onReturnToGameDesk={leaveRoomForGameDesk} />;
       case 'summary':
-        return <SummaryScreen summary={appState.summary} username={appState.username} onReturnToMenu={leaveRoom} />;
+        return <SummaryScreen summary={appState.summary} username={appState.username} onReturnToMenu={leaveRoom} onReturnToGameDesk={leaveRoomForGameDesk} />;
       case 'loading':
-        return <LoadingScreen message={appState.loading || 'Loading…'} />;
+        return <LoadingScreen message={appState.loading || 'Loading…'} onReturnToGameDesk={leaveRoomForGameDesk} />;
     }
   }
 

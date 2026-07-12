@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import GameDeskLink from './GameDeskLink';
 import { Card, GameBoard } from '../types';
 
 interface SimPlayer {
@@ -234,6 +235,7 @@ const SimulationScreen: React.FC = () => {
     <main className="screen simulation-screen">
       <div className="app-shell simulation-shell">
         <header className="simulation-header">
+          <GameDeskLink />
           <div>
             <span className="eyebrow">Simulation lab</span>
             <h1>Four players. Five-second turns.</h1>
