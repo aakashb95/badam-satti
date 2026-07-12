@@ -12,6 +12,7 @@ const cornerIds = new Set<PileId>(['northWest', 'northEast', 'southEast', 'south
 interface Props { state: GameState; onMovePile: (action: MovePileAction) => void }
 
 export default function GameBoard({ state, onMovePile }: Props) {
+  const recommendedAction = state.suggestedActions[0];
   const actionFor = (pileId: PileId) => state.pileActions.find(
     (action): action is MovePileAction => action.type === 'move_pile' && action.sourcePileId === pileId,
   );
@@ -38,7 +39,7 @@ export default function GameBoard({ state, onMovePile }: Props) {
               { card: cards[cards.length - 1], position: 'top' },
             ];
         return (
-          <div key={pileId} className={`pile pile-${pileId} ${action ? 'pile-playable' : ''} ${recommendation ? 'pile-suggested' : ''}`} data-card-count={cards.length}>
+          <div key={pileId} className={`pile pile-${pileId} ${action ? 'pile-playable' : ''} ${recommendation ? 'pile-suggested' : ''} ${recommendedAction?.targetPileId === pileId ? 'pile-recommended-target' : ''}`} data-card-count={cards.length}>
             <button
               className="pile-hitbox"
               disabled={!action}

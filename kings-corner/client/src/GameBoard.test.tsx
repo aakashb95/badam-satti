@@ -20,6 +20,7 @@ describe('GameBoard', () => {
     expect(container.querySelector('.pile-south .empty-slot')).toHaveTextContent('+');
     expect(container.querySelector('.pile-southWest .empty-slot')).toHaveTextContent('K');
     expect(container.querySelectorAll('.best-move-arrow')).toHaveLength(1);
+    expect(container.querySelector('.pile-east')).toHaveClass('pile-recommended-target');
   });
 
   it('keeps other legal piles tappable without promoting them', () => {
@@ -35,6 +36,7 @@ describe('GameBoard', () => {
     screen.getByRole('button', { name: 'Move East pile to South' }).click();
     expect(onMove).toHaveBeenCalledWith({ type: 'move_pile', sourcePileId: 'east', targetPileId: 'south' });
     expect(container.querySelector('.pile-east')).not.toHaveClass('pile-suggested');
+    expect(container.querySelector('.pile-east')).toHaveClass('pile-playable');
   });
 
   it('renders only the base and playable endpoint for a long pile', () => {
