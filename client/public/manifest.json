@@ -1,7 +1,7 @@
 {
-  "name": "Badam Satti — Card Game",
-  "short_name": "Badam Satti",
-  "description": "Play the classic Indian card game Badam Satti with family and friends online",
+  "name": "Badam 7 — Sevens / Badam Satti",
+  "short_name": "Badam 7",
+  "description": "Play Badam 7, also known as Sevens or Badam Satti, with family and friends online",
   "id": "/badam7/",
   "start_url": "/badam7/",
   "display": "standalone",

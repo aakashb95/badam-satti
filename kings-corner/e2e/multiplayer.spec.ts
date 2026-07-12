@@ -82,9 +82,12 @@ test('phone menu and animated help stay inside a narrow viewport', async ({ brow
 
   await page.getByRole('button', { name: 'How to play' }).click();
   await expect(page.getByRole('dialog', { name: 'How to play' })).toBeVisible();
-  await expect(page.getByText('Move complete piles')).toBeVisible();
+  for (const title of ['Only Kings open a corner', 'Go down. Alternate colours.', 'Move a whole pile together', 'Play all you can, then finish', 'Follow the arrow — or choose', 'Use Finish turn when you’re done']) {
+    await page.getByRole('button', { name: 'Next' }).click();
+    await expect(page.getByText(title)).toBeVisible();
+  }
   await page.getByRole('button', { name: 'A+++', exact: true }).click();
-  await page.getByRole('button', { name: 'Okay, let’s play' }).click();
+  await page.getByRole('button', { name: /Got it/ }).click();
   await expect(page.getByRole('dialog', { name: 'How to play' })).not.toBeVisible();
   const largeTextLayout = await page.evaluate(() => ({ viewportWidth: window.innerWidth, bodyWidth: document.body.scrollWidth, comfortSize: document.documentElement.dataset.comfortSize }));
   expect(largeTextLayout.comfortSize).toBe('maximum');
@@ -99,8 +102,9 @@ test('Main menu identity remains usable at 320px with large comfort text', async
   await page.getByPlaceholder('Enter your name').fill('Small Phone');
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'How to play' }).click();
+  for (let step = 0; step < 6; step += 1) await page.getByRole('button', { name: 'Next' }).click();
   await page.getByRole('button', { name: 'A++', exact: true }).click();
-  await page.getByRole('button', { name: 'Okay, let’s play' }).click();
+  await page.getByRole('button', { name: /Got it/ }).click();
 
   const layout = await page.evaluate(() => {
     const link = document.querySelector('.game-desk-link')?.getBoundingClientRect();

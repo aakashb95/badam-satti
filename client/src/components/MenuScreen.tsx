@@ -53,7 +53,7 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinR
         </header>
 
         <section className="menu-hero">
-          <span className="eyebrow game-lobby-label"><b aria-hidden="true">7♥</b> Badam Satti table</span>
+          <span className="eyebrow game-lobby-label"><b aria-hidden="true">7♥</b> Badam 7 table</span>
           <LobbyGreeting username={username} />
           <p>Choose one: host a new room, or join using a code someone sent you.</p>
         </section>

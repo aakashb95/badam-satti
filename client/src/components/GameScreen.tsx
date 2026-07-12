@@ -256,7 +256,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
         <header className="game-top-bar">
           <div className="game-brand">
             <GameDeskLink onBeforeNavigate={returnToGameDeskSafely} />
-            <div><strong>Badam Satti</strong><small>Round {gameState?.round || 1} of {gameState?.maxRounds || 7}</small></div>
+            <div><strong>Badam 7</strong><small>Round {gameState?.round || 1} of {gameState?.maxRounds || 7}</small></div>
           </div>
 
           <div className={`turn-status ${isMyTurn ? 'is-active' : ''}`}>
