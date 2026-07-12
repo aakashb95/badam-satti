@@ -172,4 +172,5 @@ test('leaving an active two-player game awards the remaining player', () => {
   assert.equal(game.finished, true);
   assert.equal(game.winnerId, 'b');
   assert.equal(game.players[0].name, 'Maya');
+  assert.equal(game.stock.some((item) => item.rank === 7 && item.suit === 'clubs'), true);
 });

@@ -1035,14 +1035,14 @@ io.on("connection", (socket) => {
         if (wasGameStarted) {
           // Active games get a short reconnection window. Mobile Safari and
           // flaky networks can briefly drop sockets during app switches/taps.
-          console.log(`Player ${playerName} disconnected during game - allowing 30s reconnection`);
+          console.log(`Player ${playerName} disconnected during game - allowing 90s reconnection`);
 
           room.setPlayerDisconnected(socket.id);
           if (wasCurrentPlayer && !room.gameFinished) {
             room.nextTurn();
           }
 
-          await db.setPlayerDisconnected(socket.id, true, 0.5);
+          await db.setPlayerDisconnected(socket.id, true, 1.5);
           await db.saveGameRoom(currentRoom, room);
 
           io.to(currentRoom).emit("player_temporarily_disconnected", {
@@ -1071,7 +1071,7 @@ io.on("connection", (socket) => {
             } catch (error) {
               console.error("Error finalizing active disconnect:", error);
             }
-          }, 30000);
+          }, 90000);
           activeDisconnectTimers.set(disconnectTimerKey(disconnectedRoom, disconnectedPlayerId), timer);
         } else {
           // Game hasn't started - allow reconnection

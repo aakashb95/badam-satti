@@ -67,7 +67,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, comfortSize, onC
             <span>A</span>
             <span>A</span>
             <span>A</span>
-            <span>A++++</span>
+            <span>A+++</span>
           </div>
         </div>
         

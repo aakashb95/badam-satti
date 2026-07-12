@@ -30,6 +30,12 @@ test('two players create, join, and begin a game', async ({ browser }) => {
   await expect(host.locator('.game-starter-note')).toContainText('started this game');
   await expect(host.getByRole('button', { name: /Change text size/ })).toBeVisible();
   await expect(host.getByRole('button', { name: 'Leave room' })).toBeVisible();
+  await host.getByRole('button', { name: 'Leave room' }).click();
+  await expect(host.getByRole('dialog', { name: 'Leave this game?' })).toBeVisible();
+  await host.getByRole('button', { name: 'Stay in game' }).click();
+  await host.evaluate(() => window.history.back());
+  await expect(host.getByRole('dialog', { name: 'Leave this game?' })).toBeVisible();
+  await host.getByRole('button', { name: 'Stay in game' }).click();
 
   // The server, rather than either browser, must take one action after the inactivity window.
   await expect(host.getByText('Automatic move')).toBeVisible({ timeout: 22_000 });
@@ -77,7 +83,7 @@ test('phone menu and animated help stay inside a narrow viewport', async ({ brow
   await page.getByRole('button', { name: 'How to play' }).click();
   await expect(page.getByRole('dialog', { name: 'How to play' })).toBeVisible();
   await expect(page.getByText('Move complete piles')).toBeVisible();
-  await page.getByRole('button', { name: 'A++++', exact: true }).click();
+  await page.getByRole('button', { name: 'A+++', exact: true }).click();
   await page.getByRole('button', { name: 'Okay, let’s play' }).click();
   await expect(page.getByRole('dialog', { name: 'How to play' })).not.toBeVisible();
   const largeTextLayout = await page.evaluate(() => ({ viewportWidth: window.innerWidth, bodyWidth: document.body.scrollWidth, comfortSize: document.documentElement.dataset.comfortSize }));

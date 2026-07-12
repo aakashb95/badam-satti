@@ -101,19 +101,19 @@ html[data-comfort-size="extra-large"] {
 }
 
 html[data-comfort-size="maximum"] {
-  font-size: 26px;
-  --board-card-width: clamp(90px, 8.8vw, 120px);
-  --board-card-mobile-width: clamp(70px, 19vw, 88px);
-  --board-stack-offset: 32px;
-  --board-stack-mobile-offset: 22px;
-  --hand-card-width: clamp(74px, 7vw, 98px);
-  --hand-card-mobile-width: clamp(58px, 15vw, 72px);
-  --hand-card-small-width: 56px;
-  --hand-card-overlap: clamp(-55px, -4vw, -42px);
-  --hand-card-mobile-overlap: -39px;
-  --hand-card-small-overlap: -38px;
-  --table-player-min: 138px;
-  --table-player-mobile-min: 116px;
+  font-size: 24px;
+  --board-card-width: clamp(84px, 8.2vw, 110px);
+  --board-card-mobile-width: clamp(66px, 18vw, 80px);
+  --board-stack-offset: 31px;
+  --board-stack-mobile-offset: 21px;
+  --hand-card-width: clamp(68px, 6.5vw, 90px);
+  --hand-card-mobile-width: clamp(54px, 14vw, 68px);
+  --hand-card-small-width: 53px;
+  --hand-card-overlap: clamp(-50px, -3.7vw, -39px);
+  --hand-card-mobile-overlap: -36px;
+  --hand-card-small-overlap: -36px;
+  --table-player-min: 126px;
+  --table-player-mobile-min: 108px;
 }
 
 * { box-sizing: border-box; }
@@ -989,6 +989,10 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 
 .round-icon-button:hover { color: var(--text); background: var(--surface-2); }
 .round-icon-button.leave-button:hover { color: var(--red); }
+.leave-confirm-overlay { position: fixed; inset: 0; z-index: 2000; padding: 20px; display: grid; place-items: center; background: var(--modal-backdrop); }
+.leave-confirm-dialog { width: min(100%, 440px); padding: 28px; color: var(--text); background: var(--surface-2); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 28px 80px var(--ambient-shadow); text-align: center; }
+.leave-confirm-mark { width: 54px; height: 68px; margin: 0 auto 16px; display: grid; place-items: center; color: var(--brand-ink); background: var(--brand-card); border-radius: 8px; font-weight: 600; transform: rotate(-4deg); }
+.leave-confirm-dialog h2 { margin: 0; font-size: 1.35rem; }.leave-confirm-dialog p { margin: 12px 0 22px; color: var(--muted); font-size: .82rem; line-height: 1.55; }.leave-confirm-dialog > div { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }.leave-confirm-dialog button { min-height: 46px; padding: 0 14px; border-radius: var(--radius); cursor: pointer; font-weight: 600; }.danger-button { color: var(--danger-text); background: var(--danger-bg); border: 1px solid var(--danger-line); }
 .game-starter-note { display: flex; min-height: 34px; align-items: center; justify-content: center; gap: 8px; color: var(--muted); background: color-mix(in srgb, var(--accent) 7%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); border-radius: var(--radius); font-size: .72rem; }
 .game-starter-note span { color: var(--accent); }
 .table-players {
@@ -1637,4 +1641,4 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 }
 
 html[data-comfort-size="maximum"] .game-screen { align-items: flex-start; overflow-y: auto; }
-html[data-comfort-size="maximum"] .game-shell { grid-template-rows: auto auto auto minmax(390px, auto) auto; }
+html[data-comfort-size="maximum"] .game-shell { grid-template-rows: auto auto auto minmax(360px, auto) auto; }

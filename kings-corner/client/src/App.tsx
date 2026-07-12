@@ -10,7 +10,7 @@ import type { Card, ComfortSize, GameState, MovePileAction, PlayCardAction } fro
 const SESSION_KEY = 'kings-corner-session';
 const COMFORT_KEY = 'kings-corner-comfort-size';
 const COMFORT_SIZES: ComfortSize[] = ['standard', 'large', 'extra-large', 'maximum'];
-const COMFORT_BUTTON_LABELS: Record<ComfortSize, string> = { standard: 'A', large: 'A+', 'extra-large': 'A++', maximum: 'A++++' };
+const COMFORT_BUTTON_LABELS: Record<ComfortSize, string> = { standard: 'A', large: 'A+', 'extra-large': 'A++', maximum: 'A+++' };
 const LOBBY_GREETINGS = [
   { lead: 'Welcome', punctuation: '.' },
   { lead: 'Ready', punctuation: '?' },
@@ -51,6 +51,8 @@ export default function App() {
   const [copiedRoomCode, setCopiedRoomCode] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const intentionalLeave = useRef(false);
   const [comfortSize, setComfortSize] = useState<ComfortSize>(() => {
     const stored = window.localStorage.getItem(COMFORT_KEY);
     return COMFORT_SIZES.includes(stored as ComfortSize) ? stored as ComfortSize : 'standard';
@@ -103,6 +105,31 @@ export default function App() {
     window.localStorage.setItem(COMFORT_KEY, comfortSize);
   }, [comfortSize]);
 
+  useEffect(() => {
+    if (!state?.started || state.finished) return undefined;
+    intentionalLeave.current = false;
+    const marker = { ...window.history.state, gameLeaveGuard: true };
+    window.history.pushState(marker, '', window.location.href);
+
+    const guardBack = () => {
+      if (intentionalLeave.current) return;
+      window.history.pushState(marker, '', window.location.href);
+      setShowLeaveConfirm(true);
+    };
+    const guardUnload = (event: BeforeUnloadEvent) => {
+      if (intentionalLeave.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('popstate', guardBack);
+    window.addEventListener('beforeunload', guardUnload);
+    return () => {
+      window.removeEventListener('popstate', guardBack);
+      window.removeEventListener('beforeunload', guardUnload);
+    };
+  }, [state?.started, state?.finished]);
+
   const createRoom = () => {
     setError('');
     socketRef.current?.emit('create_room', { name });
@@ -144,7 +171,13 @@ export default function App() {
     setError('');
     setIdentityConfirmed(true);
   };
+  const confirmActiveLeave = () => {
+    intentionalLeave.current = true;
+    setShowLeaveConfirm(false);
+    returnToLobby();
+  };
   const returnToGameDesk = (): Promise<void> => {
+    intentionalLeave.current = true;
     const socket = socketRef.current;
     if (!socket) return Promise.resolve();
 
@@ -321,7 +354,7 @@ export default function App() {
     <main className="game-shell">
       <header className="game-header">
         <div className="game-header-identity"><GameDeskLink onBeforeNavigate={returnToGameDesk} /><div><p className="eyebrow">Room {state.roomCode}</p><h2>King’s Corner</h2></div></div>
-        <div className="game-header-actions"><button className="game-help-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button><button className="game-size-button" onClick={nextComfortSize} aria-label={`Change text size. Current size ${COMFORT_BUTTON_LABELS[comfortSize]}`}>{COMFORT_BUTTON_LABELS[comfortSize]}</button><button className="game-help-button game-leave-button" onClick={returnToLobby} aria-label="Leave room">×</button><div className={`turn-clock ${state.isMyTurn ? 'active' : ''}`}><span>{countdown}</span><div><strong>{state.isMyTurn ? 'Your turn' : state.currentPlayerName}</strong><small>{state.isMyTurn ? 'Auto move in seconds' : 'is playing'}</small></div></div></div>
+        <div className="game-header-actions"><button className="game-help-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button><button className="game-size-button" onClick={nextComfortSize} aria-label={`Change text size. Current size ${COMFORT_BUTTON_LABELS[comfortSize]}`}>{COMFORT_BUTTON_LABELS[comfortSize]}</button><button className="game-help-button game-leave-button" onClick={() => setShowLeaveConfirm(true)} aria-label="Leave room">×</button><div className={`turn-clock ${state.isMyTurn ? 'active' : ''}`}><span>{countdown}</span><div><strong>{state.isMyTurn ? 'Your turn' : state.currentPlayerName}</strong><small>{state.isMyTurn ? 'Auto move in seconds' : 'is playing'}</small></div></div></div>
       </header>
       {state.starterName && <div className="game-starter-note" role="status"><span aria-hidden="true">♛</span>{state.starterName} started this game</div>}
       {automaticAction && <div className="last-action" role="status"><span>✦</span> Automatic move <small>{String(state.lastAction?.playerName || '')}</small></div>}
@@ -339,6 +372,7 @@ export default function App() {
       </section>
     </main>
     <HelpModal open={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={setComfortSize} onReturnToGameDesk={returnToGameDesk} />
+    {showLeaveConfirm && <div className="leave-confirm-overlay" role="presentation"><section className="leave-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="leave-game-title"><span className="leave-confirm-mark" aria-hidden="true">K♛</span><h2 id="leave-game-title">Leave this game?</h2><p>If you pressed Back by mistake, stay here. Your seat and cards are protected during brief disconnects.</p><div><button className="secondary-button" onClick={() => setShowLeaveConfirm(false)}>Stay in game</button><button className="danger-button" onClick={confirmActiveLeave}>Leave game</button></div></section></div>}
     {connectionBanner}
   </>);
 }
