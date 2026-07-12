@@ -4,7 +4,7 @@ import ResultsScreen from './ResultsScreen';
 import type { GameState } from './types';
 
 const state = {
-  roomCode: 'ABC123', started: true, finished: true, winnerName: 'Aakash', dealerName: 'Aakash', currentPlayerName: 'Aakash', isMyTurn: false,
+  roomCode: 'ABC123', started: true, finished: true, winnerName: 'Aakash', dealerName: 'Aakash', starterName: 'Aakash', currentPlayerName: 'Aakash', isMyTurn: false,
   turnNumber: 8, actionDeadline: null, stockCount: 12,
   piles: { north: [], east: [], south: [], west: [], northWest: [], northEast: [], southEast: [], southWest: [] },
   players: [

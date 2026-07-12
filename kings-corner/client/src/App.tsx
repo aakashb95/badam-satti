@@ -9,6 +9,8 @@ import type { Card, ComfortSize, GameState, MovePileAction, PlayCardAction } fro
 
 const SESSION_KEY = 'kings-corner-session';
 const COMFORT_KEY = 'kings-corner-comfort-size';
+const COMFORT_SIZES: ComfortSize[] = ['standard', 'large', 'extra-large', 'maximum'];
+const COMFORT_BUTTON_LABELS: Record<ComfortSize, string> = { standard: 'A', large: 'A+', 'extra-large': 'A++', maximum: 'A++++' };
 const LOBBY_GREETINGS = [
   { lead: 'Welcome', punctuation: '.' },
   { lead: 'Ready', punctuation: '?' },
@@ -32,21 +34,28 @@ function useCountdown(deadline: number | null) {
   return remaining;
 }
 
+function inviteCodeFromPath() {
+  const match = window.location.pathname.match(/\/kings-corner\/r\/([a-z0-9]{6})\/?$/i);
+  return match?.[1]?.toUpperCase() || '';
+}
+
 export default function App() {
   const socketRef = useRef<Socket | null>(null);
   const [state, setState] = useState<GameState | null>(null);
   const [name, setName] = useState('');
-  const [roomCode, setRoomCode] = useState('');
+  const [roomCode, setRoomCode] = useState(inviteCodeFromPath);
   const [error, setError] = useState('');
   const [connected, setConnected] = useState(false);
   const [identityConfirmed, setIdentityConfirmed] = useState(false);
   const [showingResultDelay, setShowingResultDelay] = useState(false);
   const [copiedRoomCode, setCopiedRoomCode] = useState(false);
+  const [copiedInvite, setCopiedInvite] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [comfortSize, setComfortSize] = useState<ComfortSize>(() => {
     const stored = window.localStorage.getItem(COMFORT_KEY);
-    return stored === 'large' || stored === 'extra-large' ? stored : 'standard';
+    return COMFORT_SIZES.includes(stored as ComfortSize) ? stored as ComfortSize : 'standard';
   });
+  const inviteRoomCode = useMemo(inviteCodeFromPath, []);
   const countdown = useCountdown(state?.actionDeadline || null);
 
   useEffect(() => {
@@ -74,6 +83,7 @@ export default function App() {
       setName(session.name);
       setRoomCode(session.roomCode);
       setIdentityConfirmed(true);
+      if (inviteCodeFromPath()) window.history.replaceState({}, '', import.meta.env.BASE_URL);
     });
     return () => { socket.disconnect(); };
   }, []);
@@ -100,6 +110,29 @@ export default function App() {
   const joinRoom = () => {
     setError('');
     socketRef.current?.emit('join_room', { name, roomCode });
+  };
+  const confirmIdentity = () => {
+    if (!name.trim()) return;
+    setIdentityConfirmed(true);
+    if (inviteRoomCode && connected) {
+      setRoomCode(inviteRoomCode);
+      setError('');
+      socketRef.current?.emit('join_room', { name, roomCode: inviteRoomCode });
+    }
+  };
+  const nextComfortSize = () => {
+    const index = COMFORT_SIZES.indexOf(comfortSize);
+    setComfortSize(COMFORT_SIZES[(index + 1) % COMFORT_SIZES.length]);
+  };
+  const copyText = async (text: string, kind: 'code' | 'invite') => {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (kind === 'code') setCopiedRoomCode(true);
+      else setCopiedInvite(true);
+      window.setTimeout(() => kind === 'code' ? setCopiedRoomCode(false) : setCopiedInvite(false), 1600);
+    } catch {
+      setError('Copy failed — select the text instead.');
+    }
   };
   const playCard = (action: PlayCardAction) => socketRef.current?.emit('play_card', action);
   const movePile = (action: MovePileAction) => socketRef.current?.emit('move_pile', action);
@@ -158,7 +191,7 @@ export default function App() {
 
   if (!state) {
     if (!identityConfirmed) {
-      return (
+      return (<>
         <main className="shell welcome-screen">
           <section className="welcome-card">
             <GameDeskLink className="welcome-game-desk" />
@@ -166,7 +199,7 @@ export default function App() {
               <div className="brand-mark" aria-hidden="true"><span>K</span><i>♛</i></div>
               <div><h1>King’s Corner</h1><p className="eyebrow">The classic table game</p></div>
             </div>
-            <label htmlFor="player-name">Play with your friends and family</label>
+            <label htmlFor="player-name">{inviteRoomCode ? `You’re invited to room ${inviteRoomCode}` : 'Play with your friends and family'}</label>
             <div className="identity-entry">
               <input
                 id="player-name"
@@ -175,17 +208,21 @@ export default function App() {
                 autoComplete="name"
                 onChange={(event) => { setName(event.target.value); setError(''); }}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter' && name.trim()) setIdentityConfirmed(true);
+                  if (event.key === 'Enter' && name.trim()) confirmIdentity();
                 }}
                 placeholder="Enter your name"
               />
-              <button aria-label="Continue" onClick={() => setIdentityConfirmed(Boolean(name.trim()))} disabled={!name.trim()}>→</button>
+              <button aria-label={inviteRoomCode ? 'Join invited table' : 'Continue'} onClick={confirmIdentity} disabled={!name.trim() || (Boolean(inviteRoomCode) && !connected)}>→</button>
             </div>
             <div className="field-message">Up to 20 characters</div>
+            <button className="welcome-how-to" onClick={() => setShowHelp(true)}><strong>New to King’s Corner?</strong><span>See the rules and an animated example · about 2 minutes</span></button>
+            <p className="welcome-rule-summary">Clear your hand by building downward in alternating colours. Kings open the four corner piles.</p>
             <div className="welcome-meta"><span>2–4 players</span><span>Private rooms</span><span>No sign-up</span></div>
             {connectionBanner}
           </section>
         </main>
+        <HelpModal open={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={setComfortSize} />
+      </>
       );
     }
 
@@ -234,6 +271,7 @@ export default function App() {
 
   if (!state.started) {
     const isHost = state.players[0]?.name === name;
+    const inviteLink = `${window.location.origin}${import.meta.env.BASE_URL}r/${state.roomCode}`;
     return (<>
       <main className="shell waiting-screen">
         <section className="waiting-shell">
@@ -247,11 +285,11 @@ export default function App() {
           </div>
           <section className="invite-card">
             <div className="invite-copy"><span>Room code</span><strong>{state.roomCode}</strong></div>
-            <button className="copy-code" onClick={async () => {
-              await navigator.clipboard?.writeText(state.roomCode);
-              setCopiedRoomCode(true);
-              window.setTimeout(() => setCopiedRoomCode(false), 1600);
-            }}>{copiedRoomCode ? 'Copied' : 'Copy code'}</button>
+            <div className="invite-actions">
+              <button className="secondary-button" onClick={() => copyText(state.roomCode, 'code')}>{copiedRoomCode ? 'Code copied' : 'Copy code'}</button>
+              <button className="primary-button" onClick={() => copyText(inviteLink, 'invite')}>{copiedInvite ? 'Link copied' : 'Share invite'}</button>
+            </div>
+            <div className="invite-link">{inviteLink}</div>
           </section>
           <section className="players-section">
             <div className="section-heading"><h2>Players</h2><span>{state.players.length} / 4</span></div>
@@ -283,8 +321,9 @@ export default function App() {
     <main className="game-shell">
       <header className="game-header">
         <div className="game-header-identity"><GameDeskLink onBeforeNavigate={returnToGameDesk} /><div><p className="eyebrow">Room {state.roomCode}</p><h2>King’s Corner</h2></div></div>
-        <div className="game-header-actions"><button className="game-help-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button><div className={`turn-clock ${state.isMyTurn ? 'active' : ''}`}><span>{countdown}</span><div><strong>{state.isMyTurn ? 'Your turn' : state.currentPlayerName}</strong><small>{state.isMyTurn ? 'Auto move in seconds' : 'is playing'}</small></div></div></div>
+        <div className="game-header-actions"><button className="game-help-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button><button className="game-size-button" onClick={nextComfortSize} aria-label={`Change text size. Current size ${COMFORT_BUTTON_LABELS[comfortSize]}`}>{COMFORT_BUTTON_LABELS[comfortSize]}</button><button className="game-help-button game-leave-button" onClick={returnToLobby} aria-label="Leave room">×</button><div className={`turn-clock ${state.isMyTurn ? 'active' : ''}`}><span>{countdown}</span><div><strong>{state.isMyTurn ? 'Your turn' : state.currentPlayerName}</strong><small>{state.isMyTurn ? 'Auto move in seconds' : 'is playing'}</small></div></div></div>
       </header>
+      {state.starterName && <div className="game-starter-note" role="status"><span aria-hidden="true">♛</span>{state.starterName} started this game</div>}
       {automaticAction && <div className="last-action" role="status"><span>✦</span> Automatic move <small>{String(state.lastAction?.playerName || '')}</small></div>}
       <aside className="players-strip">{state.players.map((player) => <div key={player.name} className={player.name === state.currentPlayerName ? 'current' : ''}><span>{player.name.slice(0, 1)}</span><strong>{player.name}</strong><small>{player.cardCount}</small>{player.isDealer && <i>D</i>}</div>)}</aside>
       <GameBoard state={state} onMovePile={movePile} />

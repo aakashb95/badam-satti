@@ -26,6 +26,8 @@ const SUIT_META: Record<Card['suit'], { symbol: string; label: string; short: st
   spades: { symbol: '♠', label: 'Spades', short: 'S' },
 };
 const CARD_ASSET_VERSION = 'v6';
+const COMFORT_SIZES: ComfortSize[] = ['standard', 'large', 'extra-large', 'maximum'];
+const COMFORT_BUTTON_LABELS: Record<ComfortSize, string> = { standard: 'A', large: 'A+', 'extra-large': 'A++', maximum: 'A++++' };
 
 const GameScreen: React.FC<GameScreenProps> = ({
   gameState,
@@ -44,6 +46,10 @@ const GameScreen: React.FC<GameScreenProps> = ({
   const [timeLeft, setTimeLeft] = useState(20);
   const [showHelp, setShowHelp] = useState(false);
   const [pendingCard, setPendingCard] = useState<string | null>(null);
+  const nextComfortSize = () => {
+    const index = COMFORT_SIZES.indexOf(comfortSize);
+    onComfortSizeChange(COMFORT_SIZES[(index + 1) % COMFORT_SIZES.length]);
+  };
 
   useEffect(() => {
     if (!isMyTurn) {
@@ -227,10 +233,12 @@ const GameScreen: React.FC<GameScreenProps> = ({
 
           <div className="game-toolbar">
             <button className="round-icon-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button>
+            <button className="text-size-button" onClick={nextComfortSize} aria-label={`Change text size. Current size ${COMFORT_BUTTON_LABELS[comfortSize]}`}>{COMFORT_BUTTON_LABELS[comfortSize]}</button>
             <button className="round-icon-button leave-button" onClick={onLeaveGame} aria-label="Leave game">×</button>
           </div>
         </header>
 
+        {gameState?.gameStartMessage && <div className="game-starter-note" role="status"><span aria-hidden="true">♥</span>{gameState.gameStartMessage}</div>}
         {renderPlayers()}
         {renderBoard()}
         {renderHand()}

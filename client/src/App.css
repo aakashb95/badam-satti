@@ -23,7 +23,7 @@
 }
 
 :root {
-  font-size: 16px;
+  font-size: 17px;
   color-scheme: dark;
   --bg: #061815;
   --surface: #061b17;
@@ -32,7 +32,7 @@
   --line: #ffffff1b;
   --text: #f7f1df;
   --muted: #b9d0c7;
-  --faint: #77958a;
+  --faint: #90aaa0;
   --accent: #e8b85c;
   --accent-text: #071a17;
   --red: #f07167;
@@ -69,7 +69,7 @@
 }
 
 html[data-comfort-size="large"] {
-  font-size: 18px;
+  font-size: 19px;
   --board-card-width: clamp(68px, 6.8vw, 94px);
   --board-card-mobile-width: clamp(52px, 15vw, 66px);
   --board-stack-offset: 24px;
@@ -85,7 +85,7 @@ html[data-comfort-size="large"] {
 }
 
 html[data-comfort-size="extra-large"] {
-  font-size: 20px;
+  font-size: 22px;
   --board-card-width: clamp(76px, 7.6vw, 106px);
   --board-card-mobile-width: clamp(58px, 16vw, 74px);
   --board-stack-offset: 29px;
@@ -98,6 +98,22 @@ html[data-comfort-size="extra-large"] {
   --hand-card-small-overlap: -34px;
   --table-player-min: 120px;
   --table-player-mobile-min: 104px;
+}
+
+html[data-comfort-size="maximum"] {
+  font-size: 26px;
+  --board-card-width: clamp(90px, 8.8vw, 120px);
+  --board-card-mobile-width: clamp(70px, 19vw, 88px);
+  --board-stack-offset: 32px;
+  --board-stack-mobile-offset: 22px;
+  --hand-card-width: clamp(74px, 7vw, 98px);
+  --hand-card-mobile-width: clamp(58px, 15vw, 72px);
+  --hand-card-small-width: 56px;
+  --hand-card-overlap: clamp(-55px, -4vw, -42px);
+  --hand-card-mobile-overlap: -39px;
+  --hand-card-small-overlap: -38px;
+  --table-player-min: 138px;
+  --table-player-mobile-min: 116px;
 }
 
 * { box-sizing: border-box; }
@@ -906,7 +922,7 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
   display: grid;
   width: min(100%, 1380px);
   margin: auto;
-  grid-template-rows: auto auto clamp(230px, 50vh, 500px) auto;
+  grid-template-rows: auto auto auto clamp(230px, 50vh, 500px) auto;
   gap: 8px;
 }
 
@@ -945,6 +961,19 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 .turn-timer { color: var(--accent); font-size: .72rem; font-weight: 500; }
 .game-toolbar { display: flex; justify-self: end; gap: 6px; }
 
+.text-size-button {
+  min-width: 48px;
+  height: 34px;
+  padding: 0 9px;
+  cursor: pointer;
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--line));
+  border-radius: 999px;
+  font-size: .62rem;
+  font-weight: 600;
+}
+
 .round-icon-button {
   display: grid;
   width: 34px;
@@ -960,6 +989,8 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 
 .round-icon-button:hover { color: var(--text); background: var(--surface-2); }
 .round-icon-button.leave-button:hover { color: var(--red); }
+.game-starter-note { display: flex; min-height: 34px; align-items: center; justify-content: center; gap: 8px; color: var(--muted); background: color-mix(in srgb, var(--accent) 7%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); border-radius: var(--radius); font-size: .72rem; }
+.game-starter-note span { color: var(--accent); }
 .table-players {
   display: grid;
   width: 100%;
@@ -1362,6 +1393,7 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 .comfort-scale-labels span:nth-child(1) { font-size: .68rem; }
 .comfort-scale-labels span:nth-child(2) { font-size: .84rem; }
 .comfort-scale-labels span:nth-child(3) { font-size: 1rem; }
+.comfort-scale-labels span:nth-child(4) { font-size: 1.08rem; font-weight: 600; }
 
 @keyframes demo-eight-play {
   0%, 12% { translate: -80px 112px; rotate: -6deg; opacity: 0; }
@@ -1496,12 +1528,13 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
   #players-list { grid-template-columns: 1fr; }
 
   .game-screen { padding: max(5px, env(safe-area-inset-top)) max(5px, env(safe-area-inset-right)) max(5px, env(safe-area-inset-bottom)) max(5px, env(safe-area-inset-left)); }
-  .game-shell { grid-template-rows: auto auto clamp(245px, 44dvh, 400px) auto; gap: 5px; }
+  .game-shell { grid-template-rows: auto auto auto clamp(245px, 44dvh, 400px) auto; gap: 5px; }
   .game-top-bar { grid-template-columns: auto 1fr auto; gap: 7px; padding: 3px 4px 6px; }
   .turn-status { min-width: 0; justify-self: center; padding: 5px 9px; }
   .turn-status strong { font-size: .64rem; }
   .round-icon-button { width: 31px; height: 31px; }
-  .game-toolbar .round-icon-button:first-child { display: none; }
+  .game-toolbar { gap: 4px; }
+  .text-size-button { min-width: 43px; height: 31px; padding-inline: 6px; }
   .table-players {
     grid-template-columns: repeat(var(--player-count, 1), minmax(var(--table-player-mobile-min), 1fr));
     justify-items: center;
@@ -1567,7 +1600,7 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
   .game-brand > div { display: none; }
   .game-top-bar { grid-template-columns: auto 1fr auto; }
   .turn-status { justify-self: start; }
-  .game-shell { grid-template-rows: auto auto clamp(230px, 43dvh, 300px) auto; }
+  .game-shell { grid-template-rows: auto auto auto clamp(230px, 43dvh, 300px) auto; }
   .table-players { grid-template-columns: repeat(var(--player-count, 1), minmax(calc(var(--table-player-mobile-min) - 6px), 1fr)); }
   .table-player { width: min(100%, 108px); }
   .hand-card { width: var(--hand-card-small-width); }
@@ -1575,7 +1608,7 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 }
 
 @media (orientation: landscape) and (max-height: 600px) {
-  .game-shell { grid-template-rows: auto auto clamp(112px, 32dvh, 170px) auto; }
+  .game-shell { grid-template-rows: auto auto auto clamp(112px, 32dvh, 170px) auto; }
   .table-players {
     display: grid;
     grid-template-columns: repeat(var(--player-count, 1), minmax(70px, 1fr));
@@ -1602,3 +1635,6 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
     transition-duration: .01ms !important;
   }
 }
+
+html[data-comfort-size="maximum"] .game-screen { align-items: flex-start; overflow-y: auto; }
+html[data-comfort-size="maximum"] .game-shell { grid-template-rows: auto auto auto minmax(390px, auto) auto; }

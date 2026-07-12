@@ -10,12 +10,13 @@ interface HelpModalProps {
   onReturnToGameDesk?: () => Promise<void>;
 }
 
-const COMFORT_SIZES: ComfortSize[] = ['standard', 'large', 'extra-large'];
+const COMFORT_SIZES: ComfortSize[] = ['standard', 'large', 'extra-large', 'maximum'];
 
 const COMFORT_LABELS: Record<ComfortSize, string> = {
   standard: 'Standard',
   large: 'Large',
   'extra-large': 'Extra large',
+  maximum: 'Maximum',
 };
 
 const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, comfortSize, onComfortSizeChange, onReturnToGameDesk }) => {
@@ -56,7 +57,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, comfortSize, onC
             id="comfort-size"
             type="range"
             min="0"
-            max="2"
+            max="3"
             step="1"
             value={sliderValue}
             onChange={(event) => onComfortSizeChange(COMFORT_SIZES[Number(event.target.value)] || 'standard')}
@@ -66,6 +67,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, comfortSize, onC
             <span>A</span>
             <span>A</span>
             <span>A</span>
+            <span>A++++</span>
           </div>
         </div>
         

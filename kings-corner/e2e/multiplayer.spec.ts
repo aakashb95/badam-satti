@@ -14,11 +14,11 @@ test('two players create, join, and begin a game', async ({ browser }) => {
   await expect(host.locator('.waiting-screen h1')).toBeVisible();
   const roomCode = await host.locator('.invite-copy strong').innerText();
 
-  await guest.goto('/kings-corner/');
+  await expect(host.locator('.invite-link')).toContainText(`/kings-corner/r/${roomCode}`);
+  await guest.goto(`/kings-corner/r/${roomCode}`);
+  await expect(guest.getByText(`You’re invited to room ${roomCode}`)).toBeVisible();
   await guest.getByPlaceholder('Enter your name').fill('Maya');
-  await guest.getByRole('button', { name: 'Continue' }).click();
-  await guest.getByLabel('Room code').fill(roomCode);
-  await guest.getByRole('button', { name: 'Join table' }).click();
+  await guest.getByRole('button', { name: 'Join invited table' }).click();
   await expect(guest.locator('.waiting-screen h1')).toBeVisible();
   await expect(host.getByText('Maya')).toBeVisible();
 
@@ -27,6 +27,9 @@ test('two players create, join, and begin a game', async ({ browser }) => {
   await expect(guest.getByRole('heading', { name: 'King’s Corner' })).toBeVisible();
   await expect(host.getByText('Your hand')).toBeVisible();
   await expect(guest.getByText('Your hand')).toBeVisible();
+  await expect(host.locator('.game-starter-note')).toContainText('started this game');
+  await expect(host.getByRole('button', { name: /Change text size/ })).toBeVisible();
+  await expect(host.getByRole('button', { name: 'Leave room' })).toBeVisible();
 
   // The server, rather than either browser, must take one action after the inactivity window.
   await expect(host.getByText('Automatic move')).toBeVisible({ timeout: 22_000 });
@@ -44,6 +47,9 @@ test('phone menu and animated help stay inside a narrow viewport', async ({ brow
   const context = await browser.newContext({ viewport: { width: 393, height: 852 } });
   const page = await context.newPage();
   await page.goto('/kings-corner/');
+  await page.getByRole('button', { name: /New to King’s Corner/ }).click();
+  await expect(page.getByRole('dialog', { name: 'How to play' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close help' }).click();
   await page.getByPlaceholder('Enter your name').fill('Phone Player');
   await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page.getByText('King’s Corner table')).toBeVisible();
@@ -71,11 +77,11 @@ test('phone menu and animated help stay inside a narrow viewport', async ({ brow
   await page.getByRole('button', { name: 'How to play' }).click();
   await expect(page.getByRole('dialog', { name: 'How to play' })).toBeVisible();
   await expect(page.getByText('Move complete piles')).toBeVisible();
-  await page.getByRole('button', { name: 'A++' }).click();
+  await page.getByRole('button', { name: 'A++++', exact: true }).click();
   await page.getByRole('button', { name: 'Okay, let’s play' }).click();
   await expect(page.getByRole('dialog', { name: 'How to play' })).not.toBeVisible();
   const largeTextLayout = await page.evaluate(() => ({ viewportWidth: window.innerWidth, bodyWidth: document.body.scrollWidth, comfortSize: document.documentElement.dataset.comfortSize }));
-  expect(largeTextLayout.comfortSize).toBe('extra-large');
+  expect(largeTextLayout.comfortSize).toBe('maximum');
   expect(largeTextLayout.bodyWidth).toBeLessThanOrEqual(largeTextLayout.viewportWidth);
   await context.close();
 });
@@ -87,7 +93,7 @@ test('Game Desk identity remains usable at 320px with large comfort text', async
   await page.getByPlaceholder('Enter your name').fill('Small Phone');
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'How to play' }).click();
-  await page.getByRole('button', { name: 'A++' }).click();
+  await page.getByRole('button', { name: 'A++', exact: true }).click();
   await page.getByRole('button', { name: 'Okay, let’s play' }).click();
 
   const layout = await page.evaluate(() => {

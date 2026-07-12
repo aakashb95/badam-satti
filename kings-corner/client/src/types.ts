@@ -1,5 +1,5 @@
 export type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades';
-export type ComfortSize = 'standard' | 'large' | 'extra-large';
+export type ComfortSize = 'standard' | 'large' | 'extra-large' | 'maximum';
 export interface Card { suit: Suit; rank: number }
 export type PileId = 'north' | 'east' | 'south' | 'west' | 'northWest' | 'northEast' | 'southEast' | 'southWest';
 export interface PlayCardAction { type: 'play_card'; card: Card; targetPileId: PileId }
@@ -12,6 +12,7 @@ export interface GameState {
   finished: boolean;
   winnerName: string | null;
   dealerName: string | null;
+  starterName: string | null;
   currentPlayerName: string | null;
   isMyTurn: boolean;
   turnNumber: number;

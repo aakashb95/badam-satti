@@ -141,6 +141,7 @@ test('the host can restart a finished table with a rotated dealer', () => {
   assert.equal(game.finished, false);
   assert.equal(game.started, true);
   assert.equal(game.dealerIndex, 1);
+  assert.equal(game.starterName, game.currentPlayer().name);
   assert.equal(game.players.every((player) => player.hand.length >= 7), true);
 });
 
