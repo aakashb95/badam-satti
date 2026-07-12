@@ -141,6 +141,7 @@ test('the host can restart a finished table with a rotated dealer', () => {
   assert.equal(game.finished, false);
   assert.equal(game.started, true);
   assert.equal(game.dealerIndex, 1);
+  assert.equal(game.starterName, game.currentPlayer().name);
   assert.equal(game.players.every((player) => player.hand.length >= 7), true);
 });
 
@@ -171,4 +172,5 @@ test('leaving an active two-player game awards the remaining player', () => {
   assert.equal(game.finished, true);
   assert.equal(game.winnerId, 'b');
   assert.equal(game.players[0].name, 'Maya');
+  assert.equal(game.stock.some((item) => item.rank === 7 && item.suit === 'clubs'), true);
 });

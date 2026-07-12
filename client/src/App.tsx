@@ -51,7 +51,7 @@ const rankLabel = (rank: number) => ({ 1: 'A', 11: 'J', 12: 'Q', 13: 'K' }[rank]
 const suitLabel = (suit: string) => ({ hearts: 'Hearts', diamonds: 'Diamonds', clubs: 'Clubs', spades: 'Spades' }[suit] || suit);
 
 const COMFORT_SIZE_STORAGE_KEY = 'badam-satti-comfort-size';
-const COMFORT_SIZES: ComfortSize[] = ['standard', 'large', 'extra-large'];
+const COMFORT_SIZES: ComfortSize[] = ['standard', 'large', 'extra-large', 'maximum'];
 
 function getServerErrorMessage(message: string | Error | ServerErrorPayload): string {
   if (typeof message === 'object' && !(message instanceof Error)) {

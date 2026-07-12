@@ -11,6 +11,8 @@ describe('HelpModal', () => {
     expect(screen.getByText('Move complete piles')).toBeInTheDocument();
     screen.getByRole('button', { name: 'A++' }).click();
     expect(onSizeChange).toHaveBeenCalledWith('extra-large');
+    screen.getByRole('button', { name: 'A+++' }).click();
+    expect(onSizeChange).toHaveBeenCalledWith('maximum');
     screen.getByRole('button', { name: 'Okay, let’s play' }).click();
     expect(onClose).toHaveBeenCalledOnce();
   });

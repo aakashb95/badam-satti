@@ -19,6 +19,7 @@ test('starts with 7 of hearts on the board and advances to the next player', () 
   assert.equal(room.players.some((player) => player.cards.some((card) => card.suit === 'hearts' && card.rank === 7)), false);
   assert.notEqual(room.currentPlayerIndex, room.heartsSevenPlayerIndex);
   assert.equal(room.players.reduce((total, player) => total + player.cards.length, 0), 51);
+  assert.match(room.gameStartMessage, /started the game$/);
 });
 
 test('deals clockwise from the player after the dealer', () => {

@@ -28,7 +28,7 @@ export default function HelpModal({ open, onClose, comfortSize, onComfortSizeCha
         <div className="comfort-control">
           <div><strong>Text size</strong><span>Choose what feels comfortable</span></div>
           <div className="comfort-options" role="group" aria-label="Text size">
-            {(['standard', 'large', 'extra-large'] as ComfortSize[]).map((size) => <button key={size} className={comfortSize === size ? 'active' : ''} onClick={() => onComfortSizeChange(size)} aria-pressed={comfortSize === size}>{size === 'standard' ? 'A' : size === 'large' ? 'A+' : 'A++'}</button>)}
+            {(['standard', 'large', 'extra-large', 'maximum'] as ComfortSize[]).map((size) => <button key={size} className={comfortSize === size ? 'active' : ''} onClick={() => onComfortSizeChange(size)} aria-pressed={comfortSize === size}>{size === 'standard' ? 'A' : size === 'large' ? 'A+' : size === 'extra-large' ? 'A++' : 'A+++'}</button>)}
           </div>
         </div>
 

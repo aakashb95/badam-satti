@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card, ComfortSize, GameState, Player } from '../types';
 import HelpModal from './HelpModal';
 import GameDeskLink from './GameDeskLink';
@@ -26,6 +26,8 @@ const SUIT_META: Record<Card['suit'], { symbol: string; label: string; short: st
   spades: { symbol: '♠', label: 'Spades', short: 'S' },
 };
 const CARD_ASSET_VERSION = 'v6';
+const COMFORT_SIZES: ComfortSize[] = ['standard', 'large', 'extra-large', 'maximum'];
+const COMFORT_BUTTON_LABELS: Record<ComfortSize, string> = { standard: 'A', large: 'A+', 'extra-large': 'A++', maximum: 'A+++' };
 
 const GameScreen: React.FC<GameScreenProps> = ({
   gameState,
@@ -43,7 +45,46 @@ const GameScreen: React.FC<GameScreenProps> = ({
 }) => {
   const [timeLeft, setTimeLeft] = useState(20);
   const [showHelp, setShowHelp] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [pendingCard, setPendingCard] = useState<string | null>(null);
+  const intentionalLeave = useRef(false);
+  const nextComfortSize = () => {
+    const index = COMFORT_SIZES.indexOf(comfortSize);
+    onComfortSizeChange(COMFORT_SIZES[(index + 1) % COMFORT_SIZES.length]);
+  };
+
+  useEffect(() => {
+    const marker = { ...window.history.state, gameLeaveGuard: true };
+    window.history.pushState(marker, '', window.location.href);
+
+    const guardBack = () => {
+      if (intentionalLeave.current) return;
+      window.history.pushState(marker, '', window.location.href);
+      setShowLeaveConfirm(true);
+    };
+    const guardUnload = (event: BeforeUnloadEvent) => {
+      if (intentionalLeave.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('popstate', guardBack);
+    window.addEventListener('beforeunload', guardUnload);
+    return () => {
+      window.removeEventListener('popstate', guardBack);
+      window.removeEventListener('beforeunload', guardUnload);
+    };
+  }, []);
+
+  const confirmLeave = () => {
+    intentionalLeave.current = true;
+    setShowLeaveConfirm(false);
+    onLeaveGame();
+  };
+  const returnToGameDeskSafely = async () => {
+    intentionalLeave.current = true;
+    await onReturnToGameDesk();
+  };
 
   useEffect(() => {
     if (!isMyTurn) {
@@ -214,7 +255,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
       <div className="game-shell">
         <header className="game-top-bar">
           <div className="game-brand">
-            <GameDeskLink onBeforeNavigate={onReturnToGameDesk} />
+            <GameDeskLink onBeforeNavigate={returnToGameDeskSafely} />
             <div><strong>Badam Satti</strong><small>Round {gameState?.round || 1} of {gameState?.maxRounds || 7}</small></div>
           </div>
 
@@ -227,15 +268,18 @@ const GameScreen: React.FC<GameScreenProps> = ({
 
           <div className="game-toolbar">
             <button className="round-icon-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button>
-            <button className="round-icon-button leave-button" onClick={onLeaveGame} aria-label="Leave game">×</button>
+            <button className="text-size-button" onClick={nextComfortSize} aria-label={`Change text size. Current size ${COMFORT_BUTTON_LABELS[comfortSize]}`}>{COMFORT_BUTTON_LABELS[comfortSize]}</button>
+            <button className="round-icon-button leave-button" onClick={() => setShowLeaveConfirm(true)} aria-label="Leave game">×</button>
           </div>
         </header>
 
+        {gameState?.gameStartMessage && <div className="game-starter-note" role="status"><span aria-hidden="true">♥</span>{gameState.gameStartMessage}</div>}
         {renderPlayers()}
         {renderBoard()}
         {renderHand()}
       </div>
-      <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} onReturnToGameDesk={onReturnToGameDesk} />
+      <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} onReturnToGameDesk={returnToGameDeskSafely} />
+      {showLeaveConfirm && <div className="leave-confirm-overlay" role="presentation"><section className="leave-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="leave-game-title"><span className="leave-confirm-mark" aria-hidden="true">7♥</span><h2 id="leave-game-title">Leave this game?</h2><p>If you pressed Back by mistake, stay here. Your seat and cards are protected during brief disconnects.</p><div><button className="secondary-button" onClick={() => setShowLeaveConfirm(false)}>Stay in game</button><button className="danger-button" onClick={confirmLeave}>Leave game</button></div></section></div>}
     </main>
   );
 };

@@ -4,7 +4,7 @@ import GameBoard from './GameBoard';
 import type { GameState } from './types';
 
 const state = {
-  roomCode: 'ABC123', started: true, finished: false, winnerName: null, dealerName: 'A', currentPlayerName: 'A', isMyTurn: true,
+  roomCode: 'ABC123', started: true, finished: false, winnerName: null, dealerName: 'A', starterName: 'A', currentPlayerName: 'A', isMyTurn: true,
   turnNumber: 1, actionDeadline: Date.now() + 20_000, stockCount: 20,
   piles: { north: [{ rank: 8, suit: 'hearts' }], east: [{ rank: 9, suit: 'clubs' }], south: [], west: [], northWest: [], northEast: [], southEast: [], southWest: [] },
   players: [], myHand: [], handActions: [], pileActions: [{ type: 'move_pile', sourcePileId: 'north', targetPileId: 'east' }],

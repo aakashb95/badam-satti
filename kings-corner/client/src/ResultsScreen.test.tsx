@@ -4,7 +4,7 @@ import ResultsScreen from './ResultsScreen';
 import type { GameState } from './types';
 
 const state = {
-  roomCode: 'ABC123', started: true, finished: true, winnerName: 'Aakash', dealerName: 'Aakash', currentPlayerName: 'Aakash', isMyTurn: false,
+  roomCode: 'ABC123', started: true, finished: true, winnerName: 'Aakash', dealerName: 'Aakash', starterName: 'Aakash', currentPlayerName: 'Aakash', isMyTurn: false,
   turnNumber: 8, actionDeadline: null, stockCount: 12,
   piles: { north: [], east: [], south: [], west: [], northWest: [], northEast: [], southEast: [], southWest: [] },
   players: [
@@ -20,7 +20,7 @@ describe('ResultsScreen', () => {
     const onReturn = vi.fn();
     render(<ResultsScreen state={state} username="Aakash" showingDelay={false} onRestart={onRestart} onReturnToLobby={onReturn} onReturnToGameDesk={vi.fn()} />);
     expect(screen.getByRole('heading', { name: 'Aakash rules the table.' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Game Desk — choose a game' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: 'Main menu — choose a game' })).toHaveAttribute('href', '/');
     screen.getByRole('button', { name: 'Play again →' }).click();
     screen.getByRole('button', { name: 'Return to lobby' }).click();
     expect(onRestart).toHaveBeenCalledOnce();

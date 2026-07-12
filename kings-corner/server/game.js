@@ -34,6 +34,7 @@ class KingsCornerGame {
     this.finished = false;
     this.winnerId = null;
     this.dealerIndex = 0;
+    this.starterName = null;
     this.currentPlayerIndex = 0;
     this.stock = [];
     this.piles = Object.fromEntries(PILE_IDS.map((id) => [id, []]));
@@ -110,6 +111,7 @@ class KingsCornerGame {
     }
     CARDINALS.forEach((pileId) => this.dealStartingPile(pileId));
     this.currentPlayerIndex = (this.dealerIndex + 1) % this.players.length;
+    this.starterName = this.currentPlayer().name;
     this.beginTurn();
     return true;
   }
@@ -308,6 +310,7 @@ class KingsCornerGame {
       finished: this.finished,
       winnerName: this.players.find((item) => item.id === this.winnerId)?.name || null,
       dealerName: this.players[this.dealerIndex]?.name || null,
+      starterName: this.starterName,
       currentPlayerName: current?.name || null,
       isMyTurn: Boolean(player && current?.id === player.id),
       turnNumber: this.turnNumber,

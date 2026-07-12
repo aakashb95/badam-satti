@@ -9,11 +9,13 @@ const { KingsCornerGame } = require('./game');
 const PORT = Number(process.env.PORT || 5100);
 const HOST = process.env.HOST || '0.0.0.0';
 const AUTO_ACTION_MS = Number(process.env.AUTO_ACTION_MS || 20_000);
+const DISCONNECT_GRACE_MS = Number(process.env.DISCONNECT_GRACE_MS || 90_000);
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { path: '/kings-corner/socket.io', cors: { origin: true, credentials: true }, pingTimeout: 120_000 });
 const rooms = new Map();
 const roomTimers = new Map();
+const disconnectTimers = new Map();
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
@@ -27,6 +29,13 @@ function roomCode() {
 
 function emitState(room) {
   room.players.forEach((player) => io.to(player.id).emit('state', room.publicState(player.id)));
+}
+
+const disconnectKey = (roomCode, sessionToken) => `${roomCode}:${sessionToken}`;
+function clearDisconnectTimer(roomCode, sessionToken) {
+  const key = disconnectKey(roomCode, sessionToken);
+  clearTimeout(disconnectTimers.get(key));
+  disconnectTimers.delete(key);
 }
 
 function scheduleAutoAction(room) {
@@ -92,6 +101,7 @@ io.on('connection', (socket) => {
     const room = rooms.get(code);
     const player = room?.reconnectPlayer(sessionToken, socket.id);
     if (!player) return socket.emit('session_invalid');
+    clearDisconnectTimer(code, player.sessionToken);
     socket.join(code);
     socket.data.roomCode = code;
     socket.emit('session', { roomCode: code, sessionToken: player.sessionToken, name: player.name });
@@ -119,6 +129,8 @@ io.on('connection', (socket) => {
       if (typeof acknowledge === 'function') acknowledge({ ok: true });
       return;
     }
+    const leavingPlayer = room.players.find((player) => player.id === socket.id);
+    if (leavingPlayer) clearDisconnectTimer(room.roomCode, leavingPlayer.sessionToken);
     const removal = room.removePlayer(socket.id);
     socket.leave(room.roomCode);
     socket.data.roomCode = null;
@@ -140,8 +152,35 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     const room = currentRoom(socket);
+    const player = room?.players.find((item) => item.id === socket.id);
     room?.disconnectPlayer(socket.id);
-    if (room) emitState(room);
+    if (!room || !player) return;
+    emitState(room);
+    if (!room.started || room.finished) return;
+
+    clearDisconnectTimer(room.roomCode, player.sessionToken);
+    const key = disconnectKey(room.roomCode, player.sessionToken);
+    disconnectTimers.set(key, setTimeout(() => {
+      disconnectTimers.delete(key);
+      const latestRoom = rooms.get(room.roomCode);
+      const disconnectedPlayer = latestRoom?.players.find((item) => item.sessionToken === player.sessionToken);
+      if (!latestRoom || !disconnectedPlayer || disconnectedPlayer.connected) return;
+
+      const removal = latestRoom.removePlayer(disconnectedPlayer.id);
+      if (latestRoom.players.length === 0) {
+        clearTimeout(roomTimers.get(latestRoom.roomCode));
+        roomTimers.delete(latestRoom.roomCode);
+        rooms.delete(latestRoom.roomCode);
+      } else if (latestRoom.finished) {
+        clearTimeout(roomTimers.get(latestRoom.roomCode));
+        roomTimers.delete(latestRoom.roomCode);
+        emitState(latestRoom);
+      } else if (removal?.wasCurrentPlayer) {
+        scheduleAutoAction(latestRoom);
+      } else {
+        emitState(latestRoom);
+      }
+    }, DISCONNECT_GRACE_MS));
   });
 });
 
