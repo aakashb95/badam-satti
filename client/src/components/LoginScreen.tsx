@@ -1,13 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { ComfortSize } from '../types';
 import GameDeskLink from './GameDeskLink';
+import HelpModal from './HelpModal';
 
 interface LoginScreenProps {
   onContinue: (username: string) => void;
+  comfortSize: ComfortSize;
+  onComfortSizeChange: (size: ComfortSize) => void;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue, comfortSize, onComfortSizeChange }) => {
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
+  const [showHelp, setShowHelp] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -40,7 +45,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue }) => {
     }
   };
 
-  return (
+  return (<>
     <main className="screen welcome-screen">
       <div className="welcome-shell">
         <section className="welcome-copy">
@@ -75,6 +80,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue }) => {
             </div>
             <div className={`field-message ${error ? 'is-visible' : ''}`} role="status">{error || 'Up to 20 characters'}</div>
           </div>
+          <button className="welcome-how-to" onClick={() => setShowHelp(true)}><strong>New to Badam 7?</strong><span>See the rules and animated examples · about 2 minutes</span></button>
+          <p className="welcome-rule-summary">Play the next card above or below each seven. Empty your hand and keep the lowest score.</p>
           <div className="welcome-meta">
             <span>2–11 players</span>
             <span>Private rooms</span>
@@ -83,7 +90,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue }) => {
         </section>
       </div>
     </main>
-  );
+    <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />
+  </>);
 };
 
 export default LoginScreen;
