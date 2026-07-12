@@ -177,7 +177,7 @@ PORT=5001
 APP_NAME=badam-satti
 APP_URL=http://127.0.0.1:5001
 DB_PATH=/opt/apps/badam-satti/data/badam-satti.db
-ALLOWED_ORIGINS=https://badam7.aakashb.xyz,https://www.badam7.aakashb.xyz
+ALLOWED_ORIGINS=https://games.aakashb.xyz,https://badam7.aakashb.xyz,https://www.badam7.aakashb.xyz
 IP_HASH_SALT=replace-with-a-long-random-string
 ADMIN_KEY=replace-with-a-long-random-string
 ```
@@ -214,7 +214,7 @@ sudo systemctl reload caddy
 The example routes King’s Corner to `127.0.0.1:5100` and everything else (landing, Badam, and legacy Badam links) to `127.0.0.1:5001`:
 
 ```caddyfile
-badam7.aakashb.xyz {
+games.aakashb.xyz, badam7.aakashb.xyz {
   encode zstd gzip
   handle /kings-corner* {
     reverse_proxy 127.0.0.1:5100

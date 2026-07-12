@@ -2,7 +2,7 @@
 
 ## Repository-backed architecture
 
-`badam7.aakashb.xyz` is documented and configured as a single Caddy site. Caddy terminates TLS and proxies to loopback-only Node processes managed by PM2:
+`games.aakashb.xyz` is the primary Game Desk hostname, with `badam7.aakashb.xyz` retained as a compatible alias. Both hostnames share one Caddy site. Caddy terminates TLS and proxies to loopback-only Node processes managed by PM2:
 
 | Public path | Upstream | Purpose |
 | --- | --- | --- |
@@ -32,7 +32,7 @@ Both Vite builds have explicit base paths. Express serves each build at the same
 
 ## Backward compatibility
 
-Existing Badam invite URLs such as `https://badam7.aakashb.xyz/r/ABC123` receive a `308` redirect to `https://badam7.aakashb.xyz/badam7/r/ABC123`. The room code and query string are preserved by Express. Badam Socket.io remains at `/socket.io`, so installed clients and proxy behavior do not change at the transport layer.
+Existing Badam invite URLs such as `https://badam7.aakashb.xyz/r/ABC123` receive a `308` redirect to `https://badam7.aakashb.xyz/badam7/r/ABC123`. The room code and query string are preserved by Express. Badam Socket.io remains at `/socket.io`, so installed clients and proxy behavior do not change at the transport layer. New links use the hostname from the current request, so rooms shared from `games.aakashb.xyz` remain on that hostname.
 
 The former Badam home URL `/` necessarily becomes the chooser. There is no room identity in that URL to preserve; Badam remains one tap away at `/badam7/`.
 

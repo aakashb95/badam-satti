@@ -21,6 +21,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   "https://localhost:5173",
   "http://localhost:5001", // V2 local client
   "https://localhost:5001",
+  "https://games.aakashb.xyz",
   "https://badam7.aakashb.xyz",
   "https://www.badam7.aakashb.xyz"
 ];
