@@ -83,6 +83,10 @@ const IP_HASH_SALT = process.env.IP_HASH_SALT || crypto.randomBytes(32).toString
 const ROOM_CODE_PATTERN = /^[A-Z0-9]{6}$/;
 const CARD_SUITS = new Set(['hearts', 'diamonds', 'clubs', 'spades']);
 const RATE_LIMITED_EVENTS = new Set(['create_room', 'join_room', 'reconnect_to_room', 'start_game', 'play_card', 'pass_turn', 'continue_round', 'exit_game', 'leave_room']);
+const configuredActiveGameReconnectMs = Number(process.env.ACTIVE_GAME_RECONNECT_MS);
+const ACTIVE_GAME_RECONNECT_MS = Number.isFinite(configuredActiveGameReconnectMs) && configuredActiveGameReconnectMs >= 0
+  ? configuredActiveGameReconnectMs
+  : 30000;
 
 function hashIP(ip) {
   return crypto.createHash('sha256').update(`${ip}${IP_HASH_SALT}`).digest('hex').substring(0, 16);
@@ -1035,14 +1039,14 @@ io.on("connection", (socket) => {
         if (wasGameStarted) {
           // Active games get a short reconnection window. Mobile Safari and
           // flaky networks can briefly drop sockets during app switches/taps.
-          console.log(`Player ${playerName} disconnected during game - allowing 90s reconnection`);
+          console.log(`Player ${playerName} disconnected during game - allowing ${ACTIVE_GAME_RECONNECT_MS / 1000}s reconnection`);
 
           room.setPlayerDisconnected(socket.id);
           if (wasCurrentPlayer && !room.gameFinished) {
             room.nextTurn();
           }
 
-          await db.setPlayerDisconnected(socket.id, true, 1.5);
+          await db.setPlayerDisconnected(socket.id, true, ACTIVE_GAME_RECONNECT_MS / 60000);
           await db.saveGameRoom(currentRoom, room);
 
           io.to(currentRoom).emit("player_temporarily_disconnected", {
@@ -1071,7 +1075,7 @@ io.on("connection", (socket) => {
             } catch (error) {
               console.error("Error finalizing active disconnect:", error);
             }
-          }, 90000);
+          }, ACTIVE_GAME_RECONNECT_MS);
           activeDisconnectTimers.set(disconnectTimerKey(disconnectedRoom, disconnectedPlayerId), timer);
         } else {
           // Game hasn't started - allow reconnection

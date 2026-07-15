@@ -109,6 +109,7 @@ async function startServer(t) {
       NODE_ENV: 'test',
       ADMIN_KEY: 'test-admin-key',
       IP_HASH_SALT: 'test-salt',
+      ACTIVE_GAME_RECONNECT_MS: '50',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -248,6 +249,42 @@ test('explicit active-game leave redistributes cards without waiting for disconn
   assert.equal(remainingCards, 51);
   assert.equal(removedEvent.gameState.players.every((player) => player.connected), true);
   assert.deepEqual(leaveResult, { ok: true });
+});
+
+test('active-game disconnect redistributes cards after the reconnection window', async (t) => {
+  const { baseUrl } = await startServer(t);
+  const sockets = await Promise.all([
+    connectClient(baseUrl),
+    connectClient(baseUrl),
+    connectClient(baseUrl),
+  ]);
+  t.after(() => sockets.forEach((socket) => socket.close()));
+
+  const [host, guest, third] = sockets;
+  const { roomCode } = await createRoom(host, 'Host');
+  await joinRoom(guest, roomCode, 'Guest');
+  await joinRoom(third, roomCode, 'Third');
+
+  const started = Promise.all(sockets.map((socket) => once(socket, 'game_started')));
+  const cards = Promise.all(sockets.map((socket) => once(socket, 'your_cards')));
+  host.emit('start_game');
+  await Promise.all([started, cards]);
+
+  const temporaryDisconnect = once(host, 'player_temporarily_disconnected');
+  const redistributed = once(host, 'cards_redistributed');
+  const playerRemoved = once(host, 'player_disconnected');
+  guest.close();
+
+  const [temporaryEvent, , removedEvent] = await Promise.all([
+    temporaryDisconnect,
+    redistributed,
+    playerRemoved,
+  ]);
+
+  assert.equal(temporaryEvent.gameState.players.find((player) => player.name === 'Guest').connected, false);
+  assert.deepEqual(removedEvent.gameState.players.map((player) => player.name), ['Host', 'Third']);
+  assert.equal(removedEvent.gameState.players.reduce((total, player) => total + player.cardCount, 0), 51);
+  assert.equal(removedEvent.gameState.players.every((player) => player.connected), true);
 });
 
 test('plays a complete round across four sockets with synchronized turns', async (t) => {
