@@ -1605,8 +1605,18 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
   .invite-actions button { flex: 1; padding: 0 11px; }
   #players-list { grid-template-columns: 1fr; }
 
-  .game-screen { padding: max(5px, env(safe-area-inset-top)) max(5px, env(safe-area-inset-right)) max(5px, env(safe-area-inset-bottom)) max(5px, env(safe-area-inset-left)); }
-  .game-shell { grid-template-rows: auto auto auto clamp(245px, 44dvh, 400px) auto; gap: 5px; }
+  .game-screen {
+    height: 100dvh;
+    align-items: stretch;
+    padding: max(5px, env(safe-area-inset-top)) max(5px, env(safe-area-inset-right)) max(5px, env(safe-area-inset-bottom)) max(5px, env(safe-area-inset-left));
+  }
+  .game-shell {
+    height: 100%;
+    min-height: 0;
+    margin: 0 auto;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    gap: 5px;
+  }
   .game-top-bar { grid-template-columns: auto 1fr auto; gap: 7px; padding: 3px 4px 6px; }
   .turn-status { min-width: 0; justify-self: center; padding: 5px 9px; }
   .turn-status strong { font-size: .64rem; }
@@ -1656,6 +1666,9 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
   .game-desk-link { width: auto; justify-content: flex-start; padding-inline: 2px; }
   .game-desk-wordmark { font-size: .54rem; letter-spacing: .08em; }
   .welcome-game-desk { left: 12px; }
+  .game-screen .game-desk-wordmark { display: none; }
+  .game-screen .game-brand .game-desk-link { width: 31px; }
+  .notification-game { top: max(66px, calc(env(safe-area-inset-top) + 54px)); }
 }
 
 @media (max-width: 390px) {
@@ -1676,9 +1689,16 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
   .room-code-display { gap: 4px; }
 
   .game-brand > div { display: none; }
-  .game-top-bar { grid-template-columns: auto 1fr auto; }
-  .turn-status { justify-self: start; }
-  .game-shell { grid-template-rows: auto auto auto clamp(230px, 43dvh, 300px) auto; }
+  .game-top-bar { grid-template-columns: auto minmax(0, 1fr) auto; gap: 5px; }
+  .turn-status {
+    width: 100%;
+    max-width: 100%;
+    justify-self: stretch;
+    overflow: hidden;
+    padding-inline: 4px;
+  }
+  .turn-status > div { min-width: 0; overflow: hidden; }
+  .turn-status strong { display: block; max-width: 100%; }
   .table-players { grid-template-columns: repeat(var(--player-count, 1), minmax(calc(var(--table-player-mobile-min) - 6px), 1fr)); }
   .table-player { width: min(100%, 108px); }
   .hand-card { width: var(--hand-card-small-width); }
@@ -1686,7 +1706,20 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 }
 
 @media (orientation: landscape) and (max-height: 600px) {
-  .game-shell { grid-template-rows: auto auto auto clamp(112px, 32dvh, 170px) auto; }
+  .game-screen {
+    --board-card-width: 58px;
+    --board-stack-offset: 18px;
+    height: 100dvh;
+    min-height: 0;
+    align-items: stretch;
+  }
+  .game-shell {
+    height: 100%;
+    min-height: 0;
+    margin: 0 auto;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    gap: 5px;
+  }
   .table-players {
     display: grid;
     grid-template-columns: repeat(var(--player-count, 1), minmax(70px, 1fr));
@@ -1716,5 +1749,7 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
   }
 }
 
-html[data-comfort-size="maximum"] .game-screen { align-items: flex-start; overflow-y: auto; }
-html[data-comfort-size="maximum"] .game-shell { grid-template-rows: auto auto auto minmax(360px, auto) auto; }
+@media (min-width: 681px) and (min-height: 601px) {
+  html[data-comfort-size="maximum"] .game-screen { align-items: flex-start; overflow-y: auto; }
+  html[data-comfort-size="maximum"] .game-shell { grid-template-rows: auto auto auto minmax(360px, auto) auto; }
+}

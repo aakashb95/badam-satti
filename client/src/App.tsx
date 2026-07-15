@@ -511,7 +511,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
     <div className="app" data-comfort-size={comfortSize}>
       {renderScreen()}
       {appState.error && <ErrorModal message={appState.error} onClose={() => setAppState((previous) => ({ ...previous, error: null }))} />}
-      {appState.notification && <Notification message={appState.notification} />}
+      {appState.notification && <Notification message={appState.notification} inGame={appState.currentScreen === 'game'} />}
     </div>
   );
 };
