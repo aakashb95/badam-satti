@@ -2,7 +2,7 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
 function toSqliteDateTime(date) {
-  return date.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+  return date.toISOString().replace('T', ' ').replace(/Z$/, '');
 }
 
 class Database {
@@ -300,7 +300,7 @@ class Database {
     return new Promise((resolve, reject) => {
       // Check if player can reconnect
       this.db.get(
-        'SELECT * FROM players WHERE username = ? AND room_code = ? AND can_reconnect = 1 AND datetime(reconnect_timeout) > CURRENT_TIMESTAMP',
+        "SELECT * FROM players WHERE username = ? AND room_code = ? AND can_reconnect = 1 AND julianday(reconnect_timeout) > julianday('now')",
         [username, roomCode],
         (err, row) => {
           if (err) {
@@ -333,7 +333,7 @@ class Database {
   async cleanupExpiredReconnections() {
     return new Promise((resolve, reject) => {
       this.db.run(
-        'UPDATE players SET can_reconnect = 0, reconnect_timeout = NULL WHERE reconnect_timeout IS NOT NULL AND datetime(reconnect_timeout) < CURRENT_TIMESTAMP',
+        "UPDATE players SET can_reconnect = 0, reconnect_timeout = NULL WHERE reconnect_timeout IS NOT NULL AND julianday(reconnect_timeout) < julianday('now')",
         [],
         function(err) {
           if (err) {
@@ -349,7 +349,7 @@ class Database {
   async getReconnectablePlayersInRoom(roomCode) {
     return new Promise((resolve, reject) => {
       this.db.all(
-        'SELECT * FROM players WHERE room_code = ? AND can_reconnect = 1 AND datetime(reconnect_timeout) > CURRENT_TIMESTAMP',
+        "SELECT * FROM players WHERE room_code = ? AND can_reconnect = 1 AND julianday(reconnect_timeout) > julianday('now')",
         [roomCode],
         (err, rows) => {
           if (err) {

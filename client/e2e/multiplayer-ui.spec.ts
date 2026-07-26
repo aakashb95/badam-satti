@@ -157,6 +157,65 @@ test('first-time guide completes the rules and table walkthrough on a phone', as
   await context.close();
 });
 
+test('room session survives waiting and active-game refreshes with a safe recovery exit', async ({ browser, page, baseURL }, testInfo) => {
+  const projectUse = testInfo.project.use as BrowserContextOptions;
+  const contextOptions: BrowserContextOptions = {
+    viewport: page.viewportSize() || projectUse.viewport || { width: 1280, height: 720 },
+    deviceScaleFactor: projectUse.deviceScaleFactor,
+    isMobile: projectUse.isMobile,
+    hasTouch: projectUse.hasTouch,
+  };
+
+  await login(page, 'Host');
+  const roomCode = await createRoom(page);
+
+  const guest = await newPlayerPage(browser, contextOptions, baseURL || '');
+  await joinRoom(guest.page, roomCode, 'Guest');
+  await guest.page.reload();
+
+  await expect(guest.page.locator('.waiting-screen')).toBeVisible();
+  await expect(guest.page.locator('.invite-copy strong')).toHaveText(roomCode);
+  await expect(guest.page.locator('.player-item').filter({ hasText: 'Guest' })).not.toHaveClass(/disconnected/);
+  await expect(page.locator('.player-item')).toHaveCount(2);
+
+  await page.locator('.start-button').click();
+  await expect(guest.page.locator('.game-screen')).toBeVisible();
+  const handSizeBeforeReload = await guest.page.locator('.hand-card').count();
+  expect(handSizeBeforeReload).toBeGreaterThan(0);
+
+  await guest.page.reload();
+  await expect(guest.page.locator('.game-screen')).toBeVisible();
+  await expect(guest.page.locator('.hand-card')).toHaveCount(handSizeBeforeReload);
+
+  const secondHost = await newPlayerPage(browser, contextOptions, baseURL || '');
+  await login(secondHost.page, 'Second Host');
+  const secondRoomCode = await createRoom(secondHost.page);
+  await joinRoom(guest.page, secondRoomCode, 'Guest');
+  await expect(guest.page.locator('.invite-copy strong')).toHaveText(secondRoomCode);
+  await expect(secondHost.page.locator('.player-item')).toHaveCount(2);
+  await expect(page.locator('.table-player').filter({ hasText: 'Guest' })).toHaveClass(/is-disconnected/);
+
+  const missingRoom = await newPlayerPage(browser, contextOptions, baseURL || '');
+  await missingRoom.page.addInitScript(() => {
+    window.localStorage.setItem('badam-satti-room-session', JSON.stringify({
+      roomCode: 'ZZZZZZ',
+      username: 'Returning Player',
+    }));
+  });
+  await missingRoom.page.goto('/badam7/');
+
+  const recoveryDialog = missingRoom.page.getByRole('alertdialog');
+  await expect(recoveryDialog).toContainText('Your saved seat is no longer available.');
+  await expect(recoveryDialog.getByRole('button', { name: 'Reconnect to room' })).toBeVisible();
+  await recoveryDialog.getByRole('button', { name: 'Leave room' }).click();
+  await expect(missingRoom.page.locator('.lobby-screen')).toBeVisible();
+  expect(await missingRoom.page.evaluate(() => window.localStorage.getItem('badam-satti-room-session'))).toBeNull();
+
+  await guest.context.close();
+  await secondHost.context.close();
+  await missingRoom.context.close();
+});
+
 test('four-player game renders and starts across responsive viewports', async ({ browser, page, baseURL }, testInfo) => {
   const projectUse = testInfo.project.use as BrowserContextOptions;
   const zoom = testInfo.project.name.includes('125-zoom') ? 1.25 : 1;

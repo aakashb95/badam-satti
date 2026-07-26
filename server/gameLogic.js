@@ -106,6 +106,7 @@ class GameRoom {
 
   startGame() {
     if (this.players.length <= 1) return false;
+    if (this.players.some((player) => !player.connected)) return false;
     if (this.started) return false;
 
     this.started = true;
@@ -559,6 +560,7 @@ class GameRoom {
   continueRound() {
     if (!this.gameFinished) return false;
     if (this.round >= this.maxRounds) return false;
+    if (this.players.some((player) => !player.connected)) return false;
 
     // Advance round counters
     this.round++;

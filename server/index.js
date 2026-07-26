@@ -125,6 +125,7 @@ function sanitizeError(error) {
 }
 
 function emitSocketError(socket, code, message) {
+  console.warn(`Socket action rejected: ${code} for ${socket.id}`);
   socket.emit("error", { code, message });
 }
 
@@ -351,6 +352,30 @@ async function removePlayerFromRoom(roomCode, playerId, playerName, options = {}
   }
 
   return room;
+}
+
+async function removeDisconnectedWaitingPlayers(roomCode, room) {
+  const disconnectedPlayers = room.players.filter((player) => !player.connected);
+  if (disconnectedPlayers.length === 0) return [];
+
+  disconnectedPlayers.forEach((player) => {
+    clearActiveDisconnectTimer(roomCode, player.id);
+    room.removePlayer(player.id, false);
+  });
+
+  await Promise.all(
+    disconnectedPlayers.map((player) => db.removePlayerFromRoom(player.id, roomCode))
+  );
+  await db.saveGameRoom(roomCode, room);
+
+  disconnectedPlayers.forEach((player) => {
+    io.to(roomCode).emit("player_disconnected", {
+      playerName: player.name,
+      gameState: room.getState(),
+    });
+  });
+
+  return disconnectedPlayers;
 }
 
 app.use(express.json({ limit: '16kb' }));
@@ -599,17 +624,48 @@ io.on("connection", (socket) => {
             emitSocketError(socket, "USERNAME_TAKEN", "Username already taken in this room");
             return;
           }
-          // Check if the disconnected player has an active reconnection window
+
+          // A normal join from a refreshed invite link must be able to reclaim
+          // the player's reserved waiting-room seat.
           try {
-            const reconnectionData = await db.getPlayerReconnectionData(cleanUsername, cleanRoomCode);
-            const reconnectStillActive =
-              reconnectionData?.can_reconnect &&
-              reconnectionData.reconnect_timeout &&
-              new Date(reconnectionData.reconnect_timeout).getTime() > Date.now();
-            if (reconnectStillActive) {
-              emitSocketError(socket, "USERNAME_TAKEN", "Username already taken in this room");
+            const reconnectionResult = await db.attemptPlayerReconnection(
+              cleanUsername,
+              cleanRoomCode,
+              socket.id
+            );
+
+            if (reconnectionResult.canReconnect) {
+              clearActiveDisconnectTimer(cleanRoomCode, reconnectionResult.playerId);
+              const reconnected = room.reconnectPlayer(
+                reconnectionResult.playerId,
+                socket.id
+              );
+
+              if (!reconnected) {
+                emitSocketError(socket, "RECONNECT_FAILED", "Failed to reconnect to room");
+                return;
+              }
+
+              socket.join(cleanRoomCode);
+              currentRoom = cleanRoomCode;
+              playerName = cleanUsername;
+              await db.saveGameRoom(cleanRoomCode, room);
+
+              console.log(`${playerName} reconnected to room: ${cleanRoomCode}`);
+              socket.emit("room_reconnected", {
+                roomCode: cleanRoomCode,
+                gameState: room.getState(),
+                myCards: room.getPlayerCards(socket.id),
+                validMoves: room.getValidMoves(socket.id),
+                canPass: !room.canPlayerPlay(socket.id),
+              });
+              io.to(cleanRoomCode).emit("player_reconnected", {
+                playerName: cleanUsername,
+                gameState: room.getState(),
+              });
               return;
             }
+
             // Clean up the orphaned disconnected player
             console.log(`Cleaning up orphaned disconnected player: ${cleanUsername} in room ${cleanRoomCode}`);
             room.removePlayer(existingPlayer.id, false);
@@ -764,8 +820,10 @@ io.on("connection", (socket) => {
         return;
       }
 
+      await removeDisconnectedWaitingPlayers(currentRoom, room);
+
       if (room.players.length <= 1) {
-        socket.emit("error", "Need at least 2 players to start");
+        emitSocketError(socket, "NOT_ENOUGH_CONNECTED_PLAYERS", "Need at least 2 connected players to start");
         return;
       }
 
@@ -923,6 +981,14 @@ io.on("connection", (socket) => {
         await db.saveGameRoom(currentRoom, room);
         return;
       }
+      if (room.players.some((player) => !player.connected)) {
+        emitSocketError(
+          socket,
+          "PLAYERS_RECONNECTING",
+          "Wait for disconnected players to reconnect before starting the next round"
+        );
+        return;
+      }
 
       const success = room.continueRound();
       if (!success) {
@@ -1026,8 +1092,8 @@ io.on("connection", (socket) => {
   });
 
   // Handle disconnection
-  socket.on("disconnect", async () => {
-    console.log(`User disconnected: ${socket.id}`);
+  socket.on("disconnect", async (reason) => {
+    console.log(`User disconnected: ${socket.id} (${reason})`);
 
     try {
       if (currentRoom && rooms[currentRoom]) {

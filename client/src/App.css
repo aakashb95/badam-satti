@@ -1505,6 +1505,7 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 .modal-content { max-width: 400px; text-align: center; }
 .modal-icon { display: grid; width: 50px; height: 50px; margin: 0 auto 18px; place-items: center; color: var(--red); background: var(--danger-soft); border: 1px solid var(--danger-line); border-radius: 50%; font-family: var(--font-body); font-size: 1.5rem; }
 .modal-content p { margin: 12px 0 19px; color: var(--muted); font-size: .76rem; line-height: 1.5; }
+.modal-actions { display: grid; gap: 8px; }
 
 .notification {
   position: fixed;

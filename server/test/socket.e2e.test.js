@@ -109,7 +109,7 @@ async function startServer(t) {
       NODE_ENV: 'test',
       ADMIN_KEY: 'test-admin-key',
       IP_HASH_SALT: 'test-salt',
-      ACTIVE_GAME_RECONNECT_MS: '50',
+      ACTIVE_GAME_RECONNECT_MS: '500',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -216,6 +216,129 @@ test('waiting-room reconnect restores the same player on a new socket', async (t
   assert.deepEqual(guestEvent.gameState.players.map((player) => player.name), ['Host', 'Guest']);
 });
 
+test('normal waiting-room join reclaims a reserved disconnected seat', async (t) => {
+  const { baseUrl } = await startServer(t);
+  const host = await connectClient(baseUrl);
+  const guest = await connectClient(baseUrl);
+  t.after(() => {
+    host.close();
+    guest.close();
+  });
+
+  const { roomCode } = await createRoom(host, 'Host');
+  await joinRoom(guest, roomCode, 'Guest');
+
+  const temporaryDisconnect = once(host, 'player_temporarily_disconnected');
+  guest.close();
+  await temporaryDisconnect;
+
+  const returningGuest = await connectClient(baseUrl);
+  t.after(() => returningGuest.close());
+  const hostSawReconnect = once(host, 'player_reconnected');
+  const reclaimedSeat = once(returningGuest, 'room_reconnected');
+  returningGuest.emit('join_room', { roomCode, username: 'Guest' });
+  const [hostEvent, guestEvent] = await Promise.all([hostSawReconnect, reclaimedSeat]);
+
+  assert.deepEqual(guestEvent.gameState.players.map((player) => player.name), ['Host', 'Guest']);
+  assert.equal(guestEvent.gameState.players.filter((player) => player.name === 'Guest').length, 1);
+  assert.equal(hostEvent.gameState.players.find((player) => player.name === 'Guest').connected, true);
+
+  const duplicateGuest = await connectClient(baseUrl);
+  t.after(() => duplicateGuest.close());
+  const duplicateError = once(duplicateGuest, 'error');
+  duplicateGuest.emit('join_room', { roomCode, username: 'Guest' });
+  assert.equal((await duplicateError).code, 'USERNAME_TAKEN');
+
+  const secondTemporaryDisconnect = once(host, 'player_temporarily_disconnected');
+  returningGuest.close();
+  await secondTemporaryDisconnect;
+
+  const secondReturn = await connectClient(baseUrl);
+  t.after(() => secondReturn.close());
+  const reclaimedAgain = once(secondReturn, 'room_reconnected');
+  secondReturn.emit('join_room', { roomCode, username: 'Guest' });
+  const secondReturnEvent = await reclaimedAgain;
+  assert.equal(secondReturnEvent.gameState.players.filter((player) => player.name === 'Guest').length, 1);
+});
+
+test('starting removes disconnected waiting players before cards are dealt', async (t) => {
+  const { baseUrl } = await startServer(t);
+  const host = await connectClient(baseUrl);
+  const guest = await connectClient(baseUrl);
+  const third = await connectClient(baseUrl);
+  t.after(() => {
+    host.close();
+    guest.close();
+    third.close();
+  });
+
+  const { roomCode } = await createRoom(host, 'Host');
+  await joinRoom(guest, roomCode, 'Guest');
+  await joinRoom(third, roomCode, 'Third');
+
+  const temporaryDisconnect = once(host, 'player_temporarily_disconnected');
+  guest.close();
+  await temporaryDisconnect;
+
+  const removed = once(host, 'player_disconnected');
+  const hostStarted = once(host, 'game_started');
+  const thirdStarted = once(third, 'game_started');
+  const hostCards = once(host, 'your_cards');
+  const thirdCards = once(third, 'your_cards');
+  host.emit('start_game');
+
+  const [removedEvent, hostStartEvent, thirdStartEvent, hostHand, thirdHand] = await Promise.all([
+    removed,
+    hostStarted,
+    thirdStarted,
+    hostCards,
+    thirdCards,
+  ]);
+
+  assert.equal(removedEvent.playerName, 'Guest');
+  assert.deepEqual(hostStartEvent.gameState.players.map((player) => player.name), ['Host', 'Third']);
+  assert.deepEqual(thirdStartEvent.gameState.players.map((player) => player.name), ['Host', 'Third']);
+  assert.equal(hostStartEvent.gameState.players.every((player) => player.connected), true);
+  assert.equal(hostHand.cards.length + thirdHand.cards.length, 51);
+
+  const returningGuest = await connectClient(baseUrl);
+  t.after(() => returningGuest.close());
+  const reconnectError = once(returningGuest, 'error');
+  returningGuest.emit('reconnect_to_room', { roomCode, username: 'Guest' });
+  assert.equal((await reconnectError).code, 'RECONNECT_UNAVAILABLE');
+});
+
+test('starting fails after cleanup when fewer than two connected players remain', async (t) => {
+  const { baseUrl } = await startServer(t);
+  const host = await connectClient(baseUrl);
+  const guest = await connectClient(baseUrl);
+  t.after(() => {
+    host.close();
+    guest.close();
+  });
+
+  const { roomCode } = await createRoom(host, 'Host');
+  await joinRoom(guest, roomCode, 'Guest');
+
+  const temporaryDisconnect = once(host, 'player_temporarily_disconnected');
+  guest.close();
+  await temporaryDisconnect;
+
+  const removed = once(host, 'player_disconnected');
+  const startError = once(host, 'error');
+  host.emit('start_game');
+  const [removedEvent, error] = await Promise.all([removed, startError]);
+
+  assert.equal(removedEvent.playerName, 'Guest');
+  assert.equal(error.code, 'NOT_ENOUGH_CONNECTED_PLAYERS');
+
+  const state = once(host, 'game_state');
+  host.emit('get_state');
+  const hostState = await state;
+  assert.equal(hostState.started, false);
+  assert.deepEqual(hostState.players.map((player) => player.name), ['Host']);
+});
+
 test('explicit active-game leave redistributes cards without waiting for disconnect timeout', async (t) => {
   const { baseUrl } = await startServer(t);
   const sockets = await Promise.all([
@@ -270,6 +393,11 @@ test('active-game disconnect redistributes cards after the reconnection window',
   host.emit('start_game');
   await Promise.all([started, cards]);
 
+  let redistributionCount = 0;
+  let removalCount = 0;
+  host.on('cards_redistributed', () => { redistributionCount += 1; });
+  host.on('player_disconnected', () => { removalCount += 1; });
+
   const temporaryDisconnect = once(host, 'player_temporarily_disconnected');
   const redistributed = once(host, 'cards_redistributed');
   const playerRemoved = once(host, 'player_disconnected');
@@ -285,6 +413,54 @@ test('active-game disconnect redistributes cards after the reconnection window',
   assert.deepEqual(removedEvent.gameState.players.map((player) => player.name), ['Host', 'Third']);
   assert.equal(removedEvent.gameState.players.reduce((total, player) => total + player.cardCount, 0), 51);
   assert.equal(removedEvent.gameState.players.every((player) => player.connected), true);
+  await wait(100);
+  assert.equal(redistributionCount, 1);
+  assert.equal(removalCount, 1);
+});
+
+test('active-game reconnect within the window restores the same hand once', async (t) => {
+  const { baseUrl } = await startServer(t);
+  const host = await connectClient(baseUrl);
+  const guest = await connectClient(baseUrl);
+  const third = await connectClient(baseUrl);
+  t.after(() => {
+    host.close();
+    guest.close();
+    third.close();
+  });
+
+  const { roomCode } = await createRoom(host, 'Host');
+  await joinRoom(guest, roomCode, 'Guest');
+  await joinRoom(third, roomCode, 'Third');
+
+  const started = Promise.all([host, guest, third].map((socket) => once(socket, 'game_started')));
+  const initialHands = Promise.all([host, guest, third].map((socket) => once(socket, 'your_cards')));
+  host.emit('start_game');
+  const [, hands] = await Promise.all([started, initialHands]);
+  const guestHand = hands[1].cards;
+
+  let redistributionCount = 0;
+  let removalCount = 0;
+  host.on('cards_redistributed', () => { redistributionCount += 1; });
+  host.on('player_disconnected', () => { removalCount += 1; });
+
+  const temporaryDisconnect = once(host, 'player_temporarily_disconnected');
+  guest.close();
+  await temporaryDisconnect;
+
+  const returningGuest = await connectClient(baseUrl);
+  t.after(() => returningGuest.close());
+  const reconnected = once(returningGuest, 'room_reconnected');
+  returningGuest.emit('reconnect_to_room', { roomCode, username: 'Guest' });
+  const reconnectEvent = await reconnected;
+
+  assert.deepEqual(reconnectEvent.myCards, guestHand);
+  assert.equal(reconnectEvent.gameState.players.filter((player) => player.name === 'Guest').length, 1);
+  assert.equal(reconnectEvent.gameState.players.find((player) => player.name === 'Guest').connected, true);
+
+  await wait(650);
+  assert.equal(redistributionCount, 0);
+  assert.equal(removalCount, 0);
 });
 
 test('plays a complete round across four sockets with synchronized turns', async (t) => {

@@ -22,6 +22,16 @@ test('starts with 7 of hearts on the board and advances to the next player', () 
   assert.match(room.gameStartMessage, /started the game$/);
 });
 
+test('refuses to start while a disconnected player is still seated', () => {
+  const room = makeRoom(3);
+  room.setPlayerDisconnected('p1');
+
+  assert.equal(room.startGame(), false);
+  assert.equal(room.started, false);
+  assert.equal(room.players.reduce((total, player) => total + player.cards.length, 0), 0);
+  assert.deepEqual(room.board.hearts.up, []);
+});
+
 test('deals clockwise from the player after the dealer', () => {
   const room = makeRoom(4);
   room.dealerIndex = 1;
@@ -57,6 +67,19 @@ test('does not continue past maxRounds', () => {
   assert.equal(room.hasMoreRounds(), false);
   assert.equal(room.continueRound(), false);
   assert.equal(room.round, room.maxRounds);
+});
+
+test('refuses to deal the next round while a player is disconnected', () => {
+  const room = makeRoom(3);
+  room.started = true;
+  room.gameFinished = true;
+  room.players[0].cards = [{ suit: 'hearts', rank: 1 }];
+  room.setPlayerDisconnected('p1');
+
+  assert.equal(room.continueRound(), false);
+  assert.equal(room.round, 1);
+  assert.equal(room.gameFinished, true);
+  assert.deepEqual(room.players[0].cards, [{ suit: 'hearts', rank: 1 }]);
 });
 
 test('removes and redistributes a player without losing cards', () => {
