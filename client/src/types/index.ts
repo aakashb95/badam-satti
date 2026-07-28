@@ -142,4 +142,5 @@ export interface AppState {
   loading: string | null;
   winner: Winner | null;
   summary: GameSummary | null;
+  gameEndedByDepartures: boolean;
 }

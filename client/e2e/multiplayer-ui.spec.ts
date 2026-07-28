@@ -387,6 +387,39 @@ test('round results survive a player refresh', async ({ browser, page, baseURL }
   await third.context.close();
 });
 
+test('players leaving ends the game without an error dialog', async ({ browser, page, baseURL }, testInfo) => {
+  const projectUse = testInfo.project.use as BrowserContextOptions;
+  const contextOptions: BrowserContextOptions = {
+    viewport: page.viewportSize() || projectUse.viewport || { width: 1280, height: 720 },
+    deviceScaleFactor: projectUse.deviceScaleFactor,
+    isMobile: projectUse.isMobile,
+    hasTouch: projectUse.hasTouch,
+  };
+
+  await login(page, 'Host');
+  const roomCode = await createRoom(page);
+  const guest = await newPlayerPage(browser, contextOptions, baseURL || '');
+  const third = await newPlayerPage(browser, contextOptions, baseURL || '');
+  await joinRoom(guest.page, roomCode, 'Guest');
+  await joinRoom(third.page, roomCode, 'Third');
+
+  await page.locator('.start-button').click();
+  await expect(guest.page.locator('.game-screen')).toBeVisible();
+  await guest.page.getByRole('button', { name: 'Leave game' }).click();
+  await guest.page.getByRole('dialog', { name: 'Leave this game?' }).getByRole('button', { name: 'Leave game' }).click();
+
+  await expect(page.locator('.waiting-screen')).toBeVisible();
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await expect(page.locator('.waiting-heading h2')).toHaveText('Not enough players remain');
+
+  await third.page.getByRole('button', { name: 'Leave room' }).click();
+  await expect(page.locator('.waiting-heading h2')).toHaveText('Everyone has left the room');
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+
+  await guest.context.close();
+  await third.context.close();
+});
+
 test('seven-player game renders and starts across responsive viewports', async ({ browser, page, baseURL }, testInfo) => {
   const projectUse = testInfo.project.use as BrowserContextOptions;
   const zoom = testInfo.project.name.includes('125-zoom') ? 1.25 : 1;

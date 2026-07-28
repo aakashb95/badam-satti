@@ -13,7 +13,7 @@ import Notification from './components/Notification';
 import SimulationScreen from './components/SimulationScreen';
 import SummaryScreen from './components/SummaryScreen';
 import WaitingRoom from './components/WaitingRoom';
-import { AppState, Card, ComfortSize, GameSummary, Winner } from './types';
+import { AppState, Card, ComfortSize, GameSummary, Player, Winner } from './types';
 
 interface JoinRequest {
   roomCode: string;
@@ -57,6 +57,7 @@ const createEmptyAppState = (): AppState => ({
   loading: null,
   winner: null,
   summary: null,
+  gameEndedByDepartures: false,
 });
 
 
@@ -328,6 +329,8 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
         gameState,
         currentScreen: 'waiting',
         loading: null,
+        error: null,
+        gameEndedByDepartures: false,
       }));
     });
 
@@ -343,11 +346,18 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
         gameState,
         currentScreen: 'waiting',
         loading: null,
+        error: null,
+        gameEndedByDepartures: false,
       }));
     });
 
     socket.on('player_joined', ({ playerName, gameState }) => {
-      setAppState((previous) => ({ ...previous, gameState }));
+      const hasMinimumPlayers = gameState.players.filter((player: Player) => player.connected).length >= 3;
+      setAppState((previous) => ({
+        ...previous,
+        gameState,
+        gameEndedByDepartures: hasMinimumPlayers ? false : previous.gameEndedByDepartures,
+      }));
       notify(`${playerName} joined the room`);
     });
 
@@ -383,12 +393,20 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
         currentScreen: screenForGameState(gameState),
         loading: null,
         error: null,
+        gameEndedByDepartures: false,
       }));
     });
 
     socket.on('game_started', ({ gameState }) => {
       actionPendingRef.current = false;
-      setAppState((previous) => ({ ...previous, gameState, currentScreen: 'game', loading: null, winner: null }));
+      setAppState((previous) => ({
+        ...previous,
+        gameState,
+        currentScreen: 'game',
+        loading: null,
+        winner: null,
+        gameEndedByDepartures: false,
+      }));
     });
 
     socket.on('your_cards', ({ cards, validMoves, canPass }) => {
@@ -425,7 +443,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
 
     socket.on('cards_redistributed', ({ message }) => notify(message));
 
-    socket.on('not_enough_players', ({ message, gameState }) => {
+    socket.on('not_enough_players', ({ gameState }) => {
       actionPendingRef.current = false;
       setShowingGameOverDelay(false);
       setAppState((previous) => ({
@@ -438,14 +456,22 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
         winner: null,
         currentScreen: 'waiting',
         loading: null,
-        error: message,
+        error: null,
+        gameEndedByDepartures: true,
       }));
     });
 
     socket.on('round_continued', ({ gameState }) => {
       actionPendingRef.current = false;
       setShowingGameOverDelay(false);
-      setAppState((previous) => ({ ...previous, gameState, currentScreen: 'game', loading: null, winner: null }));
+      setAppState((previous) => ({
+        ...previous,
+        gameState,
+        currentScreen: 'game',
+        loading: null,
+        winner: null,
+        gameEndedByDepartures: false,
+      }));
     });
 
     socket.on('turn_duration_changed', ({ gameState }) => {
@@ -687,6 +713,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
       currentScreen: 'menu',
       winner: null,
       summary: null,
+      gameEndedByDepartures: false,
     }));
   }
 
@@ -732,7 +759,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
       case 'menu':
         return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />;
       case 'waiting':
-        return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} onReturnToGameDesk={leaveRoomForGameDesk} onSetTurnDuration={setTurnDuration} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />;
+        return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} gameEndedByDepartures={appState.gameEndedByDepartures} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} onReturnToGameDesk={leaveRoomForGameDesk} onSetTurnDuration={setTurnDuration} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />;
       case 'game':
         return <GameScreen gameState={appState.gameState} myCards={appState.myCards} validMoves={appState.validMoves} isMyTurn={appState.isMyTurn} canPass={appState.canPass} username={appState.username} onPlayCard={playCard} onPassTurn={passTurn} onLeaveGame={leaveRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} onReturnToGameDesk={leaveRoomForGameDesk} roundWinnerName={appState.gameState?.gameFinished ? appState.winner?.winner : undefined} />;
       case 'game-over':

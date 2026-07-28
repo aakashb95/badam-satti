@@ -7,6 +7,7 @@ interface WaitingRoomProps {
   roomCode: string;
   gameState: GameState | null;
   username: string;
+  gameEndedByDepartures: boolean;
   onStartGame: () => void;
   onLeaveRoom: () => void;
   onShowNotification: (message: string) => void;
@@ -22,6 +23,7 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
   roomCode,
   gameState,
   username,
+  gameEndedByDepartures,
   onStartGame,
   onLeaveRoom,
   onShowNotification,
@@ -62,6 +64,7 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
   const playerCount = gameState?.players.length || 0;
   const connectedPlayerCount = gameState?.players.filter((player) => player.connected).length || 0;
   const turnDuration = gameState?.turnDurationSeconds ?? 20;
+  const everyoneElseLeft = gameEndedByDepartures && connectedPlayerCount === 1;
 
   return (
     <main className="screen waiting-screen">
@@ -75,9 +78,21 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
         </header>
 
         <section className="waiting-heading">
-          <span className="eyebrow">Private table</span>
-          <h2>Waiting for players</h2>
-          <p>{isCreator ? 'Invite your people, then start whenever everyone is ready.' : 'The host will start the game when everyone is ready.'}</p>
+          {everyoneElseLeft ? (
+            <h2>Everyone has left the room</h2>
+          ) : (
+            <>
+              <span className="eyebrow">{gameEndedByDepartures ? 'Game ended' : 'Private table'}</span>
+              <h2>{gameEndedByDepartures ? 'Not enough players remain' : 'Waiting for players'}</h2>
+              <p>
+                {gameEndedByDepartures
+                  ? 'Invite another player to start again.'
+                  : isCreator
+                    ? 'Invite your people, then start whenever everyone is ready.'
+                    : 'The host will start the game when everyone is ready.'}
+              </p>
+            </>
+          )}
         </section>
 
         <section className="invite-card">
