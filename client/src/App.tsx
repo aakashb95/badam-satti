@@ -18,6 +18,7 @@ import { AppState, Card, ComfortSize, GameSummary, Winner } from './types';
 interface JoinRequest {
   roomCode: string;
   username: string;
+  sessionToken?: string;
 }
 
 interface RouteState {
@@ -34,6 +35,7 @@ interface ServerErrorPayload {
 interface RoomSession {
   roomCode: string;
   username: string;
+  sessionToken: string;
 }
 
 const COMFORT_SIZE_STORAGE_KEY = 'badam-satti-comfort-size';
@@ -44,6 +46,7 @@ const createEmptyAppState = (): AppState => ({
   currentScreen: 'login',
   username: '',
   currentRoom: '',
+  sessionToken: '',
   gameState: null,
   myCards: [],
   validMoves: [],
@@ -65,9 +68,15 @@ function loadRoomSession(): RoomSession | null {
       typeof parsed.username === 'string' &&
       parsed.username.trim().length > 0 &&
       typeof parsed.roomCode === 'string' &&
-      /^[A-Z0-9]{6}$/.test(parsed.roomCode)
+      /^[A-Z0-9]{6}$/.test(parsed.roomCode) &&
+      typeof parsed.sessionToken === 'string' &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(parsed.sessionToken)
     ) {
-      return { username: parsed.username, roomCode: parsed.roomCode };
+      return {
+        username: parsed.username,
+        roomCode: parsed.roomCode,
+        sessionToken: parsed.sessionToken,
+      };
     }
   } catch {
     // Invalid or unavailable storage should not prevent the app from opening.
@@ -99,6 +108,7 @@ function getInitialAppState(): AppState {
     ...createEmptyAppState(),
     username: session.username,
     currentRoom: session.roomCode,
+    sessionToken: session.sessionToken,
     currentScreen: 'loading',
     loading: 'Reconnecting to your room…',
   };
@@ -113,8 +123,9 @@ function getServerErrorMessage(message: string | Error | ServerErrorPayload): st
     if (message.code === 'USERNAME_TAKEN') return 'That name is already taken in this room.';
     if (message.code === 'RECONNECT_UNAVAILABLE') return 'Your saved seat is no longer available.';
     if (message.code === 'RECONNECT_FAILED') return 'We could not restore your seat.';
-    if (message.code === 'NOT_ENOUGH_CONNECTED_PLAYERS') return 'At least two connected players are needed to start.';
-    if (message.code === 'PLAYERS_RECONNECTING') return 'Wait for disconnected players to reconnect before starting the next round.';
+    if (message.code === 'RECONNECT_REQUIRED') return 'This name has a reserved seat on another device.';
+    if (message.code === 'NOT_ENOUGH_CONNECTED_PLAYERS') return 'Need at least 3 players to play.';
+    if (message.code === 'PLAYERS_RECONNECTING') return 'Wait for disconnected players to reconnect. Need 3 connected players to continue.';
   }
 
   const rawMessage = typeof message === 'string' ? message : message.message || 'Unexpected server error';
@@ -136,6 +147,12 @@ const getInitialComfortSize = (): ComfortSize => {
   } catch {
     return 'standard';
   }
+};
+
+const screenForGameState = (gameState: AppState['gameState']): AppState['currentScreen'] => {
+  if (gameState?.gameFinished) return 'game-over';
+  if (gameState?.started) return 'game';
+  return 'waiting';
 };
 
 const App: React.FC = () => {
@@ -166,6 +183,7 @@ const JoinRoomRoute: React.FC = () => {
   const navigate = useNavigate();
   const routeLocation = useLocation();
   const routeState = routeLocation.state as RouteState | null;
+  const savedSession = loadRoomSession();
 
   if (!roomCode) return <div>Invalid room code</div>;
 
@@ -173,10 +191,21 @@ const JoinRoomRoute: React.FC = () => {
     <div className="app">
       <JoinRoomScreen
         roomCode={roomCode.toUpperCase()}
-        onJoinRoom={(code, username) => navigate(`/${routeLocation.search}`, { state: { joinRoom: { roomCode: code, username } } })}
+        onJoinRoom={(code, username) => {
+          const sessionToken =
+            savedSession?.roomCode === code &&
+            savedSession.username === username
+              ? savedSession.sessionToken
+              : undefined;
+          navigate(`/${routeLocation.search}`, {
+            state: { joinRoom: { roomCode: code, username, sessionToken } },
+          });
+        }}
         onBackToMenu={() => navigate('/')}
         error={routeState?.error || null}
-        initialUsername={routeState?.username || ''}
+        initialUsername={routeState?.username || (
+          savedSession?.roomCode === roomCode.toUpperCase() ? savedSession.username : ''
+        )}
         onClearError={() => navigate(`/r/${roomCode}`, { replace: true })}
       />
     </div>
@@ -260,7 +289,11 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
           currentScreen: 'loading',
           loading: 'Reconnecting to your room…',
         }));
-        socket.emit('reconnect_to_room', { roomCode: current.currentRoom, username: current.username });
+        socket.emit('reconnect_to_room', {
+          roomCode: current.currentRoom,
+          username: current.username,
+          sessionToken: current.sessionToken,
+        });
       } else {
         setAppState((previous) => ({ ...previous, loading: null }));
       }
@@ -276,23 +309,41 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
     socket.io.on('reconnect_failed', () => {
       const current = stateRef.current;
       if (current.currentRoom && current.username) {
-        setRecoverySession({ roomCode: current.currentRoom, username: current.username });
+        setRecoverySession({
+          roomCode: current.currentRoom,
+          username: current.username,
+          sessionToken: current.sessionToken,
+        });
       }
       showError('Connection lost. Reconnect when your network is available.');
     });
 
-    socket.on('room_created', ({ roomCode, gameState }) => {
-      saveRoomSession({ roomCode, username: stateRef.current.username });
+    socket.on('room_created', ({ roomCode, sessionToken, gameState }) => {
+      saveRoomSession({ roomCode, username: stateRef.current.username, sessionToken });
       setRecoverySession(null);
-      setAppState((previous) => ({ ...previous, currentRoom: roomCode, gameState, currentScreen: 'waiting', loading: null }));
+      setAppState((previous) => ({
+        ...previous,
+        currentRoom: roomCode,
+        sessionToken,
+        gameState,
+        currentScreen: 'waiting',
+        loading: null,
+      }));
     });
 
-    socket.on('room_joined', ({ roomCode, gameState }) => {
+    socket.on('room_joined', ({ roomCode, sessionToken, gameState }) => {
       const username = joinRequestRef.current?.username || stateRef.current.username;
       joinRequestRef.current = null;
-      saveRoomSession({ roomCode, username });
+      saveRoomSession({ roomCode, username, sessionToken });
       setRecoverySession(null);
-      setAppState((previous) => ({ ...previous, currentRoom: roomCode, gameState, currentScreen: 'waiting', loading: null }));
+      setAppState((previous) => ({
+        ...previous,
+        currentRoom: roomCode,
+        sessionToken,
+        gameState,
+        currentScreen: 'waiting',
+        loading: null,
+      }));
     });
 
     socket.on('player_joined', ({ playerName, gameState }) => {
@@ -313,20 +364,23 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
       setAppState((previous) => ({ ...previous, gameState }));
     });
 
-    socket.on('room_reconnected', ({ roomCode, gameState, myCards, validMoves, canPass }) => {
+    socket.on('room_reconnected', ({ roomCode, sessionToken, gameState, myCards, validMoves, canPass }) => {
       reconnectPendingRef.current = false;
       const username = joinRequestRef.current?.username || stateRef.current.username;
       joinRequestRef.current = null;
-      saveRoomSession({ roomCode, username });
+      saveRoomSession({ roomCode, username, sessionToken });
       setRecoverySession(null);
+      setShowingGameOverDelay(false);
       setAppState((previous) => ({
         ...previous,
         currentRoom: roomCode,
+        sessionToken,
         gameState,
         myCards: myCards || previous.myCards,
         validMoves: validMoves || previous.validMoves,
         canPass: Boolean(canPass),
-        currentScreen: gameState?.started ? 'game' : 'waiting',
+        winner: gameState?.gameFinished ? gameState.roundResult || previous.winner : null,
+        currentScreen: screenForGameState(gameState),
         loading: null,
         error: null,
       }));
@@ -337,9 +391,14 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
       setAppState((previous) => ({ ...previous, gameState, currentScreen: 'game', loading: null, winner: null }));
     });
 
-    socket.on('your_cards', ({ cards, validMoves }) => {
+    socket.on('your_cards', ({ cards, validMoves, canPass }) => {
       actionPendingRef.current = false;
-      setAppState((previous) => ({ ...previous, myCards: cards, validMoves, canPass: validMoves.length === 0 }));
+      setAppState((previous) => ({
+        ...previous,
+        myCards: cards,
+        validMoves,
+        canPass: Boolean(canPass),
+      }));
     });
 
     socket.on('card_played', ({ gameState }) => {
@@ -365,6 +424,23 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
     });
 
     socket.on('cards_redistributed', ({ message }) => notify(message));
+
+    socket.on('not_enough_players', ({ message, gameState }) => {
+      actionPendingRef.current = false;
+      setShowingGameOverDelay(false);
+      setAppState((previous) => ({
+        ...previous,
+        gameState,
+        myCards: [],
+        validMoves: [],
+        canPass: false,
+        isMyTurn: false,
+        winner: null,
+        currentScreen: 'waiting',
+        loading: null,
+        error: message,
+      }));
+    });
 
     socket.on('round_continued', ({ gameState }) => {
       actionPendingRef.current = false;
@@ -396,7 +472,8 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
         myCards: playerState.myCards || [],
         validMoves: playerState.validMoves || [],
         canPass: Boolean(playerState.canPass),
-        currentScreen: gameState?.started ? 'game' : 'waiting',
+        winner: gameState?.gameFinished ? gameState.roundResult || previous.winner : null,
+        currentScreen: screenForGameState(gameState),
       }));
     });
 
@@ -408,7 +485,11 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
         const errorCode = typeof message === 'object' && !(message instanceof Error) ? message.code : undefined;
         const current = stateRef.current;
         if (current.currentRoom && current.username) {
-          setRecoverySession({ roomCode: current.currentRoom, username: current.username });
+          setRecoverySession({
+            roomCode: current.currentRoom,
+            username: current.username,
+            sessionToken: current.sessionToken,
+          });
         }
         showError(
           errorCode === 'ROOM_NOT_FOUND' || errorCode === 'RECONNECT_UNAVAILABLE'
@@ -421,7 +502,8 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
         socket.emit('get_state');
         return;
       }
-      const joinError = ['room code is wrong', 'room is full', 'game has already started'].some((text) => errorMessage.toLowerCase().includes(text));
+      const joinError = ['room code is wrong', 'room is full', 'game has already started', 'reserved seat']
+        .some((text) => errorMessage.toLowerCase().includes(text));
       if (joinError && joinRequestRef.current) {
         const { roomCode, username } = joinRequestRef.current;
         navigate(`/r/${roomCode}`, { state: { error: errorMessage, username }, replace: true });
@@ -434,7 +516,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
 
     const syncCurrentRoom = () => {
       const current = stateRef.current;
-      if (!current.currentRoom) return;
+      if (!current.currentRoom || reconnectPendingRef.current) return;
 
       if (socket.connected) {
         socket.emit('get_state');
@@ -469,11 +551,30 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
   useEffect(() => {
     const request = (location.state as RouteState | null)?.joinRoom;
     if (!request || !isConnected || !socketRef.current) return;
-    clearRoomSession();
+    if (!request.sessionToken) clearRoomSession();
     joinRequestRef.current = request;
-    setAppState((previous) => ({ ...previous, username: request.username, currentScreen: 'loading', loading: 'Joining room…' }));
+    reconnectPendingRef.current = Boolean(request.sessionToken);
+    setAppState((previous) => ({
+      ...previous,
+      username: request.username,
+      currentRoom: request.sessionToken ? request.roomCode.toUpperCase() : '',
+      sessionToken: request.sessionToken || '',
+      currentScreen: 'loading',
+      loading: request.sessionToken ? 'Reconnecting to your room…' : 'Joining room…',
+    }));
     navigate('/', { replace: true });
-    socketRef.current.emit('join_room', { roomCode: request.roomCode.toUpperCase(), username: request.username });
+    if (request.sessionToken) {
+      socketRef.current.emit('reconnect_to_room', {
+        roomCode: request.roomCode.toUpperCase(),
+        username: request.username,
+        sessionToken: request.sessionToken,
+      });
+    } else {
+      socketRef.current.emit('join_room', {
+        roomCode: request.roomCode.toUpperCase(),
+        username: request.username,
+      });
+    }
   }, [isConnected, location.state, navigate]);
 
   // Turn timing is server-authoritative: when a turn expires the server
@@ -502,6 +603,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
       ...previous,
       username: session.username,
       currentRoom: session.roomCode,
+      sessionToken: session.sessionToken,
       currentScreen: 'loading',
       loading: 'Reconnecting to your room…',
       error: null,
@@ -542,8 +644,8 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
   }
 
   function startGame() {
-    const count = appState.gameState?.players.length || 0;
-    if (count < 2 || count > 11) return showError('A game needs between 2 and 11 players.');
+    const count = appState.gameState?.players.filter((player) => player.connected).length || 0;
+    if (count < 3 || count > 11) return showError('A game needs between 3 and 11 connected players.');
     showLoading('Starting game…');
     socketRef.current?.emit('start_game');
   }
@@ -576,6 +678,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
     setAppState((previous) => ({
       ...previous,
       currentRoom: '',
+      sessionToken: '',
       gameState: null,
       myCards: [],
       validMoves: [],
@@ -616,17 +719,24 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
   }
 
   function renderScreen() {
+    const hasMinimumPlayers = Boolean(
+      appState.gameState &&
+      appState.gameState.players.length >= 3 &&
+      appState.gameState.players.every((player) => player.connected)
+    );
+    const canFinishGame = appState.gameState?.players[0]?.name === appState.username;
+
     switch (appState.currentScreen) {
       case 'login':
         return <LoginScreen onContinue={(username) => setAppState((previous) => ({ ...previous, username, currentScreen: 'menu' }))} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />;
       case 'menu':
         return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />;
       case 'waiting':
-        return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} onReturnToGameDesk={leaveRoomForGameDesk} onSetTurnDuration={setTurnDuration} />;
+        return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} onReturnToGameDesk={leaveRoomForGameDesk} onSetTurnDuration={setTurnDuration} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />;
       case 'game':
         return <GameScreen gameState={appState.gameState} myCards={appState.myCards} validMoves={appState.validMoves} isMyTurn={appState.isMyTurn} canPass={appState.canPass} username={appState.username} onPlayCard={playCard} onPassTurn={passTurn} onLeaveGame={leaveRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} onReturnToGameDesk={leaveRoomForGameDesk} roundWinnerName={appState.gameState?.gameFinished ? appState.winner?.winner : undefined} />;
       case 'game-over':
-        return <GameOverScreen winner={appState.winner} onContinueRound={() => { showLoading('Starting next round…'); socketRef.current?.emit('continue_round'); }} onExitGame={() => { showLoading('Calculating results…'); socketRef.current?.emit('exit_game'); }} showingDelay={showingGameOverDelay} canContinueRound={Boolean(appState.gameState && appState.gameState.round < appState.gameState.maxRounds)} onReturnToGameDesk={leaveRoomForGameDesk} />;
+        return <GameOverScreen winner={appState.winner} onContinueRound={() => { showLoading('Starting next round…'); socketRef.current?.emit('continue_round'); }} onExitGame={() => { showLoading('Calculating results…'); socketRef.current?.emit('exit_game'); }} showingDelay={showingGameOverDelay} canContinueRound={Boolean(hasMinimumPlayers && appState.gameState && appState.gameState.round < appState.gameState.maxRounds)} hasMinimumPlayers={hasMinimumPlayers} canFinishGame={canFinishGame} onReturnToGameDesk={leaveRoomForGameDesk} />;
       case 'summary':
         return <SummaryScreen summary={appState.summary} username={appState.username} onReturnToMenu={leaveRoom} onReturnToGameDesk={leaveRoomForGameDesk} />;
       case 'loading':

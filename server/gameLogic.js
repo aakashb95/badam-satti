@@ -2,6 +2,7 @@ const crypto = require("crypto");
 
 const SUIT_ORDER = { hearts: 0, diamonds: 1, clubs: 2, spades: 3 };
 const TURN_DURATION_OPTIONS = [20, 40, 60];
+const MIN_PLAYERS = 3;
 
 function sortHand(cards) {
   return cards.sort((a, b) => {
@@ -36,6 +37,7 @@ class GameRoom {
     this.historySequence = 0;
     this.turnDurationSeconds = 20;
     this.turnStartedAt = Date.now();
+    this.roundResult = null;
   }
 
   setTurnDuration(seconds) {
@@ -49,7 +51,7 @@ class GameRoom {
     this.turnStartedAt = Date.now();
   }
 
-  addPlayer(id, name) {
+  addPlayer(id, name, sessionToken = crypto.randomUUID()) {
     if (this.players.length >= 11) return false;
     if (this.players.find((p) => p.id === id)) return false;
 
@@ -59,6 +61,7 @@ class GameRoom {
       cards: [],
       connected: true,
       totalScore: 0,
+      sessionToken,
     });
 
     // Initialize score tracking
@@ -109,9 +112,9 @@ class GameRoom {
     }
   }
 
-  reconnectPlayer(oldId, newId) {
+  reconnectPlayer(oldId, newId, sessionToken) {
     const player = this.players.find((p) => p.id === oldId);
-    if (player) {
+    if (player && player.sessionToken === sessionToken) {
       player.id = newId;
       player.connected = true;
       // Update score tracking
@@ -123,13 +126,14 @@ class GameRoom {
   }
 
   startGame() {
-    if (this.players.length < 3) return false;
+    if (this.players.length < MIN_PLAYERS) return false;
     if (this.players.some((player) => !player.connected)) return false;
     if (this.started) return false;
 
     this.started = true;
     this.playHistory = [];
     this.historySequence = 0;
+    this.roundResult = null;
     this.resetBoard();
     this.deck = this.createDeck();
     this.shuffleDeck();
@@ -265,6 +269,10 @@ class GameRoom {
   }
 
   isValidMove(playerId, card) {
+    if (!this.started || this.gameFinished || !this.hasMinimumConnectedPlayers()) {
+      return false;
+    }
+
     const player = this.players.find((p) => p.id === playerId);
     if (!player || this.players[this.currentPlayerIndex].id !== playerId)
       return false;
@@ -306,7 +314,6 @@ class GameRoom {
 
   playCard(playerId, card, isHeartsSevenAutoPlay = false) {
     if (!this.isValidMove(playerId, card)) return false;
-    if (this.gameFinished) return false; // Don't allow moves after game ends
 
     const player = this.players.find((p) => p.id === playerId);
     // Remove the card from player's hand
@@ -370,6 +377,7 @@ class GameRoom {
     // Set the highest scorer as the dealer for the next round
     this.dealerIndex = highestScorerIndex;
     this.gameFinished = true;
+    this.roundResult = this.buildRoundResult();
   }
 
   calculatePlayerScore(cards) {
@@ -388,6 +396,10 @@ class GameRoom {
   }
 
   canPlayerPlay(playerId) {
+    if (!this.started || this.gameFinished || !this.hasMinimumConnectedPlayers()) {
+      return false;
+    }
+
     const player = this.players.find((p) => p.id === playerId);
     if (!player || this.players[this.currentPlayerIndex].id !== playerId)
       return false;
@@ -396,8 +408,11 @@ class GameRoom {
   }
 
   passTurn(playerId, automatic = false) {
+    if (!this.started || this.gameFinished || !this.hasMinimumConnectedPlayers()) {
+      return false;
+    }
+
     if (this.players[this.currentPlayerIndex].id !== playerId) return false;
-    if (this.gameFinished) return false; // Don't allow passes after game ends
 
     // Check if player really can't play
     if (this.canPlayerPlay(playerId)) {
@@ -458,8 +473,9 @@ class GameRoom {
     return this.players.some((p) => p.cards.length === 0) || this.gameFinished;
   }
 
-  getWinner() {
+  buildRoundResult() {
     const winner = this.players.find((p) => p.cards.length === 0);
+    if (!winner) return null;
 
     // Calculate final scores for all players
     const finalScores = this.players
@@ -478,12 +494,20 @@ class GameRoom {
     };
   }
 
+  getWinner() {
+    return this.roundResult || this.buildRoundResult();
+  }
+
   getPlayerCards(playerId) {
     const player = this.players.find((p) => p.id === playerId);
     return player ? player.cards : [];
   }
 
   getValidMoves(playerId) {
+    if (!this.started || this.gameFinished || !this.hasMinimumConnectedPlayers()) {
+      return [];
+    }
+
     const player = this.players.find((p) => p.id === playerId);
     if (!player || this.players[this.currentPlayerIndex].id !== playerId)
       return [];
@@ -585,6 +609,7 @@ class GameRoom {
       playHistory: this.playHistory || [],
       turnDurationSeconds: this.turnDurationSeconds,
       turnStartedAt: this.turnStartedAt,
+      roundResult: this.roundResult,
     };
   }
 
@@ -592,7 +617,12 @@ class GameRoom {
     const state = this.getState();
     state.myCards = this.getPlayerCards(playerId);
     state.validMoves = this.getValidMoves(playerId);
-    state.canPass = !this.canPlayerPlay(playerId);
+    state.canPass =
+      this.started &&
+      !this.gameFinished &&
+      this.hasMinimumConnectedPlayers() &&
+      this.players[this.currentPlayerIndex]?.id === playerId &&
+      !this.canPlayerPlay(playerId);
     return state;
   }
 
@@ -614,6 +644,10 @@ class GameRoom {
     return this.players.filter((p) => p.connected).length;
   }
 
+  hasMinimumConnectedPlayers() {
+    return this.getConnectedPlayersCount() >= MIN_PLAYERS;
+  }
+
   isRoomEmpty() {
     return this.getConnectedPlayersCount() === 0;
   }
@@ -626,6 +660,7 @@ class GameRoom {
   continueRound() {
     if (!this.gameFinished) return false;
     if (this.round >= this.maxRounds) return false;
+    if (this.players.length < MIN_PLAYERS) return false;
     if (this.players.some((player) => !player.connected)) return false;
 
     // Advance round counters
@@ -634,6 +669,7 @@ class GameRoom {
     this.gameFinished = false;
     this.playHistory = [];
     this.historySequence = 0;
+    this.roundResult = null;
 
     // Reset board and redeal
     this.resetBoard();
@@ -664,9 +700,35 @@ class GameRoom {
     return true;
   }
 
+  abandonGame() {
+    this.started = false;
+    this.gameFinished = false;
+    this.round = 1;
+    this.roundsPlayed = 0;
+    this.deck = [];
+    this.currentPlayerIndex = 0;
+    this.dealerIndex = 0;
+    this.heartsSevenPlayerIndex = -1;
+    this.dealStartPlayerIndex = 0;
+    this.gameStartMessage = null;
+    this.playHistory = [];
+    this.historySequence = 0;
+    this.roundResult = null;
+    this.resetBoard();
+    this.players.forEach((player) => {
+      player.cards = [];
+      player.dealtCardCount = 0;
+      player.totalScore = 0;
+    });
+    this.playerScores = Object.fromEntries(
+      this.players.map((player) => [player.id, 0])
+    );
+    this.markTurnStarted();
+  }
+
   hasMoreRounds() {
     return this.round < this.maxRounds;
   }
 }
 
-module.exports = { GameRoom, sortHand, TURN_DURATION_OPTIONS };
+module.exports = { GameRoom, sortHand, TURN_DURATION_OPTIONS, MIN_PLAYERS };

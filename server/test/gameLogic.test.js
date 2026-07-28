@@ -108,6 +108,55 @@ test('refuses to deal the next round while a player is disconnected', () => {
   assert.deepEqual(room.players[0].cards, [{ suit: 'hearts', rank: 1 }]);
 });
 
+test('refuses to deal the next round with fewer than three players', () => {
+  const room = makeRoom(2);
+  room.started = true;
+  room.gameFinished = true;
+
+  assert.equal(room.continueRound(), false);
+  assert.equal(room.round, 1);
+});
+
+test('pauses card play when fewer than three players are connected', () => {
+  const room = makeRoom(3);
+  room.started = true;
+  room.currentPlayerIndex = 0;
+  room.players[0].cards = [{ suit: 'hearts', rank: 7 }];
+  room.setPlayerDisconnected('p2');
+
+  assert.equal(room.playCard('p0', { suit: 'hearts', rank: 7 }), false);
+  assert.equal(room.passTurn('p0'), false);
+  assert.deepEqual(room.getValidMoves('p0'), []);
+});
+
+test('stores the finished round result in public state', () => {
+  const room = makeRoom(3);
+  room.players[0].cards = [];
+  room.players[1].cards = [{ suit: 'spades', rank: 13 }];
+  room.players[2].cards = [{ suit: 'clubs', rank: 4 }];
+
+  room.finishGame();
+
+  assert.equal(room.getState().roundResult.winner, 'Player 0');
+  assert.equal(room.getState().roundResult.finalScores.length, 3);
+});
+
+test('abandoning a game returns the room to a clean waiting state', () => {
+  const room = makeRoom(3);
+  room.startGame();
+  room.players[0].totalScore = 12;
+
+  room.abandonGame();
+
+  const state = room.getState();
+  assert.equal(state.started, false);
+  assert.equal(state.gameFinished, false);
+  assert.equal(state.round, 1);
+  assert.equal(state.roundResult, null);
+  assert.equal(state.players.every((player) => player.cardCount === 0), true);
+  assert.equal(state.players.every((player) => player.totalScore === 0), true);
+});
+
 test('removes and redistributes a player without losing cards', () => {
   const room = makeRoom(3);
   room.players[0].cards = [{ suit: 'hearts', rank: 1 }, { suit: 'spades', rank: 13 }];

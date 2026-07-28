@@ -49,6 +49,7 @@ export interface GameState {
   nextPlayerName?: string;
   turnDurationSeconds?: number;
   turnStartedAt?: number;
+  roundResult?: Winner | null;
 }
 
 export interface Winner {
@@ -89,7 +90,7 @@ export interface SocketEvents {
   // Client to Server
   create_room: (username: string) => void;
   join_room: (data: { roomCode: string; username: string }) => void;
-  reconnect_to_room: (data: { roomCode: string; username: string }) => void;
+  reconnect_to_room: (data: { roomCode: string; username: string; sessionToken: string }) => void;
   start_game: () => void;
   play_card: (card: Card) => void;
   pass_turn: () => void;
@@ -103,20 +104,21 @@ export interface SocketEvents {
   connect: () => void;
   disconnect: () => void;
   connect_error: (error: any) => void;
-  room_created: (data: { roomCode: string; gameState: GameState }) => void;
-  room_joined: (data: { roomCode: string; gameState: GameState }) => void;
-  room_reconnected: (data: { roomCode: string; gameState: GameState; myCards: Card[]; validMoves: Card[]; canPass: boolean }) => void;
+  room_created: (data: { roomCode: string; sessionToken: string; gameState: GameState }) => void;
+  room_joined: (data: { roomCode: string; sessionToken: string; gameState: GameState }) => void;
+  room_reconnected: (data: { roomCode: string; sessionToken: string; gameState: GameState; myCards: Card[]; validMoves: Card[]; canPass: boolean }) => void;
   player_joined: (data: { playerName: string; gameState: GameState }) => void;
   player_disconnected: (data: { playerName: string; gameState: GameState }) => void;
   player_temporarily_disconnected: (data: { playerName: string; gameState: GameState; message?: string }) => void;
   player_reconnected: (data: { playerName: string; gameState: GameState }) => void;
   game_started: (data: { gameState: GameState }) => void;
-  your_cards: (data: { cards: Card[]; validMoves: Card[] }) => void;
+  your_cards: (data: { cards: Card[]; validMoves: Card[]; canPass: boolean }) => void;
   card_played: (data: { playerName: string; card: Card; gameState: GameState; automatic?: boolean }) => void;
   turn_passed: (data: { playerName: string; gameState: GameState; automatic?: boolean }) => void;
   turn_duration_changed: (data: { turnDurationSeconds: number; gameState: GameState }) => void;
   game_over: (winner: Winner) => void;
   cards_redistributed: (data: { message: string }) => void;
+  not_enough_players: (data: { message: string; gameState: GameState }) => void;
   round_continued: (data: { gameState: GameState }) => void;
   game_totals: (summary: GameSummary) => void;
   left_room: () => void;
@@ -129,6 +131,7 @@ export interface AppState {
   currentScreen: Screen;
   username: string;
   currentRoom: string;
+  sessionToken: string;
   gameState: GameState | null;
   myCards: Card[];
   validMoves: Card[];

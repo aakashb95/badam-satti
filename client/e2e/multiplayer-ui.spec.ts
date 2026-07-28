@@ -298,6 +298,9 @@ test('room session survives waiting and active-game refreshes with a safe recove
 
   await login(page, 'Host');
   const roomCode = await createRoom(page);
+  await page.getByRole('button', { name: 'How to play' }).click();
+  await expect(page.getByRole('dialog', { name: 'How to play' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close help' }).click();
 
   const guest = await newPlayerPage(browser, contextOptions, baseURL || '');
   await joinRoom(guest.page, roomCode, 'Guest');
@@ -332,6 +335,7 @@ test('room session survives waiting and active-game refreshes with a safe recove
     window.localStorage.setItem('badam-satti-room-session', JSON.stringify({
       roomCode: 'ZZZZZZ',
       username: 'Returning Player',
+      sessionToken: '00000000-0000-4000-8000-000000000000',
     }));
   });
   await missingRoom.page.goto('/badam7/');
@@ -347,6 +351,40 @@ test('room session survives waiting and active-game refreshes with a safe recove
   await third.context.close();
   await secondHost.context.close();
   await missingRoom.context.close();
+});
+
+test('round results survive a player refresh', async ({ browser, page, baseURL }, testInfo) => {
+  const projectUse = testInfo.project.use as BrowserContextOptions;
+  const contextOptions: BrowserContextOptions = {
+    viewport: page.viewportSize() || projectUse.viewport || { width: 1280, height: 720 },
+    deviceScaleFactor: projectUse.deviceScaleFactor,
+    isMobile: projectUse.isMobile,
+    hasTouch: projectUse.hasTouch,
+  };
+
+  await login(page, 'Host');
+  const roomCode = await createRoom(page);
+  const guest = await newPlayerPage(browser, contextOptions, baseURL || '');
+  const third = await newPlayerPage(browser, contextOptions, baseURL || '');
+  await joinRoom(guest.page, roomCode, 'Guest');
+  await joinRoom(third.page, roomCode, 'Third');
+
+  await page.locator('.start-button').click();
+  await expect(guest.page.locator('.game-screen')).toBeVisible();
+  const finishResponse = await fetch(`${baseURL}/__test__/rooms/${roomCode}/finish-round`, {
+    method: 'POST',
+  });
+  expect(finishResponse.ok).toBe(true);
+
+  await expect(guest.page.locator('.results-screen')).toBeVisible({ timeout: 8_000 });
+  await expect(guest.page.getByText('Host takes the round.')).toBeVisible();
+  await guest.page.reload();
+  await expect(guest.page.locator('.results-screen')).toBeVisible();
+  await expect(guest.page.getByText('Host takes the round.')).toBeVisible();
+  await expect(guest.page.getByRole('button', { name: 'Finish game' })).toHaveCount(0);
+
+  await guest.context.close();
+  await third.context.close();
 });
 
 test('seven-player game renders and starts across responsive viewports', async ({ browser, page, baseURL }, testInfo) => {

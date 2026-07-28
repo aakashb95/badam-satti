@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { GameState } from '../types';
+import { ComfortSize, GameState } from '../types';
 import GameDeskLink from './GameDeskLink';
+import HelpModal from './HelpModal';
 
 interface WaitingRoomProps {
   roomCode: string;
@@ -11,6 +12,8 @@ interface WaitingRoomProps {
   onShowNotification: (message: string) => void;
   onReturnToGameDesk: () => Promise<void>;
   onSetTurnDuration: (seconds: number) => void;
+  comfortSize: ComfortSize;
+  onComfortSizeChange: (size: ComfortSize) => void;
 }
 
 const TURN_DURATION_CHOICES = [20, 40, 60];
@@ -24,8 +27,11 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
   onShowNotification,
   onReturnToGameDesk,
   onSetTurnDuration,
+  comfortSize,
+  onComfortSizeChange,
 }) => {
   const [lanOrigin, setLanOrigin] = useState<string | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
@@ -54,6 +60,7 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
 
   const isCreator = gameState?.players && gameState.players.length > 0 && gameState.players[0].name === username;
   const playerCount = gameState?.players.length || 0;
+  const connectedPlayerCount = gameState?.players.filter((player) => player.connected).length || 0;
   const turnDuration = gameState?.turnDurationSeconds ?? 20;
 
   return (
@@ -62,6 +69,7 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
         <header className="app-header">
           <GameDeskLink onBeforeNavigate={onReturnToGameDesk} />
           <div className="header-actions">
+            <button className="quiet-button" onClick={() => setShowHelp(true)}>How to play</button>
             <button className="quiet-button danger-text" onClick={onLeaveRoom}>Leave room</button>
           </div>
         </header>
@@ -135,15 +143,22 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
         
         <div className="waiting-actions">
           {isCreator && (
-            <button className="primary-button start-button" onClick={onStartGame} disabled={playerCount < 3}>
-              {playerCount < 3
-                ? `Waiting for ${3 - playerCount} more ${3 - playerCount === 1 ? 'player' : 'players'}`
+            <button className="primary-button start-button" onClick={onStartGame} disabled={connectedPlayerCount < 3}>
+              {connectedPlayerCount < 3
+                ? `Waiting for ${3 - connectedPlayerCount} more ${3 - connectedPlayerCount === 1 ? 'player' : 'players'}`
                 : <>Start game <span>→</span></>}
             </button>
           )}
           {!isCreator && <div className="waiting-pulse"><span /> Waiting for the host</div>}
         </div>
       </div>
+      <HelpModal
+        isOpen={showHelp}
+        onClose={() => setShowHelp(false)}
+        comfortSize={comfortSize}
+        onComfortSizeChange={onComfortSizeChange}
+        onReturnToGameDesk={onReturnToGameDesk}
+      />
     </main>
   );
 };

@@ -1366,6 +1366,8 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 .game-over-actions { display: flex; padding-top: 18px; justify-content: center; gap: 8px; }
 .game-over-actions .secondary-button { color: var(--muted); background: transparent; border-color: transparent; }
 .game-over-actions .secondary-button:hover:not(:disabled) { color: var(--text); background: transparent; }
+.results-player-notice,
+.game-over-actions p { margin: 14px 0 0; color: var(--muted); text-align: center; }
 
 /* Modal, notification, loading */
 .help-modal-overlay,

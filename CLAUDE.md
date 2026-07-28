@@ -51,22 +51,24 @@ King's Corner.
 ## Socket contract
 
 Client → server: `create_room(username)`, `join_room({roomCode, username})`,
-`reconnect_to_room({roomCode, username})`, `start_game` (host only, ≥3
-connected players), `set_turn_duration(seconds)` (host only, before start),
+`reconnect_to_room({roomCode, username, sessionToken})`, `start_game` (host
+only, ≥3 connected players), `set_turn_duration(seconds)` (host only, before start),
 `play_card(card)`, `pass_turn`, `continue_round`, `exit_game` (host only),
 `leave_room(ack?)`, `get_state`.
 
-Server → client: `room_created`, `room_joined`, `room_reconnected`,
+Server → client: `room_created`, `room_joined`, `room_reconnected` (all three
+include the player's private `sessionToken`),
 `player_joined`, `player_reconnected`, `player_disconnected`,
 `player_temporarily_disconnected`, `game_started`, `your_cards({cards,
-validMoves})`, `card_played({playerName, card, gameState, automatic?})`,
+validMoves, canPass})`, `card_played({playerName, card, gameState, automatic?})`,
 `turn_passed({playerName, gameState, automatic?})`,
 `turn_duration_changed({turnDurationSeconds, gameState})`, `game_over(winner)`,
 `round_continued({gameState})`, `cards_redistributed({message})`,
-`game_totals`, `left_room`, `game_state`, and `error` (string or
+`not_enough_players({message, gameState})`, `game_totals`, `left_room`,
+`game_state`, and `error` (string or
 `{code, message}`; codes include `ROOM_NOT_FOUND`, `USERNAME_TAKEN`,
 `GAME_ALREADY_STARTED`, `HOST_ONLY`, `NOT_ENOUGH_CONNECTED_PLAYERS`,
-`PLAYERS_RECONNECTING`, `RECONNECT_UNAVAILABLE`).
+`PLAYERS_RECONNECTING`, `RECONNECT_REQUIRED`, `RECONNECT_UNAVAILABLE`).
 
 A duplicate `continue_round` (two players tapping "Next round") resyncs the
 late caller into the already-started round instead of erroring.
@@ -76,10 +78,14 @@ late caller into the already-started round instead of erroring.
 - Waiting room: seat reserved 10 minutes (DB-backed), no removal timer.
 - Active round: 60s reconnection window (`ACTIVE_GAME_RECONNECT_MS`), then the
   player is removed and their cards are redistributed starting from the seat
-  after theirs, clockwise. A transport drop does not skip the current turn or
-  reset its deadline. The server auto-plays when that deadline expires.
+  after theirs, clockwise when at least 3 players remain. If fewer than 3
+  players are connected, play and the turn timer pause. Reconnecting the third
+  player starts a fresh turn window. If a confirmed departure leaves fewer
+  than 3 players, the match is abandoned without a winner and the room returns
+  to a clean waiting state.
 - Results screen (`gameFinished`): treated like the waiting room — 10-minute
-  window, no redistribution, cumulative score kept.
+  window, no redistribution, cumulative score kept. `roundResult` is persisted
+  in room state so reconnecting restores the results screen.
 - Rooms are persisted to SQLite on every state change and on shutdown;
   `ensureRoomExists` restores a room from the DB on demand and starts a fresh
   turn timer if a round is active. Socket.io: 120s ping timeout, 30s interval.
@@ -92,6 +98,8 @@ late caller into the already-started round instead of erroring.
 - Room codes: 6 chars, ambiguous characters excluded, `crypto.randomInt`,
   checked against both memory and the DB so restarts cannot reissue an active
   code.
+- Reconnection requires a random per-seat session token. Room codes and display
+  names alone cannot claim a connected or reserved seat.
 - Helmet CSP (no inline scripts/styles on served pages), CORS allowlist +
   private-LAN origins, HTTPS redirect in production, `/health` (public,
   minimal) and `/health/admin` (requires `x-admin-key`).
@@ -119,7 +127,6 @@ endpoints used by the Playwright suite.
 - Restrictive file permissions for `server/badam-satti.db`.
 - Socket event rate limiting is coarse (40 actions/10s per socket); consider
   per-event budgets.
-- Session tokens instead of socket IDs; secure log rotation; dependency
-  scanning; `.env`-based secret management.
+- Secure log rotation; dependency scanning; `.env`-based secret management.
 - CSP fine-tuning, request size limits beyond 16kb JSON, brute-force
   protection, automated cert renewal.

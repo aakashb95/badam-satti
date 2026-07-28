@@ -77,7 +77,7 @@ const io = require("socket.io")(server, {
 });
 const path = require("path");
 
-const { GameRoom, TURN_DURATION_OPTIONS } = require("./gameLogic");
+const { GameRoom, TURN_DURATION_OPTIONS, MIN_PLAYERS } = require("./gameLogic");
 const Database = require("./database");
 const IP_HASH_SALT = process.env.IP_HASH_SALT || crypto.randomBytes(32).toString('hex');
 const ROOM_CODE_PATTERN = /^[A-Z0-9]{6}$/;
@@ -134,6 +134,14 @@ function normalizeRoomCode(value) {
   return ROOM_CODE_PATTERN.test(roomCode) ? roomCode : null;
 }
 
+function normalizeSessionToken(value) {
+  if (typeof value !== 'string') return null;
+  const token = value.trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token)
+    ? token
+    : null;
+}
+
 function isValidCard(card) {
   return card && typeof card === 'object' && CARD_SUITS.has(card.suit) && Number.isInteger(card.rank) && card.rank >= 1 && card.rank <= 13;
 }
@@ -143,6 +151,15 @@ function secureKeyMatch(value, secret) {
   const candidate = Buffer.from(value);
   const expected = Buffer.from(secret);
   return candidate.length === expected.length && crypto.timingSafeEqual(candidate, expected);
+}
+
+function sessionTokenMatches(player, token) {
+  return Boolean(
+    player &&
+    token &&
+    typeof player.sessionToken === 'string' &&
+    secureKeyMatch(token, player.sessionToken)
+  );
 }
 
 function sanitizeError(error) {
@@ -179,6 +196,7 @@ async function ensureRoomExists(roomCode) {
       Object.assign(room, storedState);
       room.playHistory = Array.isArray(storedState.playHistory) ? storedState.playHistory : [];
       room.historySequence = Number.isInteger(storedState.historySequence) ? storedState.historySequence : room.playHistory.length;
+      room.roundResult = storedState.roundResult || null;
       room.dealStartPlayerIndex = Number.isInteger(storedState.dealStartPlayerIndex)
         ? storedState.dealStartPlayerIndex
         : ((storedState.dealerIndex || 0) + 1) % Math.max(1, storedState.players?.length || 1);
@@ -196,8 +214,12 @@ async function ensureRoomExists(roomCode) {
           dealtCardCount: player.dealtCardCount ?? player.cards?.length ?? 0,
           id: row?.socket_id || player.id,
           connected: row ? Boolean(row.connected) : Boolean(player.connected),
+          sessionToken: normalizeSessionToken(player.sessionToken) || crypto.randomUUID(),
         };
       });
+      if (room.gameFinished && !room.roundResult) {
+        room.roundResult = room.buildRoundResult();
+      }
 
       room.playerScores = {};
       room.players.forEach((player) => {
@@ -385,8 +407,34 @@ if (process.env.NODE_ENV === 'test') {
     io.to(player.id).emit('your_cards', {
       cards: room.getPlayerCards(player.id),
       validMoves: room.getValidMoves(player.id),
+      canPass: room.getPlayerState(player.id).canPass,
     });
     res.json({ ok: true, playerName: player.name, cardCount: cards.length });
+  });
+
+  app.post('/__test__/rooms/:roomCode/finish-round', async (req, res) => {
+    const roomCode = normalizeRoomCode(req.params.roomCode);
+    const room = roomCode ? await ensureRoomExists(roomCode) : null;
+    if (!room || !room.started || room.gameFinished || room.players.length < MIN_PLAYERS) {
+      res.status(404).json({ error: 'Active test room not found' });
+      return;
+    }
+
+    const winner = room.players[0];
+    winner.cards = [];
+    room.players.slice(1).forEach((player, index) => {
+      player.cards = [{ suit: index % 2 === 0 ? 'spades' : 'clubs', rank: 13 - index }];
+    });
+    room.finishGame();
+    await db.saveGameRoom(roomCode, room);
+    clearTurnTimer(roomCode);
+
+    io.to(roomCode).emit('turn_passed', {
+      playerName: winner.name,
+      gameState: room.getState(),
+    });
+    io.to(roomCode).emit('game_over', room.getWinner());
+    res.json({ ok: true, winner: winner.name });
   });
 }
 
@@ -407,7 +455,7 @@ function scheduleTurnTimer(roomCode) {
   if (!TURN_TIMERS_ENABLED) return;
 
   const room = rooms[roomCode];
-  if (!room || !room.started || room.gameFinished || room.players.length === 0) return;
+  if (!room || !room.started || room.gameFinished || !room.hasMinimumConnectedPlayers()) return;
 
   // Small grace period so a human tap at the buzzer beats the server.
   const testDelayMs = process.env.NODE_ENV === 'test' ? Number(process.env.TURN_TIMER_TEST_DELAY_MS) : NaN;
@@ -434,7 +482,7 @@ function pickAutoPlayCard(validMoves) {
 
 async function runServerAutoPlay(roomCode, expectedTurnStartedAt) {
   const room = rooms[roomCode];
-  if (!room || !room.started || room.gameFinished || room.players.length === 0) return;
+  if (!room || !room.started || room.gameFinished || !room.hasMinimumConnectedPlayers()) return;
   // A real move landed while this callback was queued; its handler already
   // rescheduled the timer for the new turn.
   if (expectedTurnStartedAt && room.turnStartedAt !== expectedTurnStartedAt) return;
@@ -487,6 +535,18 @@ async function runServerAutoPlay(roomCode, expectedTurnStartedAt) {
   scheduleTurnTimer(roomCode);
 }
 
+function resumeTurnTimerIfReady(roomCode, room, wasBelowMinimum = false) {
+  if (!room.started || room.gameFinished || !room.hasMinimumConnectedPlayers()) {
+    clearTurnTimer(roomCode);
+    return;
+  }
+
+  if (wasBelowMinimum) {
+    room.markTurnStarted();
+    scheduleTurnTimer(roomCode);
+  }
+}
+
 function disconnectTimerKey(roomCode, playerId) {
   return `${roomCode}:${playerId}`;
 }
@@ -517,6 +577,7 @@ function emitPlayerHands(room) {
     io.to(player.id).emit("your_cards", {
       cards: room.getPlayerCards(player.id),
       validMoves: room.getValidMoves(player.id),
+      canPass: room.getPlayerState(player.id).canPass,
     });
   });
 }
@@ -537,7 +598,11 @@ async function removePlayerFromRoom(roomCode, playerId, playerName, options = {}
   if (!room || !player) return room || null;
 
   clearActiveDisconnectTimer(roomCode, playerId);
-  room.removePlayer(playerId, redistribute);
+  const activeGameWouldLoseMinimum =
+    room.started &&
+    !room.gameFinished &&
+    room.players.length - 1 < MIN_PLAYERS;
+  room.removePlayer(playerId, redistribute && !activeGameWouldLoseMinimum);
   await db.removePlayerFromRoom(playerId, roomCode);
 
   if (room.players.length === 0) {
@@ -547,9 +612,13 @@ async function removePlayerFromRoom(roomCode, playerId, playerName, options = {}
     return null;
   }
 
+  if (activeGameWouldLoseMinimum) {
+    room.abandonGame();
+  }
+
   await db.saveGameRoom(roomCode, room);
 
-  if (redistribute) {
+  if (redistribute && !activeGameWouldLoseMinimum) {
     io.to(roomCode).emit("cards_redistributed", {
       message: redistributionMessage,
     });
@@ -564,13 +633,10 @@ async function removePlayerFromRoom(roomCode, playerId, playerName, options = {}
     });
   }
 
-  if (!room.gameFinished && room.started && room.players.length === 1) {
-    room.gameFinished = true;
-    await db.saveGameRoom(roomCode, room);
-    io.to(roomCode).emit("game_over", {
-      type: "all_players_left",
-      winner: room.players[0].name,
-      message: "All other players have left the game",
+  if (activeGameWouldLoseMinimum) {
+    io.to(roomCode).emit("not_enough_players", {
+      message: "Need at least 3 players to play.",
+      gameState: room.getState(),
     });
   }
 
@@ -788,8 +854,9 @@ io.on("connection", (socket) => {
 
       const roomCode = await generateRoomCode();
       rooms[roomCode] = new GameRoom(roomCode);
+      const sessionToken = crypto.randomUUID();
 
-      const success = rooms[roomCode].addPlayer(socket.id, cleanUsername);
+      const success = rooms[roomCode].addPlayer(socket.id, cleanUsername, sessionToken);
       if (!success) {
         socket.emit("error", "Failed to create room");
         return;
@@ -806,6 +873,7 @@ io.on("connection", (socket) => {
       console.log(`Room created: ${roomCode} by ${playerName}`);
       socket.emit("room_created", {
         roomCode,
+        sessionToken,
         gameState: rooms[roomCode].getPlayerState(socket.id),
       });
     } catch (error) {
@@ -848,66 +916,31 @@ io.on("connection", (socket) => {
       // For active games: check all players (including disconnected, since they may reconnect)
       const existingPlayer = room.players.find((p) => p.name === cleanUsername);
       if (existingPlayer) {
-        const isWaitingRoom = !room.started;
-        if (isWaitingRoom) {
-          // In waiting room: allow joining if previous user was disconnected and cleaned up
-          if (existingPlayer.connected) {
-            emitSocketError(socket, "USERNAME_TAKEN", "Username already taken in this room");
-            return;
-          }
-
-          // A normal join from a refreshed invite link must be able to reclaim
-          // the player's reserved waiting-room seat.
-          try {
-            const reconnectionResult = await db.attemptPlayerReconnection(
-              cleanUsername,
-              cleanRoomCode,
-              socket.id
-            );
-
-            if (reconnectionResult.canReconnect) {
-              clearActiveDisconnectTimer(cleanRoomCode, reconnectionResult.playerId);
-              const reconnected = room.reconnectPlayer(
-                reconnectionResult.playerId,
-                socket.id
-              );
-
-              if (!reconnected) {
-                emitSocketError(socket, "RECONNECT_FAILED", "Failed to reconnect to room");
-                return;
-              }
-
-              socket.join(cleanRoomCode);
-              currentRoom = cleanRoomCode;
-              playerName = cleanUsername;
-              await db.saveGameRoom(cleanRoomCode, room);
-
-              console.log(`${playerName} reconnected to room: ${cleanRoomCode}`);
-              socket.emit("room_reconnected", {
-                roomCode: cleanRoomCode,
-                gameState: room.getState(),
-                myCards: room.getPlayerCards(socket.id),
-                validMoves: room.getValidMoves(socket.id),
-                canPass: !room.canPlayerPlay(socket.id),
-              });
-              io.to(cleanRoomCode).emit("player_reconnected", {
-                playerName: cleanUsername,
-                gameState: room.getState(),
-              });
-              return;
-            }
-
-            // Clean up the orphaned disconnected player
-            console.log(`Cleaning up orphaned disconnected player: ${cleanUsername} in room ${cleanRoomCode}`);
-            room.removePlayer(existingPlayer.id, false);
-            await db.removePlayerFromRoom(existingPlayer.id, cleanRoomCode);
-          } catch (error) {
-            console.warn(`Failed to check/cleanup reconnection data for ${cleanUsername}:`, error);
-          }
+        if (existingPlayer.connected) {
+          emitSocketError(socket, "USERNAME_TAKEN", "Username already taken in this room");
+          return;
         }
+
+        const reconnectablePlayers = await db.getReconnectablePlayersInRoom(cleanRoomCode);
+        const seatIsReserved = reconnectablePlayers.some(
+          (candidate) => candidate.username === cleanUsername
+        );
+        if (seatIsReserved) {
+          emitSocketError(
+            socket,
+            "RECONNECT_REQUIRED",
+            "This name has a reserved seat. Reconnect from the original device."
+          );
+          return;
+        }
+
+        console.log(`Cleaning up expired disconnected player: ${cleanUsername} in room ${cleanRoomCode}`);
+        room.removePlayer(existingPlayer.id, false);
+        await db.removePlayerFromRoom(existingPlayer.id, cleanRoomCode);
       }
 
-      const success = room.addPlayer(socket.id, cleanUsername);
+      const sessionToken = crypto.randomUUID();
+      const success = room.addPlayer(socket.id, cleanUsername, sessionToken);
       if (!success) {
         emitSocketError(socket, "ROOM_FULL", "Room is full");
         return;
@@ -924,6 +957,7 @@ io.on("connection", (socket) => {
       console.log(`${playerName} joined room: ${cleanRoomCode}`);
       socket.emit("room_joined", {
         roomCode: cleanRoomCode,
+        sessionToken,
         gameState: room.getPlayerState(socket.id),
       });
 
@@ -943,8 +977,13 @@ io.on("connection", (socket) => {
     try {
       const cleanRoomCode = normalizeRoomCode(payload?.roomCode);
       const cleanUsername = normalizeUsername(payload?.username);
+      const cleanSessionToken = normalizeSessionToken(payload?.sessionToken);
       if (!cleanRoomCode || !cleanUsername) {
         emitSocketError(socket, "INVALID_JOIN_DETAILS", "Invalid room code or username");
+        return;
+      }
+      if (!cleanSessionToken) {
+        emitSocketError(socket, "RECONNECT_UNAVAILABLE", "A valid session token is required to reconnect");
         return;
       }
 
@@ -955,11 +994,21 @@ io.on("connection", (socket) => {
       }
 
       const existingPlayer = room.players.find((p) => p.name === cleanUsername);
+      if (!sessionTokenMatches(existingPlayer, cleanSessionToken)) {
+        emitSocketError(
+          socket,
+          "RECONNECT_UNAVAILABLE",
+          "Cannot reconnect without the session token for this seat"
+        );
+        return;
+      }
+
+      const wasBelowMinimum = !room.hasMinimumConnectedPlayers();
       if (existingPlayer?.connected) {
         if (existingPlayer.id !== socket.id) {
           const previousPlayerId = existingPlayer.id;
           clearActiveDisconnectTimer(cleanRoomCode, previousPlayerId);
-          room.reconnectPlayer(previousPlayerId, socket.id);
+          room.reconnectPlayer(previousPlayerId, socket.id, cleanSessionToken);
           await db.updatePlayerSocketId(previousPlayerId, socket.id);
         }
 
@@ -970,10 +1019,11 @@ io.on("connection", (socket) => {
 
         socket.emit("room_reconnected", {
           roomCode: cleanRoomCode,
+          sessionToken: cleanSessionToken,
           gameState: room.getState(),
           myCards: room.getPlayerCards(socket.id),
           validMoves: room.getValidMoves(socket.id),
-          canPass: !room.canPlayerPlay(socket.id),
+          canPass: room.getPlayerState(socket.id).canPass,
         });
         return;
       }
@@ -994,8 +1044,9 @@ io.on("connection", (socket) => {
       clearActiveDisconnectTimer(cleanRoomCode, reconnectionResult.playerId);
 
       const success = room.reconnectPlayer(
-        reconnectionResult.playerId, 
-        socket.id
+        reconnectionResult.playerId,
+        socket.id,
+        cleanSessionToken
       );
 
       if (!success) {
@@ -1007,17 +1058,18 @@ io.on("connection", (socket) => {
       currentRoom = cleanRoomCode;
       playerName = cleanUsername;
 
-      // Save updated game state
+      resumeTurnTimerIfReady(cleanRoomCode, room, wasBelowMinimum);
       await db.saveGameRoom(cleanRoomCode, room);
 
       console.log(`${playerName} reconnected to room: ${cleanRoomCode}`);
       
       socket.emit("room_reconnected", {
         roomCode: cleanRoomCode,
+        sessionToken: cleanSessionToken,
         gameState: room.getState(),
         myCards: room.getPlayerCards(socket.id),
         validMoves: room.getValidMoves(socket.id),
-        canPass: !room.canPlayerPlay(socket.id),
+        canPass: room.getPlayerState(socket.id).canPass,
       });
 
       // Notify all players in the room
@@ -1053,7 +1105,7 @@ io.on("connection", (socket) => {
 
       await removeDisconnectedWaitingPlayers(currentRoom, room);
 
-      if (room.players.length < 3) {
+      if (room.players.length < MIN_PLAYERS) {
         emitSocketError(socket, "NOT_ENOUGH_CONNECTED_PLAYERS", "Need at least 3 connected players to start");
         return;
       }
@@ -1077,6 +1129,7 @@ io.on("connection", (socket) => {
         io.to(player.id).emit("your_cards", {
           cards: room.getPlayerCards(player.id),
           validMoves: room.getValidMoves(player.id),
+          canPass: room.getPlayerState(player.id).canPass,
         });
       });
 
@@ -1144,6 +1197,14 @@ io.on("connection", (socket) => {
         socket.emit("error", "Not in a valid room");
         return;
       }
+      if (room.started && !room.gameFinished && !room.hasMinimumConnectedPlayers()) {
+        emitSocketError(
+          socket,
+          "PLAYERS_RECONNECTING",
+          "Need at least 3 connected players to continue"
+        );
+        return;
+      }
       const success = room.playCard(socket.id, card);
 
       if (!success) {
@@ -1168,6 +1229,7 @@ io.on("connection", (socket) => {
         io.to(player.id).emit("your_cards", {
           cards: room.getPlayerCards(player.id),
           validMoves: room.getValidMoves(player.id),
+          canPass: room.getPlayerState(player.id).canPass,
         });
       });
 
@@ -1202,6 +1264,14 @@ io.on("connection", (socket) => {
         socket.emit("error", "Not in a valid room");
         return;
       }
+      if (room.started && !room.gameFinished && !room.hasMinimumConnectedPlayers()) {
+        emitSocketError(
+          socket,
+          "PLAYERS_RECONNECTING",
+          "Need at least 3 connected players to continue"
+        );
+        return;
+      }
       const success = room.passTurn(socket.id);
 
       if (!success) {
@@ -1225,6 +1295,7 @@ io.on("connection", (socket) => {
         io.to(player.id).emit("your_cards", {
           cards: room.getPlayerCards(player.id),
           validMoves: room.getValidMoves(player.id),
+          canPass: room.getPlayerState(player.id).canPass,
         });
       });
 
@@ -1256,6 +1327,7 @@ io.on("connection", (socket) => {
           socket.emit("your_cards", {
             cards: room.getPlayerCards(socket.id),
             validMoves: room.getValidMoves(socket.id),
+            canPass: room.getPlayerState(socket.id).canPass,
           });
           return;
         }
@@ -1268,6 +1340,14 @@ io.on("connection", (socket) => {
         room.started = false;
         room.gameFinished = true;
         await db.saveGameRoom(currentRoom, room);
+        return;
+      }
+      if (room.players.length < MIN_PLAYERS) {
+        emitSocketError(
+          socket,
+          "NOT_ENOUGH_CONNECTED_PLAYERS",
+          "Need at least 3 connected players to start the next round"
+        );
         return;
       }
       if (room.players.some((player) => !player.connected)) {
@@ -1396,6 +1476,9 @@ io.on("connection", (socket) => {
     try {
       if (currentRoom && rooms[currentRoom]) {
         const room = rooms[currentRoom];
+        if (!room.players.some((player) => player.id === socket.id)) {
+          return;
+        }
         // Only a live round needs the harsh 30s-then-redistribute treatment.
         // On the results screen (gameFinished) there is no turn to hold up,
         // so it gets the same lenient window as the waiting room.
@@ -1406,6 +1489,9 @@ io.on("connection", (socket) => {
           console.log(`Player ${playerName} disconnected during game - allowing ${ACTIVE_GAME_RECONNECT_MS / 1000}s reconnection`);
 
           room.setPlayerDisconnected(socket.id);
+          if (!room.hasMinimumConnectedPlayers()) {
+            clearTurnTimer(currentRoom);
+          }
 
           await db.setPlayerDisconnected(socket.id, true, ACTIVE_GAME_RECONNECT_MS / 60000);
           await db.saveGameRoom(currentRoom, room);

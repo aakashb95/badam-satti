@@ -9,10 +9,21 @@ interface GameOverScreenProps {
   onExitGame: () => void;
   showingDelay: boolean;
   canContinueRound: boolean;
+  hasMinimumPlayers: boolean;
+  canFinishGame: boolean;
   onReturnToGameDesk: () => Promise<void>;
 }
 
-const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound, onExitGame, showingDelay, canContinueRound, onReturnToGameDesk }) => {
+const GameOverScreen: React.FC<GameOverScreenProps> = ({
+  winner,
+  onContinueRound,
+  onExitGame,
+  showingDelay,
+  canContinueRound,
+  hasMinimumPlayers,
+  canFinishGame,
+  onReturnToGameDesk,
+}) => {
   const renderRemainingCards = (cards: Card[]) => {
     if (!cards || cards.length === 0) return null;
     
@@ -91,9 +102,11 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound
             </div>
           )}
         </div>
+        {!hasMinimumPlayers && <p className="results-player-notice">Need at least 3 players to play.</p>}
         <div className="game-over-actions">
           {canContinueRound && <button className="primary-button" onClick={onContinueRound}>Next round <span>→</span></button>}
-          <button className={canContinueRound ? 'secondary-button' : 'primary-button'} onClick={onExitGame}>Finish game</button>
+          {canFinishGame && <button className={canContinueRound ? 'secondary-button' : 'primary-button'} onClick={onExitGame}>Finish game</button>}
+          {!canFinishGame && !canContinueRound && hasMinimumPlayers && <p>Waiting for the host</p>}
         </div>
       </div>
     </main>
