@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import GameDeskLink from './GameDeskLink';
 import { Card, GameBoard } from '../types';
+import { getCardSrc } from '../cards';
 
 interface SimPlayer {
   name: string;
@@ -27,8 +28,6 @@ interface SimulationState {
 const SUITS: Card['suit'][] = ['hearts', 'diamonds', 'clubs', 'spades'];
 const PLAYER_NAMES = ['You', 'a', 'b', 'c'];
 const TIMER_SECONDS = 5;
-const CARD_ASSET_VERSION = 'v6';
-const SUIT_LETTERS: Record<Card['suit'], string> = { hearts: 'H', diamonds: 'D', clubs: 'C', spades: 'S' };
 const SUIT_SYMBOLS: Record<Card['suit'], string> = { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' };
 
 const emptyBoard = (): GameBoard => ({
@@ -52,8 +51,6 @@ const initialState = (): SimulationState => ({
 
 const rankLabel = (rank: number): string => ({ 1: 'A', 11: 'J', 12: 'Q', 13: 'K' }[rank] || String(rank));
 const cardLabel = (card: Card): string => `${rankLabel(card.rank)}${SUIT_SYMBOLS[card.suit]}`;
-const cardFile = (card: Card): string => `${rankLabel(card.rank)}${SUIT_LETTERS[card.suit]}.svg`;
-const cardSrc = (card: Card): string => `${import.meta.env.BASE_URL}images/cards/${cardFile(card)}?${CARD_ASSET_VERSION}`;
 
 const sortHand = (cards: Card[]): Card[] => {
   const suitOrder = new Map(SUITS.map((suit, index) => [suit, index]));
@@ -294,7 +291,7 @@ const SimulationScreen: React.FC = () => {
                   {visibleBoardRanks(sim.board, suit).length === 0 && <span className="simulation-empty">empty</span>}
                   {visibleBoardRanks(sim.board, suit).map((rank) => {
                     const card = { suit, rank };
-                    return <img key={`${suit}-${rank}`} src={cardSrc(card)} alt={cardLabel(card)} decoding="async" />;
+                    return <img key={`${suit}-${rank}`} src={getCardSrc(card)} alt={cardLabel(card)} decoding="async" />;
                   })}
                 </div>
               </div>
@@ -307,7 +304,7 @@ const SimulationScreen: React.FC = () => {
                 <div className="simulation-hand-title"><strong>{player.name}</strong><span>{player.hand.length}</span></div>
                 <div className="simulation-card-row">
                   {player.hand.map((card) => (
-                    <img key={`${player.name}-${card.suit}-${card.rank}`} src={cardSrc(card)} alt={cardLabel(card)} decoding="async" />
+                    <img key={`${player.name}-${card.suit}-${card.rank}`} src={getCardSrc(card)} alt={cardLabel(card)} decoding="async" />
                   ))}
                 </div>
               </article>

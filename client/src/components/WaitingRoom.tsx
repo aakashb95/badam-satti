@@ -10,7 +10,10 @@ interface WaitingRoomProps {
   onLeaveRoom: () => void;
   onShowNotification: (message: string) => void;
   onReturnToGameDesk: () => Promise<void>;
+  onSetTurnDuration: (seconds: number) => void;
 }
+
+const TURN_DURATION_CHOICES = [20, 40, 60];
 
 const WaitingRoom: React.FC<WaitingRoomProps> = ({
   roomCode,
@@ -20,6 +23,7 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
   onLeaveRoom,
   onShowNotification,
   onReturnToGameDesk,
+  onSetTurnDuration,
 }) => {
   const [lanOrigin, setLanOrigin] = useState<string | null>(null);
 
@@ -50,6 +54,7 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
 
   const isCreator = gameState?.players && gameState.players.length > 0 && gameState.players[0].name === username;
   const playerCount = gameState?.players.length || 0;
+  const turnDuration = gameState?.turnDurationSeconds ?? 20;
 
   return (
     <main className="screen waiting-screen">
@@ -79,6 +84,32 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
           <div className="invite-link">{inviteLink}</div>
         </section>
         
+        <section className="turn-speed-card">
+          <div className="section-heading">
+            <h3>Turn timer</h3>
+            <span>{turnDuration} seconds each</span>
+          </div>
+          {isCreator ? (
+            <>
+              <div className="turn-speed-options" role="group" aria-label="Seconds each player gets per turn">
+                {TURN_DURATION_CHOICES.map((seconds) => (
+                  <button
+                    key={seconds}
+                    className={`turn-speed-option ${turnDuration === seconds ? 'is-selected' : ''}`}
+                    aria-pressed={turnDuration === seconds}
+                    onClick={() => onSetTurnDuration(seconds)}
+                  >
+                    {seconds}s
+                  </button>
+                ))}
+              </div>
+              <p className="turn-speed-note">When time runs out, a card is played automatically so the table keeps moving.</p>
+            </>
+          ) : (
+            <p className="turn-speed-note">The host picks how long each turn lasts. When time runs out, a card is played automatically.</p>
+          )}
+        </section>
+
         <section className="players-section">
           <div className="section-heading">
             <h3>Players</h3>
@@ -104,8 +135,10 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
         
         <div className="waiting-actions">
           {isCreator && (
-            <button className="primary-button start-button" onClick={onStartGame} disabled={playerCount < 2}>
-              {playerCount < 2 ? 'Waiting for one more player' : <>Start game <span>→</span></>}
+            <button className="primary-button start-button" onClick={onStartGame} disabled={playerCount < 3}>
+              {playerCount < 3
+                ? `Waiting for ${3 - playerCount} more ${3 - playerCount === 1 ? 'player' : 'players'}`
+                : <>Start game <span>→</span></>}
             </button>
           )}
           {!isCreator && <div className="waiting-pulse"><span /> Waiting for the host</div>}

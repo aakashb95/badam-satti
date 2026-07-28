@@ -19,7 +19,12 @@ test('starts with 7 of hearts on the board and advances to the next player', () 
   assert.equal(room.players.some((player) => player.cards.some((card) => card.suit === 'hearts' && card.rank === 7)), false);
   assert.notEqual(room.currentPlayerIndex, room.heartsSevenPlayerIndex);
   assert.equal(room.players.reduce((total, player) => total + player.cards.length, 0), 51);
-  assert.match(room.gameStartMessage, /started the game$/);
+  assert.match(room.gameStartMessage, /deals Round 1/);
+  assert.match(room.gameStartMessage, /starts with 7♥$/);
+  assert.equal(room.playHistory.length, 1);
+  assert.deepEqual(room.playHistory[0].card, { suit: 'hearts', rank: 7 });
+  assert.equal(room.playHistory[0].automatic, true);
+  assert.equal(room.getState().players.reduce((total, player) => total + player.dealtCardCount, 0), 52);
 });
 
 test('refuses to start while a disconnected player is still seated', () => {
@@ -32,6 +37,13 @@ test('refuses to start while a disconnected player is still seated', () => {
   assert.deepEqual(room.board.hearts.up, []);
 });
 
+test('requires at least three players to start', () => {
+  const room = makeRoom(2);
+
+  assert.equal(room.startGame(), false);
+  assert.equal(room.started, false);
+});
+
 test('deals clockwise from the player after the dealer', () => {
   const room = makeRoom(4);
   room.dealerIndex = 1;
@@ -42,6 +54,20 @@ test('deals clockwise from the player after the dealer', () => {
   assert.deepEqual(room.players[3].cards[0], { suit: 'hearts', rank: 2 });
   assert.deepEqual(room.players[0].cards[0], { suit: 'hearts', rank: 3 });
   assert.deepEqual(room.players[1].cards[0], { suit: 'hearts', rank: 4 });
+  assert.equal(room.getState().dealStartPlayerName, 'Player 2');
+});
+
+test('records card plays and passes in order', () => {
+  const room = makeRoom(3);
+  room.started = true;
+  room.currentPlayerIndex = 0;
+  room.players[0].cards = [{ suit: 'hearts', rank: 7 }, { suit: 'clubs', rank: 2 }];
+
+  assert.equal(room.playCard('p0', { suit: 'hearts', rank: 7 }), true);
+  assert.equal(room.passTurn('p1'), true);
+
+  assert.deepEqual(room.playHistory.map((entry) => entry.type), ['play', 'pass']);
+  assert.deepEqual(room.playHistory.map((entry) => entry.playerName), ['Player 0', 'Player 1']);
 });
 
 test('rotates dealer to the highest round scorer', () => {
@@ -102,4 +128,68 @@ test('keeps the same current player when someone before them leaves', () => {
   room.removePlayer('p0');
 
   assert.equal(room.players[room.currentPlayerIndex].id, 'p2');
+});
+
+test('deals every hand sorted by suit then ascending rank', () => {
+  const room = makeRoom(4);
+  room.startGame();
+
+  const suitOrder = { hearts: 0, diamonds: 1, clubs: 2, spades: 3 };
+  room.players.forEach((player) => {
+    for (let index = 1; index < player.cards.length; index += 1) {
+      const previous = player.cards[index - 1];
+      const current = player.cards[index];
+      const inOrder =
+        suitOrder[previous.suit] < suitOrder[current.suit] ||
+        (previous.suit === current.suit && previous.rank < current.rank);
+      assert.ok(inOrder, `${player.name} hand out of order at index ${index}`);
+    }
+  });
+});
+
+test('redistributes a leaver\'s cards starting from the next seat clockwise', () => {
+  const room = makeRoom(4);
+  room.players[0].cards = [{ suit: 'hearts', rank: 2 }];
+  room.players[1].cards = [
+    { suit: 'hearts', rank: 3 },
+    { suit: 'diamonds', rank: 4 },
+    { suit: 'clubs', rank: 5 },
+  ];
+  room.players[2].cards = [{ suit: 'hearts', rank: 6 }];
+  room.players[3].cards = [{ suit: 'hearts', rank: 9 }];
+
+  // p1 leaves: their three cards should go to p2, p3, p0 in that order,
+  // not systematically to seat 0.
+  room.removePlayer('p1', true);
+
+  const byName = new Map(room.players.map((player) => [player.name, player.cards]));
+  assert.equal(byName.get('Player 2').length, 2);
+  assert.equal(byName.get('Player 3').length, 2);
+  assert.equal(byName.get('Player 0').length, 2);
+  assert.ok(byName.get('Player 2').some((card) => card.rank === 3 && card.suit === 'hearts'));
+  assert.ok(byName.get('Player 3').some((card) => card.rank === 4 && card.suit === 'diamonds'));
+  assert.ok(byName.get('Player 0').some((card) => card.rank === 5 && card.suit === 'clubs'));
+});
+
+test('exposes turn timing and the next connected player in state', () => {
+  const room = makeRoom(4);
+  assert.equal(room.setTurnDuration(40), true);
+  assert.equal(room.setTurnDuration(37), false);
+  room.startGame();
+
+  const before = room.turnStartedAt;
+  const state = room.getState();
+  assert.equal(state.turnDurationSeconds, 40);
+  assert.equal(state.turnStartedAt, before);
+
+  const expectedNextIndex = (room.currentPlayerIndex + 1) % room.players.length;
+  assert.equal(state.nextPlayerName, room.players[expectedNextIndex].name);
+
+  // Disconnected players are skipped in the "next" preview
+  room.players[expectedNextIndex].connected = false;
+  const skipIndex = (expectedNextIndex + 1) % room.players.length;
+  assert.equal(room.getState().nextPlayerName, room.players[skipIndex].name);
+
+  // Timer cannot change once the game has started
+  assert.equal(room.setTurnDuration(60), false);
 });

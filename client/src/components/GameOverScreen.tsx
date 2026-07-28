@@ -1,6 +1,7 @@
 import React from 'react';
 import { Winner, Card } from '../types';
 import GameDeskLink from './GameDeskLink';
+import { getCardSrc, getRankDisplay } from '../cards';
 
 interface GameOverScreenProps {
   winner: Winner | null;
@@ -11,26 +12,7 @@ interface GameOverScreenProps {
   onReturnToGameDesk: () => Promise<void>;
 }
 
-const CARD_ASSET_VERSION = 'v6';
-
 const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound, onExitGame, showingDelay, canContinueRound, onReturnToGameDesk }) => {
-  const getRankDisplay = (rank: number): string => {
-    if (rank === 1) return 'A';
-    if (rank === 11) return 'J';
-    if (rank === 12) return 'Q';
-    if (rank === 13) return 'K';
-    return rank.toString();
-  };
-
-  const getCardFilename = (card: Card): string => {
-    const suitLetters: Record<string, string> = { hearts: 'H', diamonds: 'D', clubs: 'C', spades: 'S' };
-    const rankMap: Record<number, string> = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
-    const rankPart = rankMap[card.rank] || card.rank.toString();
-    return `${rankPart}${suitLetters[card.suit]}.svg`;
-  };
-
-  const getCardSrc = (card: Card): string => `${import.meta.env.BASE_URL}images/cards/${getCardFilename(card)}?${CARD_ASSET_VERSION}`;
-
   const renderRemainingCards = (cards: Card[]) => {
     if (!cards || cards.length === 0) return null;
     
@@ -93,7 +75,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ winner, onContinueRound
                         <span className="score-rank">{String(index + 1).padStart(2, '0')}</span>
                         <div className="score-player">
                           <span className="player-name">{score.name}</span>
-                          <small>{score.isWinner ? 'Round winner' : `${score.remainingCards?.length || 0} cards left`}</small>
+                          <small>{score.isWinner ? 'Round winner' : `${score.remainingCards?.length || 0} ${(score.remainingCards?.length || 0) === 1 ? 'card' : 'cards'} left`}</small>
                         </div>
                         <span className="player-score"><strong>{score.score}</strong> pts</span>
                       </div>

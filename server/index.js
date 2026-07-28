@@ -77,19 +77,48 @@ const io = require("socket.io")(server, {
 });
 const path = require("path");
 
-const { GameRoom } = require("./gameLogic");
+const { GameRoom, TURN_DURATION_OPTIONS } = require("./gameLogic");
 const Database = require("./database");
 const IP_HASH_SALT = process.env.IP_HASH_SALT || crypto.randomBytes(32).toString('hex');
 const ROOM_CODE_PATTERN = /^[A-Z0-9]{6}$/;
 const CARD_SUITS = new Set(['hearts', 'diamonds', 'clubs', 'spades']);
-const RATE_LIMITED_EVENTS = new Set(['create_room', 'join_room', 'reconnect_to_room', 'start_game', 'play_card', 'pass_turn', 'continue_round', 'exit_game', 'leave_room']);
+const RATE_LIMITED_EVENTS = new Set(['create_room', 'join_room', 'reconnect_to_room', 'start_game', 'play_card', 'pass_turn', 'continue_round', 'exit_game', 'leave_room', 'set_turn_duration']);
+// Deterministic e2e runs need turns to sit still unless a test opts in.
+const TURN_TIMERS_ENABLED = process.env.NODE_ENV !== 'test' || process.env.ENABLE_TURN_TIMERS === '1';
 const configuredActiveGameReconnectMs = Number(process.env.ACTIVE_GAME_RECONNECT_MS);
 const ACTIVE_GAME_RECONNECT_MS = Number.isFinite(configuredActiveGameReconnectMs) && configuredActiveGameReconnectMs >= 0
   ? configuredActiveGameReconnectMs
-  : 30000;
+  : 60000;
 
 function hashIP(ip) {
   return crypto.createHash('sha256').update(`${ip}${IP_HASH_SALT}`).digest('hex').substring(0, 16);
+}
+
+function isPrivateOrLoopbackAddress(address) {
+  if (typeof address !== 'string' || !address) return false;
+  const host = address.replace(/^::ffff:/i, '');
+  if (host === '::1' || host === '[::1]' || host === 'localhost') return true;
+  return (
+    /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
+    /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
+    /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(host)
+  );
+}
+
+// Rate limiting must see the real client, not the reverse proxy. Trust
+// x-forwarded-for only when the direct peer is the proxy itself
+// (loopback/private), mirroring the origin trust rules above.
+function getClientAddress(socket) {
+  const direct = socket.handshake.address || '';
+  if (isPrivateOrLoopbackAddress(direct)) {
+    const forwarded = socket.handshake.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string' && forwarded.trim()) {
+      const first = forwarded.split(',')[0].trim();
+      if (first) return first;
+    }
+  }
+  return direct || 'unknown';
 }
 
 function normalizeUsername(value) {
@@ -148,6 +177,11 @@ async function ensureRoomExists(roomCode) {
       
       // Restore all properties from stored state
       Object.assign(room, storedState);
+      room.playHistory = Array.isArray(storedState.playHistory) ? storedState.playHistory : [];
+      room.historySequence = Number.isInteger(storedState.historySequence) ? storedState.historySequence : room.playHistory.length;
+      room.dealStartPlayerIndex = Number.isInteger(storedState.dealStartPlayerIndex)
+        ? storedState.dealStartPlayerIndex
+        : ((storedState.dealerIndex || 0) + 1) % Math.max(1, storedState.players?.length || 1);
       
       // The serialized game state is the source of truth for hands, scores,
       // turn order, and dealer state. The players table only tracks connection
@@ -159,6 +193,7 @@ async function ensureRoomExists(roomCode) {
         const row = playerRowsByName.get(player.name);
         return {
           ...player,
+          dealtCardCount: player.dealtCardCount ?? player.cards?.length ?? 0,
           id: row?.socket_id || player.id,
           connected: row ? Boolean(row.connected) : Boolean(player.connected),
         };
@@ -182,6 +217,13 @@ async function ensureRoomExists(roomCode) {
       // Add to memory cache
       rooms[roomCode] = room;
       console.log(`Successfully restored room ${roomCode} with ${room.players.length} players`);
+
+      // Timers are not persisted; give the current player a fresh turn
+      // window so a restored game advances instead of hanging forever.
+      if (room.started && !room.gameFinished) {
+        room.markTurnStarted();
+        scheduleTurnTimer(roomCode);
+      }
       return room;
     }
   } catch (error) {
@@ -265,6 +307,186 @@ const db = new Database();
 const rooms = {};
 const activeDisconnectTimers = new Map();
 
+if (process.env.NODE_ENV === 'test') {
+  app.post('/__test__/rooms/:roomCode/board-run', async (req, res) => {
+    const roomCode = normalizeRoomCode(req.params.roomCode);
+    const room = roomCode ? await ensureRoomExists(roomCode) : null;
+    if (!room || !room.started) {
+      res.status(404).json({ error: 'Active test room not found' });
+      return;
+    }
+
+    const highestRank = Math.min(13, Math.max(7, Number(req.query.highest) || 13));
+    const includeSix = req.query.includeSix !== '0';
+    const stackedSuit = () => ({
+      up: Array.from({ length: highestRank - 6 }, (_, index) => index + 7),
+      down: includeSix ? [6] : [],
+    });
+    room.board = {
+      hearts: stackedSuit(),
+      diamonds: stackedSuit(),
+      clubs: stackedSuit(),
+      spades: stackedSuit(),
+    };
+
+    io.to(roomCode).emit('card_played', {
+      playerName: 'Layout test',
+      card: { suit: 'hearts', rank: highestRank },
+      gameState: room.getState(),
+    });
+    res.json({ ok: true, highestRank, includeSix });
+  });
+
+  app.post('/__test__/rooms/:roomCode/hand-layout', async (req, res) => {
+    const roomCode = normalizeRoomCode(req.params.roomCode);
+    const room = roomCode ? await ensureRoomExists(roomCode) : null;
+    if (!room || !room.started) {
+      res.status(404).json({ error: 'Active test room not found' });
+      return;
+    }
+
+    const playerName = typeof req.query.player === 'string' ? req.query.player : room.players[0]?.name;
+    const playerIndex = room.players.findIndex((player) => player.name === playerName);
+    if (playerIndex < 0) {
+      res.status(404).json({ error: 'Test player not found' });
+      return;
+    }
+
+    const thirteenCardHand = [
+      { suit: 'hearts', rank: 2 }, { suit: 'hearts', rank: 6 }, { suit: 'hearts', rank: 8 }, { suit: 'hearts', rank: 12 },
+      { suit: 'diamonds', rank: 3 }, { suit: 'diamonds', rank: 6 }, { suit: 'diamonds', rank: 8 },
+      { suit: 'clubs', rank: 4 }, { suit: 'clubs', rank: 6 }, { suit: 'clubs', rank: 8 },
+      { suit: 'spades', rank: 5 }, { suit: 'spades', rank: 6 }, { suit: 'spades', rank: 8 },
+    ];
+    const eighteenCardHand = [
+      { suit: 'hearts', rank: 2 }, { suit: 'hearts', rank: 4 }, { suit: 'hearts', rank: 6 }, { suit: 'hearts', rank: 8 }, { suit: 'hearts', rank: 10 },
+      { suit: 'diamonds', rank: 1 }, { suit: 'diamonds', rank: 3 }, { suit: 'diamonds', rank: 6 }, { suit: 'diamonds', rank: 8 },
+      { suit: 'clubs', rank: 2 }, { suit: 'clubs', rank: 4 }, { suit: 'clubs', rank: 6 }, { suit: 'clubs', rank: 8 }, { suit: 'clubs', rank: 12 },
+      { suit: 'spades', rank: 3 }, { suit: 'spades', rank: 6 }, { suit: 'spades', rank: 8 }, { suit: 'spades', rank: 13 },
+    ];
+    const cards = Number(req.query.count) === 18 ? eighteenCardHand : thirteenCardHand;
+    const player = room.players[playerIndex];
+
+    player.cards = cards;
+    player.dealtCardCount = cards.length;
+    room.currentPlayerIndex = playerIndex;
+    room.board = {
+      hearts: { up: [7], down: [] },
+      diamonds: { up: [7], down: [] },
+      clubs: { up: [7], down: [] },
+      spades: { up: [7], down: [] },
+    };
+
+    io.to(roomCode).emit('card_played', {
+      playerName: 'Layout test',
+      card: { suit: 'hearts', rank: 7 },
+      gameState: room.getState(),
+    });
+    io.to(player.id).emit('your_cards', {
+      cards: room.getPlayerCards(player.id),
+      validMoves: room.getValidMoves(player.id),
+    });
+    res.json({ ok: true, playerName: player.name, cardCount: cards.length });
+  });
+}
+
+// Server-authoritative turn timers: one per room, restarted whenever the
+// turn advances. The server plays for absent players so a locked phone
+// never stalls the table.
+const activeTurnTimers = new Map();
+
+function clearTurnTimer(roomCode) {
+  const timer = activeTurnTimers.get(roomCode);
+  if (!timer) return;
+  clearTimeout(timer);
+  activeTurnTimers.delete(roomCode);
+}
+
+function scheduleTurnTimer(roomCode) {
+  clearTurnTimer(roomCode);
+  if (!TURN_TIMERS_ENABLED) return;
+
+  const room = rooms[roomCode];
+  if (!room || !room.started || room.gameFinished || room.players.length === 0) return;
+
+  // Small grace period so a human tap at the buzzer beats the server.
+  const testDelayMs = process.env.NODE_ENV === 'test' ? Number(process.env.TURN_TIMER_TEST_DELAY_MS) : NaN;
+  const delayMs = Number.isFinite(testDelayMs) && testDelayMs > 0
+    ? testDelayMs
+    : (room.turnDurationSeconds || 20) * 1000 + 1000;
+  const expectedTurnStartedAt = room.turnStartedAt;
+  const timer = setTimeout(() => {
+    activeTurnTimers.delete(roomCode);
+    runServerAutoPlay(roomCode, expectedTurnStartedAt).catch((error) =>
+      console.error(`Error auto-playing turn in ${roomCode}:`, error)
+    );
+  }, delayMs);
+  activeTurnTimers.set(roomCode, timer);
+}
+
+function pickAutoPlayCard(validMoves) {
+  // Shed the card farthest from 7 first: it is the hardest to get rid of.
+  return validMoves.reduce(
+    (best, card) => (Math.abs(card.rank - 7) > Math.abs(best.rank - 7) ? card : best),
+    validMoves[0]
+  );
+}
+
+async function runServerAutoPlay(roomCode, expectedTurnStartedAt) {
+  const room = rooms[roomCode];
+  if (!room || !room.started || room.gameFinished || room.players.length === 0) return;
+  // A real move landed while this callback was queued; its handler already
+  // rescheduled the timer for the new turn.
+  if (expectedTurnStartedAt && room.turnStartedAt !== expectedTurnStartedAt) return;
+
+  const player = room.players[room.currentPlayerIndex];
+  if (!player) return;
+
+  const validMoves = room.getValidMoves(player.id);
+  if (validMoves.length > 0) {
+    const card = pickAutoPlayCard(validMoves);
+    if (!room.playCard(player.id, card, true)) {
+      scheduleTurnTimer(roomCode);
+      return;
+    }
+
+    console.log(`Timer played ${card.rank} of ${card.suit} for ${player.name} in ${roomCode}`);
+    await db.saveGameRoom(roomCode, room);
+    io.to(roomCode).emit("card_played", {
+      playerName: player.name,
+      card,
+      automatic: true,
+      gameState: room.getState(),
+    });
+    emitPlayerHands(room);
+
+    if (room.checkWinner()) {
+      const winner = room.getWinner();
+      console.log(`Game finished in room ${roomCode} (timer play):`, winner.winner);
+      await db.saveGameRoom(roomCode, room);
+      clearTurnTimer(roomCode);
+      io.to(roomCode).emit("game_over", winner);
+      return;
+    }
+  } else {
+    if (!room.passTurn(player.id, true)) {
+      scheduleTurnTimer(roomCode);
+      return;
+    }
+
+    console.log(`Timer passed for ${player.name} in ${roomCode}`);
+    await db.saveGameRoom(roomCode, room);
+    io.to(roomCode).emit("turn_passed", {
+      playerName: player.name,
+      automatic: true,
+      gameState: room.getState(),
+    });
+    emitPlayerHands(room);
+  }
+
+  scheduleTurnTimer(roomCode);
+}
+
 function disconnectTimerKey(roomCode, playerId) {
   return `${roomCode}:${playerId}`;
 }
@@ -319,6 +541,7 @@ async function removePlayerFromRoom(roomCode, playerId, playerName, options = {}
   await db.removePlayerFromRoom(playerId, roomCode);
 
   if (room.players.length === 0) {
+    clearTurnTimer(roomCode);
     await db.deactivateRoom(roomCode);
     delete rooms[roomCode];
     return null;
@@ -349,6 +572,13 @@ async function removePlayerFromRoom(roomCode, playerId, playerName, options = {}
       winner: room.players[0].name,
       message: "All other players have left the game",
     });
+  }
+
+  // Seats shifted, so the current turn (and its deadline) may have moved.
+  if (room.started && !room.gameFinished) {
+    scheduleTurnTimer(roomCode);
+  } else {
+    clearTurnTimer(roomCode);
   }
 
   return room;
@@ -407,6 +637,7 @@ setInterval(async () => {
         
         if (reconnectablePlayers.length === 0) {
           console.log(`Cleaning up empty room: ${roomCode}`);
+          clearTurnTimer(roomCode);
           await db.deactivateRoom(roomCode);
           delete rooms[roomCode];
         } else {
@@ -548,14 +779,14 @@ io.on("connection", (socket) => {
       }
 
       // Check rate limit using hashed IP
-      const clientIP = hashIP(socket.handshake.address || 'unknown');
+      const clientIP = hashIP(getClientAddress(socket));
       const rateLimitCheck = await db.checkRateLimit(clientIP, 10, 1);
       if (!rateLimitCheck.allowed) {
         socket.emit("error", "Too many room creation attempts. Please wait.");
         return;
       }
 
-      const roomCode = generateRoomCode();
+      const roomCode = await generateRoomCode();
       rooms[roomCode] = new GameRoom(roomCode);
 
       const success = rooms[roomCode].addPlayer(socket.id, cleanUsername);
@@ -594,7 +825,7 @@ io.on("connection", (socket) => {
       }
 
       // Check rate limit using hashed IP
-      const clientIP = hashIP(socket.handshake.address || 'unknown');
+      const clientIP = hashIP(getClientAddress(socket));
       const rateLimitCheck = await db.checkRateLimit(clientIP, 20, 1);
       if (!rateLimitCheck.allowed) {
         socket.emit("error", "Too many join attempts. Please wait.");
@@ -822,8 +1053,8 @@ io.on("connection", (socket) => {
 
       await removeDisconnectedWaitingPlayers(currentRoom, room);
 
-      if (room.players.length <= 1) {
-        emitSocketError(socket, "NOT_ENOUGH_CONNECTED_PLAYERS", "Need at least 2 connected players to start");
+      if (room.players.length < 3) {
+        emitSocketError(socket, "NOT_ENOUGH_CONNECTED_PLAYERS", "Need at least 3 connected players to start");
         return;
       }
 
@@ -848,9 +1079,51 @@ io.on("connection", (socket) => {
           validMoves: room.getValidMoves(player.id),
         });
       });
+
+      scheduleTurnTimer(currentRoom);
     } catch (error) {
       console.error("Error starting game:", error);
       socket.emit("error", "Failed to start game");
+    }
+  });
+
+  // Host picks how long each turn lasts, before the game starts
+  socket.on("set_turn_duration", async (seconds) => {
+    try {
+      if (!currentRoom) {
+        socket.emit("error", "Not in a valid room");
+        return;
+      }
+
+      const room = await ensureRoomExists(currentRoom);
+      if (!room) {
+        socket.emit("error", "Not in a valid room");
+        return;
+      }
+
+      if (room.players[0]?.id !== socket.id) {
+        emitSocketError(socket, "HOST_ONLY", "Only the host can change the turn timer");
+        return;
+      }
+
+      if (room.started) {
+        emitSocketError(socket, "GAME_ALREADY_STARTED", "The turn timer can only be changed before the game starts");
+        return;
+      }
+
+      if (!TURN_DURATION_OPTIONS.includes(seconds) || !room.setTurnDuration(seconds)) {
+        socket.emit("error", "Invalid turn duration");
+        return;
+      }
+
+      await db.saveGameRoom(currentRoom, room);
+      io.to(currentRoom).emit("turn_duration_changed", {
+        turnDurationSeconds: seconds,
+        gameState: room.getState(),
+      });
+    } catch (error) {
+      console.error("Error setting turn duration:", error);
+      socket.emit("error", "Failed to set turn duration");
     }
   });
 
@@ -905,7 +1178,10 @@ io.on("connection", (socket) => {
         console.log(`Game finished in room ${currentRoom}:`, winner);
         // Save final game state
         await db.saveGameRoom(currentRoom, room);
+        clearTurnTimer(currentRoom);
         io.to(currentRoom).emit("game_over", winner);
+      } else {
+        scheduleTurnTimer(currentRoom);
       }
     } catch (error) {
       console.error("Error playing card:", error);
@@ -951,6 +1227,8 @@ io.on("connection", (socket) => {
           validMoves: room.getValidMoves(player.id),
         });
       });
+
+      scheduleTurnTimer(currentRoom);
     } catch (error) {
       console.error("Error passing turn:", error);
       socket.emit("error", "Failed to pass turn");
@@ -971,10 +1249,21 @@ io.on("connection", (socket) => {
         return;
       }
       if (!room.gameFinished) {
+        // Someone else already continued the round (two players tapping
+        // "Next round" together). Sync this player into it, no error popup.
+        if (room.started) {
+          socket.emit("round_continued", { gameState: room.getState() });
+          socket.emit("your_cards", {
+            cards: room.getPlayerCards(socket.id),
+            validMoves: room.getValidMoves(socket.id),
+          });
+          return;
+        }
         socket.emit("error", "Round not finished yet");
         return;
       }
       if (!room.hasMoreRounds()) {
+        clearTurnTimer(currentRoom);
         emitGameTotals(currentRoom, room);
         room.started = false;
         room.gameFinished = true;
@@ -1004,6 +1293,7 @@ io.on("connection", (socket) => {
       });
 
       emitPlayerHands(room);
+      scheduleTurnTimer(currentRoom);
     } catch (error) {
       console.error("Error continuing round:", error);
       socket.emit("error", "Failed to continue round");
@@ -1024,11 +1314,19 @@ io.on("connection", (socket) => {
         return;
       }
 
+      // Finishing the game ends it for the whole table, so only the host
+      // may do it — same rule as starting the game.
+      if (room.players[0]?.id !== socket.id) {
+        emitSocketError(socket, "HOST_ONLY", "Only the host can finish the game");
+        return;
+      }
+
+      clearTurnTimer(currentRoom);
       emitGameTotals(currentRoom, room);
 
       room.started = false;
       room.gameFinished = true;
-      
+
       // Save final game state
       await db.saveGameRoom(currentRoom, room);
     } catch (error) {
@@ -1098,19 +1396,16 @@ io.on("connection", (socket) => {
     try {
       if (currentRoom && rooms[currentRoom]) {
         const room = rooms[currentRoom];
-        const wasGameStarted = room.started;
-        const wasCurrentPlayer =
-          room.players[room.currentPlayerIndex]?.id === socket.id;
-
-        if (wasGameStarted) {
+        // Only a live round needs the harsh 30s-then-redistribute treatment.
+        // On the results screen (gameFinished) there is no turn to hold up,
+        // so it gets the same lenient window as the waiting room.
+        const inActiveRound = room.started && !room.gameFinished;
+        if (inActiveRound) {
           // Active games get a short reconnection window. Mobile Safari and
           // flaky networks can briefly drop sockets during app switches/taps.
           console.log(`Player ${playerName} disconnected during game - allowing ${ACTIVE_GAME_RECONNECT_MS / 1000}s reconnection`);
 
           room.setPlayerDisconnected(socket.id);
-          if (wasCurrentPlayer && !room.gameFinished) {
-            room.nextTurn();
-          }
 
           await db.setPlayerDisconnected(socket.id, true, ACTIVE_GAME_RECONNECT_MS / 60000);
           await db.saveGameRoom(currentRoom, room);
@@ -1144,13 +1439,13 @@ io.on("connection", (socket) => {
           }, ACTIVE_GAME_RECONNECT_MS);
           activeDisconnectTimers.set(disconnectTimerKey(disconnectedRoom, disconnectedPlayerId), timer);
         } else {
-          // Game hasn't started - allow reconnection
-          console.log(`Player ${playerName} disconnected from waiting room - allowing reconnection`);
-          
+          // Waiting room or results screen - allow a long reconnection window
+          console.log(`Player ${playerName} disconnected outside an active round - allowing reconnection`);
+
           // Mark player as disconnected but don't remove them yet
           room.setPlayerDisconnected(socket.id);
-          
-          // Set reconnection opportunity in database (10 minutes for waiting room)
+
+          // Set reconnection opportunity in database (10 minutes)
           await db.setPlayerDisconnected(socket.id, true, 10);
           
           // Save updated game state
@@ -1175,21 +1470,28 @@ io.on("connection", (socket) => {
 });
 
 // Generate a 6-character room code
-function generateRoomCode() {
+async function generateRoomCode() {
   // Avoid ambiguous characters in fresh room codes: 0/O and 1/I are
   // easy to confuse when shared verbally or read from a phone screen.
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let result = "";
-  for (let i = 0; i < 6; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+
+  for (let attempt = 0; attempt < 25; attempt++) {
+    let result = "";
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(crypto.randomInt(chars.length));
+    }
+
+    if (rooms[result]) continue;
+
+    // Persisted rooms survive restarts, so an active code may exist in the
+    // database without being in memory yet.
+    const persisted = await db.getGameRoom(result);
+    if (persisted && persisted.is_active) continue;
+
+    return result;
   }
 
-  // Ensure unique room code
-  if (rooms[result]) {
-    return generateRoomCode();
-  }
-
-  return result;
+  throw new Error("Unable to allocate a unique room code");
 }
 
 // Graceful shutdown handling
@@ -1200,6 +1502,11 @@ async function shutdown(signal) {
   console.log(`\n📦 ${signal} received. Shutting down gracefully...`);
 
   try {
+    // Stop pending turn timers so none fire mid-shutdown
+    for (const roomCode of activeTurnTimers.keys()) {
+      clearTurnTimer(roomCode);
+    }
+
     // Save all active rooms to database
     for (const [roomCode, room] of Object.entries(rooms)) {
       await db.saveGameRoom(roomCode, room);

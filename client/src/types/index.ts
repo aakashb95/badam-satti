@@ -8,10 +8,19 @@ export interface Player {
   name: string;
   connected: boolean;
   cardCount: number;
+  dealtCardCount: number;
   isCurrentPlayer: boolean;
   isDealer: boolean;
   totalScore?: number;
   indicator?: 'none' | 'warning' | 'critical';
+}
+
+export interface PlayHistoryEntry {
+  id: string;
+  type: 'play' | 'pass';
+  playerName: string;
+  card?: Card;
+  automatic?: boolean;
 }
 
 export interface GameBoard {
@@ -28,12 +37,18 @@ export interface GameState {
   currentPlayerIndex: number;
   currentPlayerName: string;
   dealerName: string;
+  dealStartPlayerName: string;
+  heartsSevenPlayerName: string;
   round: number;
   maxRounds: number;
   started: boolean;
   roundsPlayed: number;
   gameFinished: boolean;
   gameStartMessage?: string;
+  playHistory: PlayHistoryEntry[];
+  nextPlayerName?: string;
+  turnDurationSeconds?: number;
+  turnStartedAt?: number;
 }
 
 export interface Winner {
@@ -82,6 +97,7 @@ export interface SocketEvents {
   exit_game: () => void;
   leave_room: () => void;
   get_state: () => void;
+  set_turn_duration: (seconds: number) => void;
 
   // Server to Client
   connect: () => void;
@@ -96,8 +112,9 @@ export interface SocketEvents {
   player_reconnected: (data: { playerName: string; gameState: GameState }) => void;
   game_started: (data: { gameState: GameState }) => void;
   your_cards: (data: { cards: Card[]; validMoves: Card[] }) => void;
-  card_played: (data: { playerName: string; card: Card; gameState: GameState }) => void;
-  turn_passed: (data: { playerName: string; gameState: GameState }) => void;
+  card_played: (data: { playerName: string; card: Card; gameState: GameState; automatic?: boolean }) => void;
+  turn_passed: (data: { playerName: string; gameState: GameState; automatic?: boolean }) => void;
+  turn_duration_changed: (data: { turnDurationSeconds: number; gameState: GameState }) => void;
   game_over: (winner: Winner) => void;
   cards_redistributed: (data: { message: string }) => void;
   round_continued: (data: { gameState: GameState }) => void;

@@ -56,8 +56,6 @@ const createEmptyAppState = (): AppState => ({
   summary: null,
 });
 
-const rankLabel = (rank: number) => ({ 1: 'A', 11: 'J', 12: 'Q', 13: 'K' }[rank] || rank.toString());
-const suitLabel = (suit: string) => ({ hearts: 'Hearts', diamonds: 'Diamonds', clubs: 'Clubs', spades: 'Spades' }[suit] || suit);
 
 function loadRoomSession(): RoomSession | null {
   try {
@@ -166,7 +164,8 @@ const App: React.FC = () => {
 const JoinRoomRoute: React.FC = () => {
   const { roomCode } = useParams<{ roomCode: string }>();
   const navigate = useNavigate();
-  const routeState = useLocation().state as RouteState | null;
+  const routeLocation = useLocation();
+  const routeState = routeLocation.state as RouteState | null;
 
   if (!roomCode) return <div>Invalid room code</div>;
 
@@ -174,7 +173,7 @@ const JoinRoomRoute: React.FC = () => {
     <div className="app">
       <JoinRoomScreen
         roomCode={roomCode.toUpperCase()}
-        onJoinRoom={(code, username) => navigate('/', { state: { joinRoom: { roomCode: code, username } } })}
+        onJoinRoom={(code, username) => navigate(`/${routeLocation.search}`, { state: { joinRoom: { roomCode: code, username } } })}
         onBackToMenu={() => navigate('/')}
         error={routeState?.error || null}
         initialUsername={routeState?.username || ''}
@@ -216,21 +215,14 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
   const stateRef = useRef(appState);
   const joinRequestRef = useRef<JoinRequest | null>(null);
   const reconnectPendingRef = useRef(false);
-  const autoPlayTimer = useRef<number | null>(null);
   const actionPendingRef = useRef(false);
   const notificationTimer = useRef<number | null>(null);
   const resultTimer = useRef<number | null>(null);
+  const finalPlayTimer = useRef<number | null>(null);
 
   useEffect(() => {
     stateRef.current = appState;
   }, [appState]);
-
-  function clearAutoPlay() {
-    if (autoPlayTimer.current !== null) {
-      window.clearTimeout(autoPlayTimer.current);
-      autoPlayTimer.current = null;
-    }
-  }
 
   function notify(message: string) {
     if (notificationTimer.current !== null) window.clearTimeout(notificationTimer.current);
@@ -342,7 +334,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
 
     socket.on('game_started', ({ gameState }) => {
       actionPendingRef.current = false;
-      setAppState((previous) => ({ ...previous, gameState, currentScreen: 'game', loading: null }));
+      setAppState((previous) => ({ ...previous, gameState, currentScreen: 'game', loading: null, winner: null }));
     });
 
     socket.on('your_cards', ({ cards, validMoves }) => {
@@ -350,32 +342,38 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
       setAppState((previous) => ({ ...previous, myCards: cards, validMoves, canPass: validMoves.length === 0 }));
     });
 
-    socket.on('card_played', ({ playerName, card, gameState }) => {
+    socket.on('card_played', ({ gameState }) => {
       actionPendingRef.current = false;
       setAppState((previous) => ({ ...previous, gameState }));
-      notify(`${playerName} played ${rankLabel(card.rank)} of ${suitLabel(card.suit)}`);
     });
 
-    socket.on('turn_passed', ({ playerName, gameState }) => {
+    socket.on('turn_passed', ({ gameState }) => {
       actionPendingRef.current = false;
       setAppState((previous) => ({ ...previous, gameState }));
-      notify(`${playerName} passed`);
     });
 
     socket.on('game_over', (winner: Winner) => {
       actionPendingRef.current = false;
-      clearAutoPlay();
-      setShowingGameOverDelay(true);
-      setAppState((previous) => ({ ...previous, currentScreen: 'game-over', winner }));
+      setAppState((previous) => ({ ...previous, winner }));
+      if (finalPlayTimer.current !== null) window.clearTimeout(finalPlayTimer.current);
       if (resultTimer.current !== null) window.clearTimeout(resultTimer.current);
-      resultTimer.current = window.setTimeout(() => setShowingGameOverDelay(false), 1200);
+      finalPlayTimer.current = window.setTimeout(() => {
+        setShowingGameOverDelay(true);
+        setAppState((previous) => ({ ...previous, currentScreen: 'game-over' }));
+        resultTimer.current = window.setTimeout(() => setShowingGameOverDelay(false), 2200);
+      }, 2500);
     });
 
     socket.on('cards_redistributed', ({ message }) => notify(message));
 
     socket.on('round_continued', ({ gameState }) => {
       actionPendingRef.current = false;
-      setAppState((previous) => ({ ...previous, gameState, currentScreen: 'game', loading: null }));
+      setShowingGameOverDelay(false);
+      setAppState((previous) => ({ ...previous, gameState, currentScreen: 'game', loading: null, winner: null }));
+    });
+
+    socket.on('turn_duration_changed', ({ gameState }) => {
+      setAppState((previous) => ({ ...previous, gameState }));
     });
 
     socket.on('game_totals', (summary: GameSummary) => {
@@ -460,9 +458,9 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
       window.removeEventListener('focus', syncCurrentRoom);
       window.removeEventListener('online', syncCurrentRoom);
       window.removeEventListener('pageshow', syncCurrentRoom);
-      clearAutoPlay();
       if (notificationTimer.current !== null) window.clearTimeout(notificationTimer.current);
       if (resultTimer.current !== null) window.clearTimeout(resultTimer.current);
+      if (finalPlayTimer.current !== null) window.clearTimeout(finalPlayTimer.current);
       socket.close();
       socketRef.current = null;
     };
@@ -478,28 +476,9 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
     socketRef.current.emit('join_room', { roomCode: request.roomCode.toUpperCase(), username: request.username });
   }, [isConnected, location.state, navigate]);
 
-  useEffect(() => {
-    clearAutoPlay();
-    if (!appState.gameState || !appState.isMyTurn || appState.currentScreen !== 'game') return;
-
-    autoPlayTimer.current = window.setTimeout(() => {
-      const current = stateRef.current;
-      if (actionPendingRef.current || !current.isMyTurn || current.gameState?.currentPlayerName !== current.username || current.currentScreen !== 'game') return;
-
-      const move = current.validMoves[Math.floor(Math.random() * current.validMoves.length)];
-      if (move) {
-        actionPendingRef.current = true;
-        notify('Time’s up — playing a card');
-        socketRef.current?.emit('play_card', move);
-      } else if (current.canPass) {
-        actionPendingRef.current = true;
-        notify('Time’s up — passing');
-        socketRef.current?.emit('pass_turn');
-      }
-    }, 20000);
-
-    return clearAutoPlay;
-  }, [appState.currentScreen, appState.gameState?.currentPlayerName, appState.isMyTurn]);
+  // Turn timing is server-authoritative: when a turn expires the server
+  // plays or passes for the current player and broadcasts the result.
+  // The client only renders the countdown.
 
   useEffect(() => {
     const isMyTurn = appState.gameState?.currentPlayerName === appState.username;
@@ -573,21 +552,22 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
     if (actionPendingRef.current || appState.currentScreen !== 'game' || !appState.isMyTurn) return;
     if (!appState.validMoves.some((move) => move.suit === card.suit && move.rank === card.rank)) return;
     actionPendingRef.current = true;
-    clearAutoPlay();
     socketRef.current?.emit('play_card', card);
   }
 
   function passTurn() {
     if (actionPendingRef.current || appState.currentScreen !== 'game' || !appState.isMyTurn || !appState.canPass) return;
     actionPendingRef.current = true;
-    clearAutoPlay();
     socketRef.current?.emit('pass_turn');
+  }
+
+  function setTurnDuration(seconds: number) {
+    socketRef.current?.emit('set_turn_duration', seconds);
   }
 
   function leaveRoom() {
     actionPendingRef.current = false;
     reconnectPendingRef.current = false;
-    clearAutoPlay();
     clearRoomSession();
     setRecoverySession(null);
     if (appState.currentRoom && socketRef.current?.connected) {
@@ -610,7 +590,6 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
   function leaveRoomForGameDesk(): Promise<void> {
     actionPendingRef.current = false;
     reconnectPendingRef.current = false;
-    clearAutoPlay();
     clearRoomSession();
     setRecoverySession(null);
     const socket = socketRef.current;
@@ -643,9 +622,9 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
       case 'menu':
         return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />;
       case 'waiting':
-        return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} onReturnToGameDesk={leaveRoomForGameDesk} />;
+        return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} onReturnToGameDesk={leaveRoomForGameDesk} onSetTurnDuration={setTurnDuration} />;
       case 'game':
-        return <GameScreen gameState={appState.gameState} myCards={appState.myCards} validMoves={appState.validMoves} isMyTurn={appState.isMyTurn} canPass={appState.canPass} username={appState.username} onPlayCard={playCard} onPassTurn={passTurn} onLeaveGame={leaveRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} onReturnToGameDesk={leaveRoomForGameDesk} />;
+        return <GameScreen gameState={appState.gameState} myCards={appState.myCards} validMoves={appState.validMoves} isMyTurn={appState.isMyTurn} canPass={appState.canPass} username={appState.username} onPlayCard={playCard} onPassTurn={passTurn} onLeaveGame={leaveRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} onReturnToGameDesk={leaveRoomForGameDesk} roundWinnerName={appState.gameState?.gameFinished ? appState.winner?.winner : undefined} />;
       case 'game-over':
         return <GameOverScreen winner={appState.winner} onContinueRound={() => { showLoading('Starting next round…'); socketRef.current?.emit('continue_round'); }} onExitGame={() => { showLoading('Calculating results…'); socketRef.current?.emit('exit_game'); }} showingDelay={showingGameOverDelay} canContinueRound={Boolean(appState.gameState && appState.gameState.round < appState.gameState.maxRounds)} onReturnToGameDesk={leaveRoomForGameDesk} />;
       case 'summary':

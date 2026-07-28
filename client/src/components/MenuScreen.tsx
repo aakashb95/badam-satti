@@ -18,6 +18,9 @@ const LOBBY_GREETINGS = [
   { lead: 'All set', punctuation: '?' },
 ];
 
+const COMFORT_SIZES: ComfortSize[] = ['standard', 'large', 'extra-large', 'maximum'];
+const COMFORT_BUTTON_LABELS: Record<ComfortSize, string> = { standard: 'A', large: 'A+', 'extra-large': 'A++', maximum: 'A+++' };
+
 const LobbyGreeting: React.FC<{ username: string }> = ({ username }) => {
   const [greeting] = useState(() => LOBBY_GREETINGS[Math.floor(Math.random() * LOBBY_GREETINGS.length)] || LOBBY_GREETINGS[0]);
 
@@ -42,6 +45,11 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinR
     setRoomCode(e.target.value.toUpperCase());
   };
 
+  const nextComfortSize = () => {
+    const index = COMFORT_SIZES.indexOf(comfortSize);
+    onComfortSizeChange(COMFORT_SIZES[(index + 1) % COMFORT_SIZES.length]);
+  };
+
   return (
     <main className="screen lobby-screen">
       <div className="app-shell menu-shell">
@@ -49,6 +57,13 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinR
           <GameDeskLink />
           <div className="header-actions">
             <button className="quiet-button" onClick={() => setShowHelpModal(true)}>How to play</button>
+            <button
+              className="text-size-button menu-text-size-button"
+              onClick={nextComfortSize}
+              aria-label={`Change text size. Current size ${COMFORT_BUTTON_LABELS[comfortSize]}`}
+            >
+              {COMFORT_BUTTON_LABELS[comfortSize]}
+            </button>
           </div>
         </header>
 

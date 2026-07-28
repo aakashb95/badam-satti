@@ -95,7 +95,7 @@ async function waitForCondition(predicate, timeoutMs = 5000) {
   throw new Error('Timed out waiting for condition');
 }
 
-async function startServer(t) {
+async function startServer(t, extraEnv = {}) {
   const port = await freePort();
   const dir = await mkdtemp(path.join(tmpdir(), 'badam-satti-'));
   const dbPath = path.join(dir, 'test.db');
@@ -110,6 +110,7 @@ async function startServer(t) {
       ADMIN_KEY: 'test-admin-key',
       IP_HASH_SALT: 'test-salt',
       ACTIVE_GAME_RECONNECT_MS: '500',
+      ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -266,15 +267,18 @@ test('starting removes disconnected waiting players before cards are dealt', asy
   const host = await connectClient(baseUrl);
   const guest = await connectClient(baseUrl);
   const third = await connectClient(baseUrl);
+  const fourth = await connectClient(baseUrl);
   t.after(() => {
     host.close();
     guest.close();
     third.close();
+    fourth.close();
   });
 
   const { roomCode } = await createRoom(host, 'Host');
   await joinRoom(guest, roomCode, 'Guest');
   await joinRoom(third, roomCode, 'Third');
+  await joinRoom(fourth, roomCode, 'Fourth');
 
   const temporaryDisconnect = once(host, 'player_temporarily_disconnected');
   guest.close();
@@ -283,23 +287,28 @@ test('starting removes disconnected waiting players before cards are dealt', asy
   const removed = once(host, 'player_disconnected');
   const hostStarted = once(host, 'game_started');
   const thirdStarted = once(third, 'game_started');
+  const fourthStarted = once(fourth, 'game_started');
   const hostCards = once(host, 'your_cards');
   const thirdCards = once(third, 'your_cards');
+  const fourthCards = once(fourth, 'your_cards');
   host.emit('start_game');
 
-  const [removedEvent, hostStartEvent, thirdStartEvent, hostHand, thirdHand] = await Promise.all([
+  const [removedEvent, hostStartEvent, thirdStartEvent, fourthStartEvent, hostHand, thirdHand, fourthHand] = await Promise.all([
     removed,
     hostStarted,
     thirdStarted,
+    fourthStarted,
     hostCards,
     thirdCards,
+    fourthCards,
   ]);
 
   assert.equal(removedEvent.playerName, 'Guest');
-  assert.deepEqual(hostStartEvent.gameState.players.map((player) => player.name), ['Host', 'Third']);
-  assert.deepEqual(thirdStartEvent.gameState.players.map((player) => player.name), ['Host', 'Third']);
+  assert.deepEqual(hostStartEvent.gameState.players.map((player) => player.name), ['Host', 'Third', 'Fourth']);
+  assert.deepEqual(thirdStartEvent.gameState.players.map((player) => player.name), ['Host', 'Third', 'Fourth']);
+  assert.deepEqual(fourthStartEvent.gameState.players.map((player) => player.name), ['Host', 'Third', 'Fourth']);
   assert.equal(hostStartEvent.gameState.players.every((player) => player.connected), true);
-  assert.equal(hostHand.cards.length + thirdHand.cards.length, 51);
+  assert.equal(hostHand.cards.length + thirdHand.cards.length + fourthHand.cards.length, 51);
 
   const returningGuest = await connectClient(baseUrl);
   t.after(() => returningGuest.close());
@@ -308,7 +317,7 @@ test('starting removes disconnected waiting players before cards are dealt', asy
   assert.equal((await reconnectError).code, 'RECONNECT_UNAVAILABLE');
 });
 
-test('starting fails after cleanup when fewer than two connected players remain', async (t) => {
+test('starting fails after cleanup when fewer than three connected players remain', async (t) => {
   const { baseUrl } = await startServer(t);
   const host = await connectClient(baseUrl);
   const guest = await connectClient(baseUrl);
@@ -418,49 +427,103 @@ test('active-game disconnect redistributes cards after the reconnection window',
   assert.equal(removalCount, 1);
 });
 
-test('active-game reconnect within the window restores the same hand once', async (t) => {
-  const { baseUrl } = await startServer(t);
-  const host = await connectClient(baseUrl);
-  const guest = await connectClient(baseUrl);
-  const third = await connectClient(baseUrl);
-  t.after(() => {
-    host.close();
-    guest.close();
-    third.close();
-  });
+test('current player can reconnect and act before the existing turn deadline', async (t) => {
+  const { baseUrl } = await startServer(t, { ACTIVE_GAME_RECONNECT_MS: '1200' });
+  const names = ['Host', 'Guest', 'Third'];
+  const sockets = await Promise.all(names.map(() => connectClient(baseUrl)));
+  t.after(() => sockets.forEach((socket) => socket.close()));
 
-  const { roomCode } = await createRoom(host, 'Host');
-  await joinRoom(guest, roomCode, 'Guest');
-  await joinRoom(third, roomCode, 'Third');
+  const { roomCode } = await createRoom(sockets[0], names[0]);
+  for (let index = 1; index < sockets.length; index += 1) {
+    await joinRoom(sockets[index], roomCode, names[index]);
+  }
 
-  const started = Promise.all([host, guest, third].map((socket) => once(socket, 'game_started')));
-  const initialHands = Promise.all([host, guest, third].map((socket) => once(socket, 'your_cards')));
-  host.emit('start_game');
-  const [, hands] = await Promise.all([started, initialHands]);
-  const guestHand = hands[1].cards;
+  const started = Promise.all(sockets.map((socket) => once(socket, 'game_started')));
+  const initialHands = Promise.all(sockets.map((socket) => once(socket, 'your_cards')));
+  sockets[0].emit('start_game');
+  const [startEvents, hands] = await Promise.all([started, initialHands]);
+  const startingState = startEvents[0].gameState;
+  const currentName = startingState.currentPlayerName;
+  const currentIndex = names.indexOf(currentName);
+  const currentSocket = sockets[currentIndex];
+  const observer = sockets[(currentIndex + 1) % sockets.length];
+  const currentHand = hands[currentIndex].cards;
 
   let redistributionCount = 0;
   let removalCount = 0;
-  host.on('cards_redistributed', () => { redistributionCount += 1; });
-  host.on('player_disconnected', () => { removalCount += 1; });
+  observer.on('cards_redistributed', () => { redistributionCount += 1; });
+  observer.on('player_disconnected', () => { removalCount += 1; });
 
-  const temporaryDisconnect = once(host, 'player_temporarily_disconnected');
-  guest.close();
-  await temporaryDisconnect;
+  const temporaryDisconnect = once(observer, 'player_temporarily_disconnected');
+  currentSocket.close();
+  const temporaryEvent = await temporaryDisconnect;
 
-  const returningGuest = await connectClient(baseUrl);
-  t.after(() => returningGuest.close());
-  const reconnected = once(returningGuest, 'room_reconnected');
-  returningGuest.emit('reconnect_to_room', { roomCode, username: 'Guest' });
+  assert.equal(temporaryEvent.gameState.currentPlayerName, currentName);
+  assert.equal(temporaryEvent.gameState.turnStartedAt, startingState.turnStartedAt);
+  assert.equal(temporaryEvent.gameState.players.find((player) => player.name === currentName).connected, false);
+
+  await wait(100);
+  const returningPlayer = await connectClient(baseUrl);
+  t.after(() => returningPlayer.close());
+  const reconnected = once(returningPlayer, 'room_reconnected');
+  returningPlayer.emit('reconnect_to_room', { roomCode, username: currentName });
   const reconnectEvent = await reconnected;
 
-  assert.deepEqual(reconnectEvent.myCards, guestHand);
-  assert.equal(reconnectEvent.gameState.players.filter((player) => player.name === 'Guest').length, 1);
-  assert.equal(reconnectEvent.gameState.players.find((player) => player.name === 'Guest').connected, true);
+  assert.deepEqual(reconnectEvent.myCards, currentHand);
+  assert.equal(reconnectEvent.gameState.currentPlayerName, currentName);
+  assert.equal(reconnectEvent.gameState.turnStartedAt, startingState.turnStartedAt);
+  assert.equal(reconnectEvent.gameState.players.filter((player) => player.name === currentName).length, 1);
+  assert.equal(reconnectEvent.gameState.players.find((player) => player.name === currentName).connected, true);
 
-  await wait(650);
+  const playerActed = onceAny(observer, ['card_played', 'turn_passed']);
+  if (reconnectEvent.validMoves.length > 0) {
+    returningPlayer.emit('play_card', reconnectEvent.validMoves[0]);
+  } else {
+    returningPlayer.emit('pass_turn');
+  }
+  const actionEvent = await playerActed;
+  assert.equal(actionEvent.payload.playerName, currentName);
+
+  await wait(1300);
   assert.equal(redistributionCount, 0);
   assert.equal(removalCount, 0);
+});
+
+test('server auto-plays the disconnected current player at the original deadline', async (t) => {
+  const { baseUrl } = await startServer(t, {
+    ACTIVE_GAME_RECONNECT_MS: '1200',
+    ENABLE_TURN_TIMERS: '1',
+    TURN_TIMER_TEST_DELAY_MS: '250',
+  });
+  const names = ['Host', 'Guest', 'Third'];
+  const sockets = await Promise.all(names.map(() => connectClient(baseUrl)));
+  t.after(() => sockets.forEach((socket) => socket.close()));
+
+  const { roomCode } = await createRoom(sockets[0], names[0]);
+  for (let index = 1; index < sockets.length; index += 1) {
+    await joinRoom(sockets[index], roomCode, names[index]);
+  }
+
+  const started = Promise.all(sockets.map((socket) => once(socket, 'game_started')));
+  sockets[0].emit('start_game');
+  const startEvents = await started;
+  const startingState = startEvents[0].gameState;
+  const currentName = startingState.currentPlayerName;
+  const currentIndex = names.indexOf(currentName);
+  const currentSocket = sockets[currentIndex];
+  const observer = sockets[(currentIndex + 1) % sockets.length];
+
+  const temporaryDisconnect = once(observer, 'player_temporarily_disconnected');
+  const automaticAction = onceAny(observer, ['card_played', 'turn_passed']);
+  currentSocket.close();
+
+  const temporaryEvent = await temporaryDisconnect;
+  assert.equal(temporaryEvent.gameState.currentPlayerName, currentName);
+  assert.equal(temporaryEvent.gameState.turnStartedAt, startingState.turnStartedAt);
+
+  const actionEvent = await automaticAction;
+  assert.equal(actionEvent.payload.playerName, currentName);
+  assert.equal(actionEvent.payload.automatic, true);
 });
 
 test('plays a complete round across four sockets with synchronized turns', async (t) => {
@@ -531,4 +594,119 @@ test('plays a complete round across four sockets with synchronized turns', async
   assert.equal(winner.type, 'game_complete');
   assert.equal(winner.finalScores.length, sockets.length);
   assert.equal(winner.finalScores.filter((score) => score.isWinner).length, 1);
+});
+
+test('server timer auto-plays for an unresponsive player', async (t) => {
+  const { baseUrl } = await startServer(t, {
+    ENABLE_TURN_TIMERS: '1',
+    TURN_TIMER_TEST_DELAY_MS: '200',
+  });
+  const names = ['Host', 'North', 'East'];
+  const sockets = await Promise.all(names.map(() => connectClient(baseUrl)));
+  t.after(() => sockets.forEach((socket) => socket.close()));
+
+  let winner = null;
+  const automaticEvents = [];
+  sockets.forEach((socket) => {
+    socket.on('game_over', (payload) => { winner = payload; });
+  });
+  sockets[0].on('card_played', (payload) => {
+    if (payload.automatic) automaticEvents.push(payload);
+  });
+  sockets[0].on('turn_passed', (payload) => {
+    if (payload.automatic) automaticEvents.push(payload);
+  });
+
+  const { roomCode } = await createRoom(sockets[0], names[0]);
+  for (let index = 1; index < sockets.length; index += 1) {
+    await joinRoom(sockets[index], roomCode, names[index]);
+  }
+
+  const started = Promise.all(sockets.map((socket) => once(socket, 'game_started')));
+  sockets[0].emit('start_game');
+  await started;
+
+  // Nobody touches their screen: the server must keep the game moving on
+  // its own and mark those moves automatic.
+  await waitForCondition(() => automaticEvents.length >= 5 || Boolean(winner), 10000);
+  assert.ok(automaticEvents.length >= 5 || winner, 'server should auto-advance idle turns');
+  if (automaticEvents.length) {
+    const lastState = automaticEvents[automaticEvents.length - 1].gameState;
+    assert.ok(lastState.turnStartedAt > 0, 'state should expose turnStartedAt');
+    assert.equal(lastState.turnDurationSeconds, 20);
+    const automaticHistory = lastState.playHistory.filter((entry) => entry.automatic);
+    assert.ok(automaticHistory.length >= 1, 'history should mark automatic moves');
+  }
+});
+
+test('host sets the turn duration and non-hosts cannot finish the game', async (t) => {
+  const { baseUrl } = await startServer(t);
+  const names = ['Host', 'North', 'East'];
+  const sockets = await Promise.all(names.map(() => connectClient(baseUrl)));
+  t.after(() => sockets.forEach((socket) => socket.close()));
+
+  const { roomCode } = await createRoom(sockets[0], names[0]);
+  for (let index = 1; index < sockets.length; index += 1) {
+    await joinRoom(sockets[index], roomCode, names[index]);
+  }
+
+  // Non-host cannot change the timer
+  const guestRejected = once(sockets[1], 'error');
+  sockets[1].emit('set_turn_duration', 40);
+  const guestError = await guestRejected.catch((error) => error);
+  assert.match(String(guestError.message || guestError), /host/i);
+
+  // Host picks 40s and everyone hears about it
+  const allSeeChange = Promise.all(sockets.map((socket) => once(socket, 'turn_duration_changed')));
+  sockets[0].emit('set_turn_duration', 40);
+  const changes = await allSeeChange;
+  changes.forEach((change) => {
+    assert.equal(change.turnDurationSeconds, 40);
+    assert.equal(change.gameState.turnDurationSeconds, 40);
+  });
+
+  // Play until the round finishes so exit_game is meaningful.
+  // Listeners must be attached before start_game so no event is missed.
+  const playerState = new Map(names.map((name) => [name, null]));
+  let latestGameState = null;
+  let winner = null;
+  sockets.forEach((socket, index) => {
+    const name = names[index];
+    socket.on('your_cards', ({ validMoves }) => playerState.set(name, { validMoves }));
+    socket.on('card_played', ({ gameState }) => { latestGameState = gameState; });
+    socket.on('turn_passed', ({ gameState }) => { latestGameState = gameState; });
+    socket.on('game_over', (payload) => { winner = payload; });
+  });
+
+  const started = Promise.all(sockets.map((socket) => once(socket, 'game_started')));
+  sockets[0].emit('start_game');
+  const startedStates = await started;
+  assert.equal(startedStates[0].gameState.turnDurationSeconds, 40);
+  latestGameState = latestGameState || startedStates[0].gameState;
+  await waitForCondition(() => names.every((name) => playerState.get(name)));
+
+  for (let moveCount = 0; moveCount < 240 && !winner; moveCount += 1) {
+    const currentName = latestGameState.currentPlayerName;
+    const playerIndex = names.indexOf(currentName);
+    const currentSocket = sockets[playerIndex];
+    const serverEvent = onceAny(sockets[0], ['card_played', 'turn_passed', 'game_over']);
+    const moves = playerState.get(currentName).validMoves;
+    if (moves.length > 0) currentSocket.emit('play_card', moves[0]);
+    else currentSocket.emit('pass_turn');
+    await serverEvent;
+    await wait(10);
+  }
+  assert.ok(winner, 'round should finish');
+
+  // Non-host cannot finish the game
+  const finishRejected = once(sockets[1], 'error');
+  sockets[1].emit('exit_game');
+  const finishError = await finishRejected.catch((error) => error);
+  assert.match(String(finishError.message || finishError), /host/i);
+
+  // Host can
+  const totals = Promise.all(sockets.map((socket) => once(socket, 'game_totals')));
+  sockets[0].emit('exit_game');
+  const totalPayloads = await totals;
+  assert.equal(totalPayloads[0].totals.length, names.length);
 });

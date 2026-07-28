@@ -83,7 +83,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onContinue, comfortSize, onCo
           <button className="welcome-how-to" onClick={() => setShowHelp(true)}><strong>New to Badam 7?</strong><span>See the rules and animated examples · about 2 minutes</span></button>
           <p className="welcome-rule-summary">Play the next card above or below each seven. Empty your hand and keep the lowest score.</p>
           <div className="welcome-meta">
-            <span>2–11 players</span>
+            <span>3–11 players</span>
             <span>Private rooms</span>
             <span>No sign-up</span>
           </div>

@@ -1,5 +1,15 @@
 const crypto = require("crypto");
 
+const SUIT_ORDER = { hearts: 0, diamonds: 1, clubs: 2, spades: 3 };
+const TURN_DURATION_OPTIONS = [20, 40, 60];
+
+function sortHand(cards) {
+  return cards.sort((a, b) => {
+    if (a.suit !== b.suit) return SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit];
+    return a.rank - b.rank;
+  });
+}
+
 class GameRoom {
   constructor(roomCode) {
     this.roomCode = roomCode;
@@ -21,6 +31,22 @@ class GameRoom {
     this.playerScores = {};
     this.heartsSevenPlayerIndex = -1; // Track who played 7 of hearts
     this.gameStartMessage = null; // Message about who started the game
+    this.dealStartPlayerIndex = 0;
+    this.playHistory = [];
+    this.historySequence = 0;
+    this.turnDurationSeconds = 20;
+    this.turnStartedAt = Date.now();
+  }
+
+  setTurnDuration(seconds) {
+    if (!TURN_DURATION_OPTIONS.includes(seconds)) return false;
+    if (this.started) return false;
+    this.turnDurationSeconds = seconds;
+    return true;
+  }
+
+  markTurnStarted() {
+    this.turnStartedAt = Date.now();
   }
 
   addPlayer(id, name) {
@@ -46,29 +72,21 @@ class GameRoom {
       const [removed] = this.players.splice(playerIndex, 1);
       delete this.playerScores[id];
 
-      // When requested, distribute the removed player's remaining cards
+      // When requested, distribute the removed player's remaining cards.
+      // Deal starts from the player who sat after the leaver (as at a real
+      // table) so seat 0 doesn't systematically collect the extras.
       if (
         redistribute &&
         removed.cards &&
         removed.cards.length &&
         this.players.length
       ) {
-        let idx = 0;
-        const suitOrder = { hearts: 0, diamonds: 1, clubs: 2, spades: 3 };
-        removed.cards.forEach((card) => {
-          this.players[idx % this.players.length].cards.push(card);
-          idx++;
+        removed.cards.forEach((card, offset) => {
+          const target = this.players[(playerIndex + offset) % this.players.length];
+          target.cards.push(card);
         });
 
-        // Resort the hands for all players
-        this.players.forEach((player) => {
-          player.cards.sort((a, b) => {
-            if (a.suit !== b.suit) {
-              return suitOrder[a.suit] - suitOrder[b.suit];
-            }
-            return a.rank - b.rank;
-          });
-        });
+        this.players.forEach((player) => sortHand(player.cards));
       }
 
       // Adjust dealer index if the removed player was at or before the dealer position
@@ -105,11 +123,13 @@ class GameRoom {
   }
 
   startGame() {
-    if (this.players.length <= 1) return false;
+    if (this.players.length < 3) return false;
     if (this.players.some((player) => !player.connected)) return false;
     if (this.started) return false;
 
     this.started = true;
+    this.playHistory = [];
+    this.historySequence = 0;
     this.resetBoard();
     this.deck = this.createDeck();
     this.shuffleDeck();
@@ -124,9 +144,9 @@ class GameRoom {
     this.currentPlayerIndex = this.heartsSevenPlayerIndex;
 
     // Set game start message
-    this.gameStartMessage = `${
+    this.gameStartMessage = `${this.players[this.dealerIndex].name} deals Round ${this.round}. ${
       this.players[this.heartsSevenPlayerIndex].name
-    } started the game`;
+    } starts with 7♥`;
 
     // Auto-play 7 of hearts
     const heartsSevenCard = { suit: "hearts", rank: 7 };
@@ -218,6 +238,7 @@ class GameRoom {
 
     // Deal clockwise starting from the player after the dealer
     const startPlayerIndex = (this.dealerIndex + 1) % this.players.length;
+    this.dealStartPlayerIndex = startPlayerIndex;
 
     // Deal equal number of cards to each player, starting clockwise from dealer
     for (let i = 0; i < cardsPerPlayer; i++) {
@@ -237,7 +258,10 @@ class GameRoom {
       playerOffset = (playerOffset + 1) % this.players.length;
     }
 
-    // Removed per-player sorting to preserve random card order in hands
+    this.players.forEach((player) => {
+      player.dealtCardCount = player.cards.length;
+      sortHand(player.cards);
+    });
   }
 
   isValidMove(playerId, card) {
@@ -307,6 +331,13 @@ class GameRoom {
       suitBoard.down.push(card.rank);
     }
 
+    this.recordHistory({
+      type: "play",
+      playerName: player.name,
+      card,
+      automatic: isHeartsSevenAutoPlay,
+    });
+
     // Check if player won (first to empty hand)
     if (player.cards.length === 0) {
       this.finishGame(); // Call finishGame immediately when someone wins
@@ -364,7 +395,7 @@ class GameRoom {
     return player.cards.some((card) => this.isValidMove(playerId, card));
   }
 
-  passTurn(playerId) {
+  passTurn(playerId, automatic = false) {
     if (this.players[this.currentPlayerIndex].id !== playerId) return false;
     if (this.gameFinished) return false; // Don't allow passes after game ends
 
@@ -373,8 +404,19 @@ class GameRoom {
       return false; // Player has valid moves, can't pass
     }
 
+    const player = this.players[this.currentPlayerIndex];
+    this.recordHistory({ type: "pass", playerName: player.name, automatic });
     this.nextTurn();
     return true;
+  }
+
+  recordHistory(entry) {
+    this.historySequence += 1;
+    this.playHistory.push({
+      id: `${this.round}-${this.historySequence}`,
+      ...entry,
+    });
+    this.playHistory = this.playHistory.slice(-60);
   }
 
   nextTurn() {
@@ -393,6 +435,23 @@ class GameRoom {
         (this.currentPlayerIndex + 1) % this.players.length;
       attempts++;
     }
+
+    this.markTurnStarted();
+  }
+
+  // Who plays after the current player, using the same disconnect-skip
+  // rules as nextTurn but without mutating state.
+  getNextPlayerName() {
+    if (this.players.length === 0) return undefined;
+
+    let index = this.currentPlayerIndex;
+    for (let attempts = 0; attempts < this.players.length; attempts++) {
+      index = (index + 1) % this.players.length;
+      if (this.players[index].connected) {
+        return index === this.currentPlayerIndex ? undefined : this.players[index].name;
+      }
+    }
+    return undefined;
   }
 
   checkWinner() {
@@ -504,6 +563,7 @@ class GameRoom {
       players: this.players.map((p, index) => ({
         name: p.name,
         cardCount: p.cards.length,
+        dealtCardCount: p.dealtCardCount ?? p.cards.length,
         connected: p.connected,
         isCurrentPlayer: this.players[this.currentPlayerIndex]?.id === p.id,
         isDealer: index === this.dealerIndex,
@@ -517,8 +577,14 @@ class GameRoom {
       maxRounds: this.maxRounds,
       gameFinished: this.gameFinished,
       currentPlayerName: this.players[this.currentPlayerIndex]?.name,
+      nextPlayerName: this.started && !this.gameFinished ? this.getNextPlayerName() : undefined,
       dealerName: this.players[this.dealerIndex]?.name,
+      dealStartPlayerName: this.players[this.dealStartPlayerIndex]?.name,
+      heartsSevenPlayerName: this.players[this.heartsSevenPlayerIndex]?.name,
       gameStartMessage: this.gameStartMessage,
+      playHistory: this.playHistory || [],
+      turnDurationSeconds: this.turnDurationSeconds,
+      turnStartedAt: this.turnStartedAt,
     };
   }
 
@@ -566,6 +632,8 @@ class GameRoom {
     this.round++;
     this.roundsPlayed++;
     this.gameFinished = false;
+    this.playHistory = [];
+    this.historySequence = 0;
 
     // Reset board and redeal
     this.resetBoard();
@@ -582,9 +650,9 @@ class GameRoom {
     this.currentPlayerIndex = this.heartsSevenPlayerIndex;
 
     // Set game start message
-    this.gameStartMessage = `${
+    this.gameStartMessage = `${this.players[this.dealerIndex].name} had the highest score and deals Round ${this.round}. ${
       this.players[this.heartsSevenPlayerIndex].name
-    } started the game`;
+    } starts with 7♥`;
 
     const heartsSevenCard = { suit: "hearts", rank: 7 };
     this.playCard(
@@ -601,4 +669,4 @@ class GameRoom {
   }
 }
 
-module.exports = { GameRoom };
+module.exports = { GameRoom, sortHand, TURN_DURATION_OPTIONS };

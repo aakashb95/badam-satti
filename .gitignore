@@ -33,3 +33,7 @@ client/playwright-report/
 .idea/
 *.swp
 *.swo
+
+# Local editor/tooling
+.claude/
+*.db-journal

@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, ComfortSize, GameState, Player } from '../types';
 import HelpModal from './HelpModal';
 import GameDeskLink from './GameDeskLink';
+import { SUIT_LABELS, SuitIcon, getCardSrc, getRankDisplay } from '../cards';
 
 interface GameScreenProps {
   gameState: GameState | null;
@@ -16,18 +17,17 @@ interface GameScreenProps {
   comfortSize: ComfortSize;
   onComfortSizeChange: (size: ComfortSize) => void;
   onReturnToGameDesk: () => Promise<void>;
+  roundWinnerName?: string;
 }
 
 const SUITS: Card['suit'][] = ['hearts', 'diamonds', 'clubs', 'spades'];
-const SUIT_META: Record<Card['suit'], { symbol: string; label: string; short: string }> = {
-  hearts: { symbol: '♥', label: 'Hearts', short: 'H' },
-  diamonds: { symbol: '♦', label: 'Diamonds', short: 'D' },
-  clubs: { symbol: '♣', label: 'Clubs', short: 'C' },
-  spades: { symbol: '♠', label: 'Spades', short: 'S' },
-};
-const CARD_ASSET_VERSION = 'v6';
 const COMFORT_SIZES: ComfortSize[] = ['standard', 'large', 'extra-large', 'maximum'];
 const COMFORT_BUTTON_LABELS: Record<ComfortSize, string> = { standard: 'A', large: 'A+', 'extra-large': 'A++', maximum: 'A+++' };
+const CLOCK_DIVISIONS = 12;
+const DEFAULT_TURN_SECONDS = 20;
+
+const isOpeningDeal = (gameState: GameState | null) =>
+  Boolean(gameState && !gameState.gameFinished && (gameState.playHistory?.length || 0) <= 1);
 
 const GameScreen: React.FC<GameScreenProps> = ({
   gameState,
@@ -42,16 +42,34 @@ const GameScreen: React.FC<GameScreenProps> = ({
   comfortSize,
   onComfortSizeChange,
   onReturnToGameDesk,
+  roundWinnerName,
 }) => {
-  const [timeLeft, setTimeLeft] = useState(20);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [showHelp, setShowHelp] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showRoundIntro, setShowRoundIntro] = useState(() => isOpeningDeal(gameState));
   const [pendingCard, setPendingCard] = useState<string | null>(null);
   const intentionalLeave = useRef(false);
+
   const nextComfortSize = () => {
     const index = COMFORT_SIZES.indexOf(comfortSize);
     onComfortSizeChange(COMFORT_SIZES[(index + 1) % COMFORT_SIZES.length]);
   };
+
+  const seatedPlayers = useMemo(() => {
+    if (!gameState) return [];
+    const myIndex = gameState.players.findIndex((player) => player.name === username);
+    if (myIndex < 0) return gameState.players;
+    return [...gameState.players.slice(myIndex), ...gameState.players.slice(0, myIndex)];
+  }, [gameState, username]);
+
+  const sortedHand = useMemo(
+    () => [...myCards].sort((first, second) => {
+      const suitDifference = SUITS.indexOf(first.suit) - SUITS.indexOf(second.suit);
+      return suitDifference || first.rank - second.rank;
+    }),
+    [myCards],
+  );
 
   useEffect(() => {
     const marker = { ...window.history.state, gameLeaveGuard: true };
@@ -76,6 +94,39 @@ const GameScreen: React.FC<GameScreenProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    const shouldShow = isOpeningDeal(gameState);
+    setShowRoundIntro(shouldShow);
+    if (!shouldShow) return;
+
+    const timer = window.setTimeout(() => setShowRoundIntro(false), 3000);
+    return () => window.clearTimeout(timer);
+  }, [gameState?.gameFinished, gameState?.round]);
+
+  // The server owns turn timing; this clock only renders the countdown.
+  useEffect(() => {
+    const interval = window.setInterval(() => setNowMs(Date.now()), 500);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const turnDurationSeconds = gameState?.turnDurationSeconds ?? DEFAULT_TURN_SECONDS;
+  const turnStartedAt = gameState?.turnStartedAt;
+  const timeLeft = turnStartedAt
+    ? Math.min(turnDurationSeconds, Math.max(0, Math.ceil((turnStartedAt + turnDurationSeconds * 1000 - nowMs) / 1000)))
+    : turnDurationSeconds;
+  const turnActive = Boolean(gameState?.started && !gameState?.gameFinished);
+  const turnFraction = turnActive ? Math.max(0, Math.min(1, timeLeft / turnDurationSeconds)) : 0;
+
+  useEffect(() => {
+    setPendingCard(null);
+  }, [isMyTurn, myCards]);
+
+  const isUrgent = isMyTurn && turnActive && timeLeft <= 5;
+
+  useEffect(() => {
+    if (isMyTurn && turnActive && timeLeft === 5 && typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(200);
+  }, [isMyTurn, turnActive, timeLeft]);
+
   const confirmLeave = () => {
     intentionalLeave.current = true;
     setShowLeaveConfirm(false);
@@ -86,42 +137,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
     await onReturnToGameDesk();
   };
 
-  useEffect(() => {
-    if (!isMyTurn) {
-      setTimeLeft(20);
-      return;
-    }
-
-    setTimeLeft(20);
-    const interval = window.setInterval(() => {
-      setTimeLeft((previous) => Math.max(0, previous - 1));
-    }, 1000);
-
-    return () => window.clearInterval(interval);
-  }, [isMyTurn, gameState?.currentPlayerName]);
-
-  useEffect(() => {
-    setPendingCard(null);
-  }, [isMyTurn, myCards]);
-
-  const getRankDisplay = (rank: number): string => {
-    if (rank === 1) return 'A';
-    if (rank === 11) return 'J';
-    if (rank === 12) return 'Q';
-    if (rank === 13) return 'K';
-    return rank.toString();
-  };
-
-  const getCardFilename = (card: Card): string => {
-    const suitLetters: Record<Card['suit'], string> = { hearts: 'H', diamonds: 'D', clubs: 'C', spades: 'S' };
-    const rankMap: Record<number, string> = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
-    return `${rankMap[card.rank] || card.rank}${suitLetters[card.suit]}.svg`;
-  };
-
-  const getCardSrc = (card: Card): string => `${import.meta.env.BASE_URL}images/cards/${getCardFilename(card)}?${CARD_ASSET_VERSION}`;
-
-  const isValidMove = (card: Card): boolean =>
-    validMoves.some((move) => move.suit === card.suit && move.rank === card.rank);
+  const isValidMove = (card: Card): boolean => validMoves.some((move) => move.suit === card.suit && move.rank === card.rank);
 
   const warningClass = (player: Player) => {
     if (player.indicator === 'critical') return 'critical-warning';
@@ -129,48 +145,111 @@ const GameScreen: React.FC<GameScreenProps> = ({
     return '';
   };
 
-  const renderPlayers = () => {
-    if (!gameState) return null;
+  const playerStatus = (player: Player) =>
+    `${player.cardCount} ${player.cardCount === 1 ? 'card' : 'cards'}`;
 
-    return (
-      <section
-        className="table-players"
-        style={{ '--player-count': gameState.players.length } as React.CSSProperties}
-        aria-label="Players at the table"
-      >
-        {gameState.players.map((player) => (
+  const playHistory = gameState?.playHistory || [];
+  const latestPlay = playHistory[playHistory.length - 1];
+
+  const clockSeat = (index: number, total: number) => {
+    const safeTotal = Math.max(total, 1);
+    const clockPosition = (index * CLOCK_DIVISIONS) / safeTotal;
+    const angle = (Math.PI * 2 * clockPosition) / CLOCK_DIVISIONS;
+    const horizontalRadius = safeTotal >= 9 ? 42 : safeTotal >= 6 ? 42 : 37;
+    const verticalRadius = safeTotal >= 9 ? 42 : safeTotal >= 6 ? 41 : 34;
+    const x = 50 - Math.sin(angle) * horizontalRadius;
+    const y = 50 + Math.cos(angle) * verticalRadius;
+
+    return {
+      clockPosition,
+      style: {
+        '--seat-x': `${x}%`,
+        '--seat-y': `${y}%`,
+        '--seat-order': index,
+      } as React.CSSProperties,
+    };
+  };
+
+  const minDealtCount = seatedPlayers.length
+    ? Math.min(...seatedPlayers.map((player) => player.dealtCardCount || player.cardCount))
+    : 0;
+
+  const renderPlayers = () => (
+    <section className="table-players" data-player-count={seatedPlayers.length} aria-label="Players seated clockwise around the table">
+      {seatedPlayers.map((player, index) => {
+        const seat = clockSeat(index, seatedPlayers.length);
+        const playerMadeLatestPlay = latestPlay?.playerName === player.name;
+        const playerLatestPlay = playerMadeLatestPlay ? latestPlay : undefined;
+        const hasExtraCard = turnActive && (player.dealtCardCount || player.cardCount) > minDealtCount;
+        const isNext = turnActive && !player.isCurrentPlayer && gameState?.nextPlayerName === player.name;
+        const showsCountdown = turnActive && player.isCurrentPlayer;
+        const showsSeatProgress = showsCountdown && player.name !== username;
+
+        return (
           <div
             key={player.name}
-            className={`table-player ${player.isCurrentPlayer ? 'is-current' : ''} ${player.name === username ? 'is-you' : ''} ${!player.connected ? 'is-disconnected' : ''} ${warningClass(player)}`}
+            className={`table-player seat-${index} ${player.isCurrentPlayer ? 'is-current' : ''} ${player.name === username ? 'is-you' : ''} ${!player.connected ? 'is-disconnected' : ''} ${warningClass(player)}`}
+            style={seat.style}
+            data-seat-index={index}
+            data-clock-position={Number(seat.clockPosition.toFixed(3))}
+            aria-label={`${player.name === username ? 'You' : player.name}, clockwise seat ${index + 1} of ${seatedPlayers.length}, ${playerStatus(player)}${hasExtraCard ? ', dealt one extra card' : ''}${player.isCurrentPlayer ? ', playing now' : ''}${isNext ? ', plays next' : ''}${player.isDealer ? ', dealer' : ''}`}
           >
-            <span className="table-player-avatar">{player.name.charAt(0).toUpperCase()}</span>
+            {playerLatestPlay && (
+              <span
+                key={playerLatestPlay.id}
+                className={`player-move-notice is-${playerLatestPlay.type}`}
+                role="status"
+                aria-label={playerLatestPlay.type === 'pass'
+                  ? `${player.name} passed`
+                  : playerLatestPlay.card
+                    ? `${player.name} played ${getRankDisplay(playerLatestPlay.card.rank)} of ${SUIT_LABELS[playerLatestPlay.card.suit]}${playerLatestPlay.automatic ? ' automatically' : ''}`
+                    : `${player.name} played a card`}
+              >
+                {playerLatestPlay.type === 'pass' ? (
+                  <span>Pass</span>
+                ) : playerLatestPlay.card ? (
+                  <b data-suit={playerLatestPlay.card.suit}>
+                    {getRankDisplay(playerLatestPlay.card.rank)}
+                    <SuitIcon suit={playerLatestPlay.card.suit} />
+                  </b>
+                ) : null}
+              </span>
+            )}
             <span className="table-player-copy">
-              <strong>
+              <strong title={player.name}>
                 {player.name === username ? 'You' : player.name}
                 {player.isDealer && <span className="dealer-chip" title="Dealer">D</span>}
+                {hasExtraCard && <span className="extra-card-chip" title="Dealt one extra card this round">+1</span>}
               </strong>
-              {player.isCurrentPlayer && <small>Playing now</small>}
+              <small>
+                {player.cardCount}
+                {showsCountdown && timeLeft < 10 && <span className="seat-countdown">· {timeLeft}s</span>}
+              </small>
             </span>
+            {showsSeatProgress && (
+              <span className="seat-turn-bar" style={{ transform: `scaleX(${turnFraction})` }} aria-hidden="true" />
+            )}
+            {isNext && <span className="next-chip" aria-hidden="true">next</span>}
           </div>
-        ))}
-      </section>
-    );
-  };
+        );
+      })}
+    </section>
+  );
 
   const renderBoard = () => {
     if (!gameState) return null;
 
     return (
       <section className="game-board" aria-label="Cards on the table">
+        <div className="board-game-name" aria-hidden="true">Badam Satti</div>
         {SUITS.map((suit) => {
           const suitBoard = gameState.board[suit];
           const upSequence = [...(suitBoard.up || [])].sort((a, b) => b - a);
           const downSequence = [...(suitBoard.down || [])].sort((a, b) => b - a);
           const allRanks = Array.from(new Set([...upSequence, ...downSequence]));
-          const maxVisibleCards = 3;
           let displayRanks = allRanks;
 
-          if (allRanks.length > maxVisibleCards) {
+          if (allRanks.length > 3) {
             const highestRank = allRanks[0];
             const lowestRank = allRanks[allRanks.length - 1];
             displayRanks = [highestRank];
@@ -182,8 +261,8 @@ const GameScreen: React.FC<GameScreenProps> = ({
             <div key={suit} className={`suit-pile ${allRanks.length ? 'has-cards' : 'is-empty'}`} data-suit={suit}>
               <div className="cards-display">
                 {!displayRanks.length && (
-                  <div className="empty-pile" aria-label={`${SUIT_META[suit].label} pile is empty`}>
-                    <span>{SUIT_META[suit].symbol}</span>
+                  <div className="empty-pile" aria-label={`${SUIT_LABELS[suit]} pile is empty`}>
+                    <SuitIcon suit={suit} />
                   </div>
                 )}
                 {displayRanks.map((rank, index) => {
@@ -193,7 +272,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
                       key={`${suit}-${rank}-${index}`}
                       src={getCardSrc(card)}
                       className={`board-card-img stack-${index}`}
-                      alt={`${getRankDisplay(rank)} of ${SUIT_META[suit].label}`}
+                      alt={`${getRankDisplay(rank)} of ${SUIT_LABELS[suit]}`}
                       decoding="async"
                     />
                   );
@@ -206,37 +285,44 @@ const GameScreen: React.FC<GameScreenProps> = ({
     );
   };
 
-  const renderHand = () => (
-    <section className={`hand-dock ${isMyTurn ? 'is-my-turn' : ''}`} aria-label="Your hand">
-      <div className="hand-heading">
-        <div className="hand-actions">
-          <button className="pass-button" onClick={onPassTurn} disabled={!isMyTurn || !canPass}>Pass turn</button>
-        </div>
-      </div>
+  const renderRoundIntro = () => {
+    if (!gameState || !showRoundIntro) return null;
 
-      <div className="hand-suits">
+    return (
+      <div className="round-intro" role="status" aria-live="polite" onClick={() => setShowRoundIntro(false)}>
+        <strong>Round {gameState.round}</strong>
+        <small className="round-intro-dismiss">Tap to play</small>
+      </div>
+    );
+  };
+
+  const renderHand = () => (
+    <section className={`hand-dock ${isMyTurn ? 'is-my-turn' : ''} ${isUrgent ? 'is-urgent' : ''}`} aria-label={`Your hand, ${myCards.length} cards`}>
+      <div className="hand-suits" aria-label="Cards grouped into Hearts, Diamonds, Clubs, and Spades">
         {SUITS.map((suit) => {
-          const cards = myCards.filter((card) => card.suit === suit);
-          if (!cards.length) return null;
+          const cards = sortedHand.filter((card) => card.suit === suit);
 
           return (
-            <div key={suit} className="hand-suit" data-suit={suit}>
+            <div key={suit} className={`hand-suit ${cards.length ? '' : 'is-empty'}`} data-suit={suit} aria-label={SUIT_LABELS[suit]}>
               <div className="hand-card-fan">
                 {cards.map((card) => {
                   const valid = isValidMove(card);
                   const playable = isMyTurn && valid;
                   const cardKey = `${card.suit}-${card.rank}`;
+
                   return (
                     <button
                       key={cardKey}
                       className={`hand-card ${valid ? 'valid' : ''} ${playable ? 'playable' : ''} ${pendingCard === cardKey ? 'is-pending' : ''}`}
+                      data-suit={card.suit}
+                      data-rank={card.rank}
                       onClick={() => {
                         if (!playable || pendingCard) return;
                         setPendingCard(cardKey);
                         onPlayCard(card);
                       }}
                       disabled={!playable || pendingCard !== null}
-                      aria-label={`${playable ? 'Play' : ''} ${getRankDisplay(card.rank)} of ${SUIT_META[card.suit].label}`.trim()}
+                      aria-label={`${playable ? 'Play' : ''} ${getRankDisplay(card.rank)} of ${SUIT_LABELS[card.suit]}`.trim()}
                     >
                       <img src={getCardSrc(card)} alt="" decoding="async" />
                     </button>
@@ -246,8 +332,23 @@ const GameScreen: React.FC<GameScreenProps> = ({
             </div>
           );
         })}
+        <button
+          className="hand-pass-button"
+          onClick={onPassTurn}
+          disabled={!isMyTurn || !canPass}
+          aria-label={isMyTurn && canPass ? 'Pass this turn' : 'Pass is not available'}
+        >
+          Pass
+        </button>
       </div>
     </section>
+  );
+
+  const turnControl = (
+    <div className={`turn-status ${isMyTurn ? 'is-active' : ''} ${isUrgent ? 'is-urgent' : ''}`}>
+      {isMyTurn && <span className="turn-timer">{timeLeft}s</span>}
+      <div><strong>{isMyTurn ? 'Your turn' : `${gameState?.currentPlayerName || 'Player'} is playing`}</strong></div>
+    </div>
   );
 
   return (
@@ -256,15 +357,10 @@ const GameScreen: React.FC<GameScreenProps> = ({
         <header className="game-top-bar">
           <div className="game-brand">
             <GameDeskLink onBeforeNavigate={returnToGameDeskSafely} />
-            <div><strong>Badam 7</strong><small>Round {gameState?.round || 1} of {gameState?.maxRounds || 7}</small></div>
+            <div><strong>Badam Satti</strong><small>Round {gameState?.round || 1} of {gameState?.maxRounds || 7}</small></div>
           </div>
 
-          <div className={`turn-status ${isMyTurn ? 'is-active' : ''}`}>
-            {isMyTurn && <span className="turn-timer">{timeLeft}s</span>}
-            <div>
-              <strong>{isMyTurn ? 'Your turn' : `${gameState?.currentPlayerName || 'Player'} is playing`}</strong>
-            </div>
-          </div>
+          {turnControl}
 
           <div className="game-toolbar">
             <button className="round-icon-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button>
@@ -273,9 +369,12 @@ const GameScreen: React.FC<GameScreenProps> = ({
           </div>
         </header>
 
-        {gameState?.gameStartMessage && <div className="game-starter-note" role="status"><span aria-hidden="true">♥</span>{gameState.gameStartMessage}</div>}
-        {renderPlayers()}
-        {renderBoard()}
+        <div className="table-stage">
+          {renderPlayers()}
+          {renderBoard()}
+          {renderRoundIntro()}
+          {roundWinnerName && <div className="round-winning-moment" role="status"><strong>{roundWinnerName} wins the round!</strong></div>}
+        </div>
         {renderHand()}
       </div>
       <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} onReturnToGameDesk={returnToGameDeskSafely} />
