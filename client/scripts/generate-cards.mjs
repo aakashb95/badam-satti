@@ -1,7 +1,8 @@
 // Regenerates the 52 card faces in client/public/images/cards.
 //
 // Design goals (see the small-size distinguishability ticket):
-// - Club reads as "three separated dots + stem" down to 12px.
+// - Club uses a connected classic silhouette.
+// - Club pips use their own smaller scale so dense cards remain open.
 // - Spade reads as "pointed tip, flared tail" — never a rounded blob.
 // - Corner index (rank + pip) is what an overlapped fan actually shows,
 //   so it gets a bigger, bolder rank and a larger pip.
@@ -14,10 +15,26 @@ import { fileURLToPath } from 'node:url';
 
 const cardsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '../public/images/cards');
 
-const OLD_CLUB_PATH =
+const CLASSIC_CLUB_PATH =
   'M0-32C-11-32-19-23-19-13c0 4 1 7 3 10-4-2-8-3-12-3-12 0-21 10-21 22s9 22 21 22c8 0 15-4 20-10 1 14-4 25-15 34h46C12 53 7 42 8 28c5 6 12 10 20 10 12 0 21-10 21-22S40-6 28-6c-4 0-8 1-12 3 2-3 3-6 3-10 0-10-8-19-19-19Z';
-const NEW_CLUB_PATH =
+const SEPARATED_CLUB_PATH =
   'M-21-26a21 21 0 1 0 42 0 21 21 0 1 0-42 0ZM-48 12a21 21 0 1 0 42 0 21 21 0 1 0-42 0ZM6 12a21 21 0 1 0 42 0 21 21 0 1 0-42 0ZM0 10 10 58H-10Z';
+const CLUB_CENTER_SCALES = {
+  A: 0.28,
+  2: 0.20,
+  3: 0.18,
+  4: 0.17,
+  5: 0.17,
+  6: 0.16,
+  7: 0.15,
+  8: 0.15,
+  9: 0.15,
+  10: 0.15,
+  J: 0.24,
+  Q: 0.24,
+  K: 0.24,
+};
+const CLUB_CORNER_SCALE = 0.17;
 
 const OLD_SPADE_BODY =
   'M0-38C-8-25-36-11-36 10c0 14 10 24 24 24 6 0 10-2 12-7 2 5 6 7 12 7 14 0 24-10 24-24C36-11 8-25 0-38Z';
@@ -44,10 +61,23 @@ for (const file of files) {
   svg = svg.replaceAll('translate(15 38) scale(0.18)', 'translate(15 40) scale(0.24)');
 
   if (file.includes('C')) {
-    if (!svg.includes(OLD_CLUB_PATH) && !svg.includes(NEW_CLUB_PATH)) {
+    if (!svg.includes(CLASSIC_CLUB_PATH) && !svg.includes(SEPARATED_CLUB_PATH)) {
       throw new Error(`${file}: club path not recognized`);
     }
-    svg = svg.replaceAll(OLD_CLUB_PATH, NEW_CLUB_PATH);
+    const rank = file.slice(0, -5);
+    const centerScale = CLUB_CENTER_SCALES[rank];
+    if (!centerScale) {
+      throw new Error(`${file}: club scale not configured`);
+    }
+
+    svg = svg.replaceAll(SEPARATED_CLUB_PATH, CLASSIC_CLUB_PATH);
+    svg = svg.replace(
+      /transform="translate\(([^)]+)\) scale\([^)]+\)"/g,
+      (transform, position) => {
+        const scale = position === '15 40' ? CLUB_CORNER_SCALE : centerScale;
+        return `transform="translate(${position}) scale(${scale})"`;
+      }
+    );
     clubFiles += 1;
   }
 

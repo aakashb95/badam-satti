@@ -427,7 +427,15 @@ test('seven-player game renders and starts across responsive viewports', async (
   await expect(page.locator('.player-move-notice')).toContainText('7');
   await expect(page.locator('.player-move-notice .suit-icon')).toBeVisible();
   await expect(page.locator('.play-history')).toHaveCount(0);
+  await expect(page.locator('.suit-pile[data-suit="clubs"] .empty-pile .suit-icon path')).toHaveCount(1);
   await expect(page.locator('.suit-pile[data-suit="spades"] .empty-pile .suit-icon path')).toHaveCount(2);
+  for (const rank of [7, 8, 9, 10]) {
+    const response = await fetch(`${baseURL}/badam7/images/cards/${rank}C.svg`);
+    expect(response.ok, `${rank} of Clubs asset should load`).toBe(true);
+    const markup = await response.text();
+    expect(markup, `${rank} of Clubs should use the classic connected shape`).toContain('M0-32C-11-32');
+    expect(markup.match(/scale\(0\.15\)/g)?.length, `${rank} of Clubs should use Airy center pips`).toBe(rank);
+  }
   for (const [index, playerPage] of pages.entries()) {
     await expect(playerPage.locator('.game-screen')).toBeVisible();
     await applyZoom(playerPage, zoom);

@@ -2,7 +2,7 @@ import React from 'react';
 import { Card } from './types';
 
 // Bump whenever the card SVGs change so cached art is refetched.
-export const CARD_ASSET_VERSION = 'v8';
+export const CARD_ASSET_VERSION = 'v9';
 
 export const SUIT_LABELS: Record<Card['suit'], string> = {
   hearts: 'Hearts',
@@ -29,10 +29,9 @@ export const getCardSrc = (card: Card): string =>
   `${import.meta.env.BASE_URL}images/cards/${getCardFilename(card)}?${CARD_ASSET_VERSION}`;
 
 // Pip silhouettes shared by the board piles, move bubbles, and hand labels.
-// Clubs and spades are drawn for small-size distinguishability: a club is
-// "three separated dots" and a spade is "a pointed tip with a flared tail" —
-// cues that survive a 12px render. Keep these in sync with the generated
-// card SVGs in client/scripts/generate-cards.mjs.
+// Clubs use the connected classic shape, while spades keep a pointed tip and
+// flared tail. Keep these in sync with the generated card SVGs in
+// client/scripts/generate-cards.mjs.
 const SUIT_ICON_PATHS: Record<Card['suit'], { viewBox: string; body: React.ReactNode }> = {
   hearts: {
     viewBox: '-30 -24 60 64',
@@ -43,9 +42,9 @@ const SUIT_ICON_PATHS: Record<Card['suit'], { viewBox: string; body: React.React
     body: <path d="M0-23 16 0 0 23-16 0Z" />,
   },
   clubs: {
-    viewBox: '-52 -52 104 116',
+    viewBox: '-55 -40 110 105',
     body: (
-      <path d="M-21-26a21 21 0 1 0 42 0 21 21 0 1 0-42 0ZM-48 12a21 21 0 1 0 42 0 21 21 0 1 0-42 0ZM6 12a21 21 0 1 0 42 0 21 21 0 1 0-42 0ZM0 10 10 58H-10Z" />
+      <path d="M0-32C-11-32-19-23-19-13c0 4 1 7 3 10-4-2-8-3-12-3-12 0-21 10-21 22s9 22 21 22c8 0 15-4 20-10 1 14-4 25-15 34h46C12 53 7 42 8 28c5 6 12 10 20 10 12 0 21-10 21-22S40-6 28-6c-4 0-8 1-12 3 2-3 3-6 3-10 0-10-8-19-19-19Z" />
     ),
   },
   spades: {
