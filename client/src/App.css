@@ -1123,18 +1123,6 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 .player-move-notice.is-pass { color: var(--faint); font-size: .48rem; }
 .dealer-chip { display: inline-grid; width: 13px; height: 13px; flex: 0 0 auto; place-items: center; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); border-radius: 50%; font-size: .39rem; line-height: 1; }
 .extra-card-chip { display: inline-grid; height: 13px; flex: 0 0 auto; padding: 0 4px; place-items: center; color: var(--muted); border: 1px solid color-mix(in srgb, var(--line) 90%, transparent); border-radius: 999px; font-size: .39rem; line-height: 1; }
-.seat-turn-bar {
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 2px;
-  height: 3px;
-  background: color-mix(in srgb, var(--accent) 78%, transparent);
-  border-radius: 2px;
-  transform-origin: left center;
-  transition: transform .45s linear;
-  pointer-events: none;
-}
 .seat-countdown { margin-left: 3px; color: var(--accent); font-weight: 700; }
 .next-chip {
   position: absolute;

@@ -115,7 +115,6 @@ const GameScreen: React.FC<GameScreenProps> = ({
     ? Math.min(turnDurationSeconds, Math.max(0, Math.ceil((turnStartedAt + turnDurationSeconds * 1000 - nowMs) / 1000)))
     : turnDurationSeconds;
   const turnActive = Boolean(gameState?.started && !gameState?.gameFinished);
-  const turnFraction = turnActive ? Math.max(0, Math.min(1, timeLeft / turnDurationSeconds)) : 0;
 
   useEffect(() => {
     setPendingCard(null);
@@ -183,7 +182,6 @@ const GameScreen: React.FC<GameScreenProps> = ({
         const hasExtraCard = turnActive && (player.dealtCardCount || player.cardCount) > minDealtCount;
         const isNext = turnActive && !player.isCurrentPlayer && gameState?.nextPlayerName === player.name;
         const showsCountdown = turnActive && player.isCurrentPlayer;
-        const showsSeatProgress = showsCountdown && player.name !== username;
 
         return (
           <div
@@ -226,9 +224,6 @@ const GameScreen: React.FC<GameScreenProps> = ({
                 {showsCountdown && timeLeft < 10 && <span className="seat-countdown">· {timeLeft}s</span>}
               </small>
             </span>
-            {showsSeatProgress && (
-              <span className="seat-turn-bar" style={{ transform: `scaleX(${turnFraction})` }} aria-hidden="true" />
-            )}
             {isNext && <span className="next-chip" aria-hidden="true">next</span>}
           </div>
         );

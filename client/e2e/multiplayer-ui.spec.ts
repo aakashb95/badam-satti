@@ -449,8 +449,9 @@ test('seven-player game renders and starts across responsive viewports', async (
   const regularHandResponse = await fetch(`${baseURL}/__test__/rooms/${roomCode}/hand-layout?player=Host&count=13`, { method: 'POST' });
   expect(regularHandResponse.ok).toBe(true);
   await expect(page.locator('.hand-card')).toHaveCount(13);
-  await expect(page.locator('.table-player.is-you .seat-turn-bar')).toHaveCount(0);
-  await expect(extraPlayers[0].page.locator('.table-player').filter({ hasText: 'Host' }).locator('.seat-turn-bar')).toHaveCount(1);
+  for (const playerPage of pages) {
+    await expect(playerPage.locator('.seat-turn-bar')).toHaveCount(0);
+  }
   const phonePortrait = testInfo.project.name.includes('mobile-390') || testInfo.project.name.includes('small-phone');
   await expectFourSectionHandStable(page, `${testInfo.project.name}:thirteen-card-hand`, phonePortrait);
   if (process.env.CAPTURE_HAND_SCREENSHOTS === '1') {
