@@ -1018,6 +1018,13 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 
 .round-icon-button:hover { color: var(--text); background: var(--surface-2); }
 .round-icon-button.leave-button:hover { color: var(--red); }
+
+.sound-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.sound-toggle.quiet-button { min-height: 38px; }
+.sound-toggle.is-muted { color: var(--faint); }
+.sound-icon { display: block; width: 16px; height: 16px; flex: 0 0 auto; }
+.sound-icon path { fill: currentColor; }
+.sound-icon .sound-wave { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; }
 .leave-confirm-overlay { position: fixed; inset: 0; z-index: 2000; padding: 20px; display: grid; place-items: center; background: var(--modal-backdrop); }
 .leave-confirm-dialog { width: min(100%, 440px); padding: 28px; color: var(--text); background: var(--surface-2); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 28px 80px var(--ambient-shadow); text-align: center; }
 .leave-confirm-mark { width: 54px; height: 68px; margin: 0 auto 16px; display: grid; place-items: center; color: var(--brand-ink); background: var(--brand-card); border-radius: 8px; font-weight: 600; transform: rotate(-4deg); }
@@ -1770,6 +1777,7 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
   .turn-status strong { font-size: .64rem; }
   .round-icon-button { width: 31px; height: 31px; }
   .game-toolbar { gap: 4px; }
+  .sound-icon { width: 14px; height: 14px; }
   .text-size-button { min-width: 43px; height: 31px; padding-inline: 6px; }
   .table-stage { min-height: 0; }
   .table-players { inset: 2px; }

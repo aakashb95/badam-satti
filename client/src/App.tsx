@@ -13,6 +13,7 @@ import Notification from './components/Notification';
 import SimulationScreen from './components/SimulationScreen';
 import SummaryScreen from './components/SummaryScreen';
 import WaitingRoom from './components/WaitingRoom';
+import { isSoundEnabled, playCardSound, playDealSound, playKnockSound, setSoundEnabled, unlockAudio } from './sounds';
 import { AppState, Card, ComfortSize, GameSummary, Player, Winner } from './types';
 
 interface JoinRequest {
@@ -158,6 +159,7 @@ const screenForGameState = (gameState: AppState['gameState']): AppState['current
 
 const App: React.FC = () => {
   const [comfortSize, setComfortSize] = useState<ComfortSize>(getInitialComfortSize);
+  const [soundOn, setSoundOn] = useState<boolean>(isSoundEnabled);
 
   useEffect(() => {
     document.documentElement.dataset.comfortSize = comfortSize;
@@ -168,12 +170,39 @@ const App: React.FC = () => {
     }
   }, [comfortSize]);
 
+  // Browsers only let audio start from a user gesture, so the first tap or key
+  // press anywhere opens the audio context for the rest of the session.
+  useEffect(() => {
+    const unlock = () => unlockAudio();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
+
+  const changeSound = (value: boolean) => {
+    setSoundEnabled(value);
+    setSoundOn(value);
+  };
+
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         <Route path="/r/:roomCode" element={<JoinRoomRoute />} />
         <Route path="/simulation" element={<SimulationRoute />} />
-        <Route path="/*" element={<MainApp comfortSize={comfortSize} onComfortSizeChange={setComfortSize} />} />
+        <Route
+          path="/*"
+          element={(
+            <MainApp
+              comfortSize={comfortSize}
+              onComfortSizeChange={setComfortSize}
+              soundOn={soundOn}
+              onSoundChange={changeSound}
+            />
+          )}
+        />
       </Routes>
     </BrowserRouter>
   );
@@ -222,9 +251,11 @@ const SimulationRoute: React.FC = () => (
 interface MainAppProps {
   comfortSize: ComfortSize;
   onComfortSizeChange: (size: ComfortSize) => void;
+  soundOn: boolean;
+  onSoundChange: (value: boolean) => void;
 }
 
-const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) => {
+const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, soundOn, onSoundChange }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const initialJoinRequest = (location.state as RouteState | null)?.joinRoom;
@@ -399,6 +430,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
 
     socket.on('game_started', ({ gameState }) => {
       actionPendingRef.current = false;
+      playDealSound();
       setAppState((previous) => ({
         ...previous,
         gameState,
@@ -421,11 +453,13 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
 
     socket.on('card_played', ({ gameState }) => {
       actionPendingRef.current = false;
+      playCardSound();
       setAppState((previous) => ({ ...previous, gameState }));
     });
 
     socket.on('turn_passed', ({ gameState }) => {
       actionPendingRef.current = false;
+      playKnockSound();
       setAppState((previous) => ({ ...previous, gameState }));
     });
 
@@ -463,6 +497,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
 
     socket.on('round_continued', ({ gameState }) => {
       actionPendingRef.current = false;
+      playDealSound();
       setShowingGameOverDelay(false);
       setAppState((previous) => ({
         ...previous,
@@ -759,9 +794,9 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange }) =
       case 'menu':
         return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />;
       case 'waiting':
-        return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} gameEndedByDepartures={appState.gameEndedByDepartures} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} onReturnToGameDesk={leaveRoomForGameDesk} onSetTurnDuration={setTurnDuration} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />;
+        return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} gameEndedByDepartures={appState.gameEndedByDepartures} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} onReturnToGameDesk={leaveRoomForGameDesk} onSetTurnDuration={setTurnDuration} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} soundOn={soundOn} onSoundChange={onSoundChange} />;
       case 'game':
-        return <GameScreen gameState={appState.gameState} myCards={appState.myCards} validMoves={appState.validMoves} isMyTurn={appState.isMyTurn} canPass={appState.canPass} username={appState.username} onPlayCard={playCard} onPassTurn={passTurn} onLeaveGame={leaveRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} onReturnToGameDesk={leaveRoomForGameDesk} roundWinnerName={appState.gameState?.gameFinished ? appState.winner?.winner : undefined} />;
+        return <GameScreen gameState={appState.gameState} myCards={appState.myCards} validMoves={appState.validMoves} isMyTurn={appState.isMyTurn} canPass={appState.canPass} username={appState.username} onPlayCard={playCard} onPassTurn={passTurn} onLeaveGame={leaveRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} soundOn={soundOn} onSoundChange={onSoundChange} onReturnToGameDesk={leaveRoomForGameDesk} roundWinnerName={appState.gameState?.gameFinished ? appState.winner?.winner : undefined} />;
       case 'game-over':
         return <GameOverScreen winner={appState.winner} onContinueRound={() => { showLoading('Starting next round…'); socketRef.current?.emit('continue_round'); }} onExitGame={() => { showLoading('Calculating results…'); socketRef.current?.emit('exit_game'); }} showingDelay={showingGameOverDelay} canContinueRound={Boolean(hasMinimumPlayers && appState.gameState && appState.gameState.round < appState.gameState.maxRounds)} hasMinimumPlayers={hasMinimumPlayers} canFinishGame={canFinishGame} onReturnToGameDesk={leaveRoomForGameDesk} />;
       case 'summary':

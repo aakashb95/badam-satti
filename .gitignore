@@ -37,3 +37,6 @@ client/playwright-report/
 # Local editor/tooling
 .claude/
 *.db-journal
+
+# Rendered sound previews (node client/scripts/render-sound-previews.mjs)
+client/sound-previews/

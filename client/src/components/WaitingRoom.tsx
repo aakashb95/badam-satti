@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ComfortSize, GameState } from '../types';
 import GameDeskLink from './GameDeskLink';
 import HelpModal from './HelpModal';
+import SoundToggle from './SoundToggle';
 
 interface WaitingRoomProps {
   roomCode: string;
@@ -15,6 +16,8 @@ interface WaitingRoomProps {
   onSetTurnDuration: (seconds: number) => void;
   comfortSize: ComfortSize;
   onComfortSizeChange: (size: ComfortSize) => void;
+  soundOn: boolean;
+  onSoundChange: (value: boolean) => void;
 }
 
 const TURN_DURATION_CHOICES = [20, 40, 60];
@@ -31,6 +34,8 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
   onSetTurnDuration,
   comfortSize,
   onComfortSizeChange,
+  soundOn,
+  onSoundChange,
 }) => {
   const [lanOrigin, setLanOrigin] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -72,6 +77,7 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
         <header className="app-header">
           <GameDeskLink onBeforeNavigate={onReturnToGameDesk} />
           <div className="header-actions">
+            <SoundToggle soundOn={soundOn} onSoundChange={onSoundChange} variant="text" />
             <button className="quiet-button" onClick={() => setShowHelp(true)}>How to play</button>
             <button className="quiet-button danger-text" onClick={onLeaveRoom}>Leave room</button>
           </div>

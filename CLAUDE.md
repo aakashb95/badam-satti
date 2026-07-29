@@ -12,6 +12,13 @@ King's Corner.
 - `client/` — Badam React app. Vite `base` is `/badam7/`; the router basename
   matches. Shared card helpers (asset version, filenames, `SuitIcon`) live in
   `client/src/cards.tsx`. Playwright e2e in `client/e2e/`.
+- `client/src/sounds.ts` — table sounds. Dealing and playing a card are
+  recordings in `client/public/sounds/` (the 4.6s deal is faded out after 2s);
+  the pass knock is synthesised with the Web Audio API. Everything runs through
+  one master gain, stays silent while the tab is hidden or when the player turns
+  sound off (`badam-satti-sound` in localStorage), and the context is unlocked
+  (and samples warmed) on the first tap. Adding or replacing an mp3 means
+  bumping the cache names in `client/public/sw.js`, which precaches them.
 - `client/public/images/cards/` — 52 generated SVG card faces. Regenerate with
   `node client/scripts/generate-cards.mjs`; keep pip paths in sync with
   `client/src/cards.tsx` and bump `CARD_ASSET_VERSION` there plus the cache
@@ -117,6 +124,7 @@ cd client && npm run build            # tsc + vite build → dist/
 cd client && npm run test:e2e         # Playwright UI e2e (builds + runs server on :3101)
 cd client && npm run test:family      # headed 6-player smoke game (server must be running)
 node client/scripts/join-bots.mjs CODE  # attach 5 headless bots to a room
+node client/scripts/render-sound-previews.mjs  # audition the table sounds
 ```
 
 `NODE_ENV=test` also enables the `/__test__/rooms/:code/*` layout-injection
