@@ -9,7 +9,7 @@ interface SummaryScreenProps {
   onReturnToGameDesk: () => Promise<void>;
 }
 
-const CONFETTI_PIECES = Array.from({ length: 14 }, (_, index) => index);
+const FIREWORKS = Array.from({ length: 5 }, (_, index) => index);
 
 const SummaryScreen: React.FC<SummaryScreenProps> = ({ summary, username, onReturnToMenu, onReturnToGameDesk }) => {
   const isWinner = Boolean(summary?.winner && summary.winner === username);
@@ -20,13 +20,13 @@ const SummaryScreen: React.FC<SummaryScreenProps> = ({ summary, username, onRetu
         <GameDeskLink onBeforeNavigate={onReturnToGameDesk} className="results-game-desk" />
         <header className="results-header">
           {isWinner && (
-            <div className="winner-confetti" aria-hidden="true">
-              {CONFETTI_PIECES.map((piece) => <span key={piece} />)}
+            <div className="winner-fireworks" aria-hidden="true">
+              {FIREWORKS.map((firework) => <span key={firework} />)}
             </div>
           )}
           <span className="eyebrow">Seven rounds complete</span>
-          <h2><span>{summary?.winner}</span> rules the table.</h2>
-          <p>Lowest total takes the crown. Until the rematch, anyway.</p>
+          <h2>{isWinner ? 'You won the game!' : <><span>{summary?.winner}</span> won the game.</>}</h2>
+          <p>Lowest total wins.</p>
         </header>
         <div id="summary-scores">
           {summary && (
@@ -40,7 +40,7 @@ const SummaryScreen: React.FC<SummaryScreenProps> = ({ summary, username, onRetu
                         <div className="score-main">
                           <span className="score-rank">{String(index + 1).padStart(2, '0')}</span>
                           <div className="score-player">
-                            <span className="player-name">{total.name}</span>
+                            <span className="player-name">{total.name === username ? 'You' : total.name}</span>
                             <small>{total.name === summary.winner ? 'Table champion' : total.name === summary.loser ? 'Ready for a rematch' : 'Well played'}</small>
                           </div>
                           <span className="player-score"><strong>{total.totalScore}</strong> pts</span>

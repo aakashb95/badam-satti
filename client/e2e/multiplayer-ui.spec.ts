@@ -377,22 +377,71 @@ test('round results survive a player refresh', async ({ browser, page, baseURL }
   expect(finishResponse.ok).toBe(true);
 
   await expect(guest.page.locator('.results-screen')).toBeVisible({ timeout: 8_000 });
-  await expect(guest.page.getByText('Host takes the round.')).toBeVisible();
+  await expect(guest.page.getByText('Host won.')).toBeVisible();
   await guest.page.reload();
   await expect(guest.page.locator('.results-screen')).toBeVisible();
-  await expect(guest.page.getByText('Host takes the round.')).toBeVisible();
+  await expect(guest.page.getByText('Host won.')).toBeVisible();
   await expect(guest.page.getByRole('button', { name: 'Finish game' })).toHaveCount(0);
 
   await expect(page.locator('.results-screen')).toBeVisible();
+  await expect(page.getByText('You won!')).toBeVisible();
+  await expect(page.locator('.round-winner-confetti')).toHaveCount(1);
+  await expect(guest.page.locator('.round-winner-confetti')).toHaveCount(0);
+  if (process.env.CAPTURE_HAND_SCREENSHOTS === '1') {
+    await page.screenshot({ path: `/tmp/badam-round-winner-${testInfo.project.name}.png` });
+    await guest.page.screenshot({ path: `/tmp/badam-round-winner-other-${testInfo.project.name}.png` });
+  }
   await page.getByRole('button', { name: /Next round/ }).click();
   await expect(page.locator('.round-intro')).toBeVisible();
-  await expect(page.locator('.round-intro')).toContainText('Round 2 starting');
-  await expect(page.locator('.round-intro')).toContainText('Guest is dealing');
+  await expect(page.locator('.round-intro')).toContainText('Round 2');
+  await expect(page.locator('.round-intro')).toContainText('Cards are dealt.');
   await expect(page.locator('.round-intro')).toContainText('Guest had the most points last round.');
-  await expect(guest.page.locator('.round-intro')).toContainText('Round 2 starting');
+  await expect(page.locator('.round-intro-tiles > span')).toHaveCount(3);
+  await expect(page.locator('.round-intro')).toContainText('DealerGuest');
+  await expect(page.locator('.round-intro')).toContainText('Starts with 7♥');
+  await expect(page.locator('.round-intro')).toContainText('Your hand');
+  await expect(guest.page.locator('.round-intro')).toContainText('Round 2');
+  await expect(third.page.locator('.round-intro-tiles .has-extra-card')).toContainText('18 cards');
+  await expect(third.page.locator('.round-intro-tiles .has-extra-card')).toContainText('+1');
   if (process.env.CAPTURE_HAND_SCREENSHOTS === '1') {
     await page.waitForTimeout(500);
     await page.screenshot({ path: `/tmp/badam-round-two-${testInfo.project.name}.png` });
+    await third.page.screenshot({ path: `/tmp/badam-round-two-extra-${testInfo.project.name}.png` });
+  }
+
+  await guest.context.close();
+  await third.context.close();
+});
+
+test('overall winner sees the final celebration', async ({ browser, page, baseURL }, testInfo) => {
+  const projectUse = testInfo.project.use as BrowserContextOptions;
+  const contextOptions: BrowserContextOptions = {
+    viewport: page.viewportSize() || projectUse.viewport || { width: 1280, height: 720 },
+    deviceScaleFactor: projectUse.deviceScaleFactor,
+    isMobile: projectUse.isMobile,
+    hasTouch: projectUse.hasTouch,
+  };
+
+  await login(page, 'Host');
+  const roomCode = await createRoom(page);
+  const guest = await newPlayerPage(browser, contextOptions, baseURL || '');
+  const third = await newPlayerPage(browser, contextOptions, baseURL || '');
+  await joinRoom(guest.page, roomCode, 'Guest');
+  await joinRoom(third.page, roomCode, 'Third');
+  await page.locator('.start-button').click();
+  await expect(guest.page.locator('.game-screen')).toBeVisible();
+
+  const finishResponse = await fetch(`${baseURL}/__test__/rooms/${roomCode}/finish-round`, { method: 'POST' });
+  expect(finishResponse.ok).toBe(true);
+  await expect(page.locator('.results-screen')).toBeVisible({ timeout: 8_000 });
+  await page.getByRole('button', { name: 'Finish game' }).click();
+  await expect(page.locator('.summary-screen')).toBeVisible();
+  await expect(page.getByText('You won the game!')).toBeVisible();
+  await expect(page.locator('.winner-fireworks')).toHaveCount(1);
+  await expect(guest.page.locator('.winner-fireworks')).toHaveCount(0);
+  if (process.env.CAPTURE_HAND_SCREENSHOTS === '1') {
+    await page.waitForTimeout(350);
+    await page.screenshot({ path: `/tmp/badam-overall-winner-${testInfo.project.name}.png` });
   }
 
   await guest.context.close();

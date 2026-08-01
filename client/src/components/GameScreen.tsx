@@ -299,14 +299,27 @@ const GameScreen: React.FC<GameScreenProps> = ({
   const renderRoundIntro = () => {
     if (!gameState || !showRoundIntro) return null;
     const isLaterRound = gameState.round > 1;
+    const displayName = (name: string) => name === username ? 'You' : name;
+    const currentPlayer = gameState.players.find((player) => player.name === username);
+    const lowestDealCount = Math.min(...gameState.players.map((player) => player.dealtCardCount));
+    const receivedExtraCard = Boolean(currentPlayer && currentPlayer.dealtCardCount > lowestDealCount);
 
     return (
       <div className={`round-intro ${isLaterRound ? 'is-next-round' : ''}`} role="status" aria-live="polite" onClick={() => setShowRoundIntro(false)}>
         {isLaterRound ? (
           <>
-            <span className="round-intro-kicker">Round {gameState.round} starting</span>
-            <strong>{gameState.dealerName} is dealing</strong>
-            <small>{gameState.dealerName} had the most points last round.</small>
+            <span className="round-intro-kicker">Round {gameState.round}</span>
+            <strong>Cards are dealt.</strong>
+            <small>{displayName(gameState.dealerName)} had the most points last round.</small>
+            <div className="round-intro-tiles">
+              <span><small>Dealer</small><b>{displayName(gameState.dealerName)}</b></span>
+              <span><small>Starts with 7♥</small><b>{displayName(gameState.heartsSevenPlayerName)}</b></span>
+              <span className={receivedExtraCard ? 'has-extra-card' : ''}>
+                <small>Your hand</small>
+                <b>{currentPlayer?.dealtCardCount || 0} cards</b>
+                {receivedExtraCard && <i>+1</i>}
+              </span>
+            </div>
           </>
         ) : (
           <strong>Round 1</strong>

@@ -5,6 +5,7 @@ import { getCardSrc, getRankDisplay } from '../cards';
 
 interface GameOverScreenProps {
   winner: Winner | null;
+  username: string;
   onContinueRound: () => void;
   onExitGame: () => void;
   showingDelay: boolean;
@@ -16,6 +17,7 @@ interface GameOverScreenProps {
 
 const GameOverScreen: React.FC<GameOverScreenProps> = ({
   winner,
+  username,
   onContinueRound,
   onExitGame,
   showingDelay,
@@ -24,6 +26,8 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
   canFinishGame,
   onReturnToGameDesk,
 }) => {
+  const isWinner = Boolean(winner?.winner && winner.winner === username);
+  const confettiPieces = Array.from({ length: 14 }, (_, index) => index);
   const renderRemainingCards = (cards: Card[]) => {
     if (!cards || cards.length === 0) return null;
     
@@ -68,8 +72,13 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
       <div className="app-shell results-shell">
         <GameDeskLink onBeforeNavigate={onReturnToGameDesk} className="results-game-desk" />
         <header className="results-header">
-          <span className="eyebrow">Round results</span>
-          <h2><span>{winner?.winner}</span> takes the round.</h2>
+          {isWinner && (
+            <div className="winner-confetti round-winner-confetti" aria-hidden="true">
+              {confettiPieces.map((piece) => <span key={piece} />)}
+            </div>
+          )}
+          <span className="eyebrow">{isWinner ? 'Round won' : 'Round results'}</span>
+          <h2>{isWinner ? 'You won!' : <><span>{winner?.winner}</span> won.</>}</h2>
           {winner?.message && <p>{winner.message}</p>}
         </header>
         <div id="winner-display">
@@ -85,7 +94,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
                       <div className="score-main">
                         <span className="score-rank">{String(index + 1).padStart(2, '0')}</span>
                         <div className="score-player">
-                          <span className="player-name">{score.name}</span>
+                          <span className="player-name">{score.name === username ? 'You' : score.name}</span>
                           <small>{score.isWinner ? 'Round winner' : `${score.remainingCards?.length || 0} ${(score.remainingCards?.length || 0) === 1 ? 'card' : 'cards'} left`}</small>
                         </div>
                         <span className="player-score"><strong>{score.score}</strong> pts</span>

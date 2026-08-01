@@ -14,11 +14,13 @@ King's Corner.
   `client/src/cards.tsx`. Playwright e2e in `client/e2e/`.
 - `client/src/sounds.ts` — table sounds. Dealing and playing a card are
   recordings in `client/public/sounds/` (the 4.6s deal is faded out after 2s);
-  the pass knock is synthesised with the Web Audio API. Everything runs through
-  one master gain, stays silent while the tab is hidden or when the player turns
-  sound off (`badam-satti-sound` in localStorage), and the context is unlocked
-  (and samples warmed) on the first tap. Adding or replacing an mp3 means
-  bumping the cache names in `client/public/sw.js`, which precaches them.
+  the pass knock and winner chimes are synthesised with the Web Audio API.
+  Round and game winner sounds play only for the winning player. Everything
+  runs through one master gain, stays silent while the tab is hidden or when
+  the player turns sound off (`badam-satti-sound` in localStorage), and the
+  context is unlocked (and samples warmed) on the first tap. Adding or
+  replacing an mp3 means bumping the cache names in `client/public/sw.js`,
+  which precaches them.
 - `client/public/images/cards/` — 52 generated SVG card faces. Regenerate with
   `node client/scripts/generate-cards.mjs`; keep pip paths in sync with
   `client/src/cards.tsx` and bump `CARD_ASSET_VERSION` there plus the cache
@@ -42,6 +44,12 @@ King's Corner.
 - Playing a card uses select then confirm: tapping an eligible card selects
   and lifts it, and tapping the central Play button sends the move. Selecting
   another card changes the choice without accidentally sending the first one.
+- Round results say "You won!" to the winner and show confetti only on that
+  player's screen. Other players see the winner's name without confetti. The
+  overall winner sees a light fireworks effect on the final standings screen.
+- From round 2 onward, the opening screen shows the dealer, the player who has
+  7♥, and the current player's dealt hand size. A `+1` mark appears when that
+  player received an extra card.
 
 ## Turn timing (server-authoritative)
 

@@ -9,7 +9,7 @@
 // Everything runs through one master gain. Sample gain is trimmed well below
 // the recordings' near-full-scale peaks so the knock sits at the same level.
 
-export type SoundName = 'deal' | 'play' | 'pass';
+export type SoundName = 'deal' | 'play' | 'pass' | 'round-win' | 'game-win';
 type SampleName = 'deal' | 'play';
 
 const SOUND_STORAGE_KEY = 'badam-satti-sound';
@@ -230,6 +230,38 @@ export function playCardSound() {
 export function playKnockSound() {
   const start = liveStart();
   if (start) scheduleKnock(start.ctx, start.target, start.at);
+}
+
+function chime(ctx: AudioContext, target: AudioNode, at: number, frequency: number, duration: number, gain: number) {
+  const tone = ctx.createOscillator();
+  tone.type = 'sine';
+  tone.frequency.setValueAtTime(frequency, at);
+
+  const amp = ctx.createGain();
+  amp.gain.setValueAtTime(0.0001, at);
+  amp.gain.exponentialRampToValueAtTime(gain, at + 0.018);
+  amp.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+
+  tone.connect(amp).connect(target);
+  tone.start(at);
+  tone.stop(at + duration + 0.02);
+}
+
+export function playRoundWinSound() {
+  const start = liveStart();
+  if (!start) return;
+  [523.25, 659.25, 783.99].forEach((frequency, index) => {
+    chime(start.ctx, start.target, start.at + index * 0.11, frequency, 0.55, 0.12);
+  });
+}
+
+export function playGameWinSound() {
+  const start = liveStart();
+  if (!start) return;
+  [523.25, 659.25, 783.99, 1046.5].forEach((frequency, index) => {
+    chime(start.ctx, start.target, start.at + index * 0.12, frequency, 0.8, 0.1);
+  });
+  noise(start.ctx, start.target, { at: start.at + 0.2, gain: 0.08, duration: 0.32, from: 4200, to: 7200, q: 1.4, attack: 0.03 });
 }
 
 // Bounces the knock offline so it can be auditioned on its own — used by

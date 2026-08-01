@@ -1208,6 +1208,12 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 .round-intro.is-next-round strong { font-size: 1.15rem; }
 .round-intro.is-next-round small:not(.round-intro-dismiss) { color: var(--muted); font-size: .62rem; }
 .round-intro-kicker { color: var(--accent); font-size: .56rem; font-weight: 600; letter-spacing: .11em; text-transform: uppercase; }
+.round-intro-tiles { display: grid; width: 100%; margin: 6px 0 2px; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.round-intro-tiles > span { position: relative; display: flex; min-height: 58px; align-items: center; justify-content: center; flex-direction: column; gap: 3px; padding: 7px 5px; background: color-mix(in srgb, var(--surface-3) 82%, transparent); border: 1px solid var(--line); border-radius: 9px; }
+.round-intro-tiles small { color: var(--faint) !important; font-size: .44rem !important; letter-spacing: .04em; text-transform: uppercase; }
+.round-intro-tiles b { max-width: 100%; overflow: hidden; color: var(--text); font-size: .62rem; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.round-intro-tiles .has-extra-card { border-color: color-mix(in srgb, var(--accent) 58%, var(--line)); }
+.round-intro-tiles i { position: absolute; right: 5px; top: 5px; padding: 1px 4px; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 999px; font-size: .4rem; font-style: normal; }
 .round-intro-dismiss { color: var(--faint); font-size: .5rem; letter-spacing: .1em; text-transform: uppercase; }
 .round-winning-moment { position: absolute; left: 50%; top: 50%; z-index: 35; display: flex; min-width: 190px; padding: 16px 20px; align-items: center; flex-direction: column; color: var(--muted); background: color-mix(in srgb, var(--surface-2) 96%, transparent); border: 1px solid color-mix(in srgb, var(--green) 55%, var(--line)); border-radius: 13px; box-shadow: 0 18px 46px var(--ambient-shadow); transform: translate(-50%, -50%); animation: final-card-settle .75s ease both; }
 .round-winning-moment strong { color: var(--text); font-size: 1rem; }
@@ -1375,9 +1381,33 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 .winner-confetti span:nth-child(13) { top: 70px; left: 58%; background: var(--red); transform: rotate(16deg); animation-delay: -3.3s; }
 .winner-confetti span:nth-child(14) { top: 62px; left: 88%; background: var(--green); transform: rotate(-18deg); animation-delay: -1s; }
 
+.round-winner-confetti { inset: -46px -12% auto; height: 150px; }
+.round-winner-confetti span { width: 6px; height: 12px; opacity: .92; animation: round-confetti-fall 2.8s ease-in-out infinite; }
+
+.winner-fireworks { position: absolute; inset: -52px -8% auto; height: 190px; overflow: hidden; pointer-events: none; }
+.winner-fireworks span { position: absolute; width: 84px; height: 84px; border: 2px dotted color-mix(in srgb, var(--accent) 78%, transparent); border-radius: 50%; opacity: .68; animation: firework-bloom 3.4s ease-out infinite; }
+.winner-fireworks span::before,
+.winner-fireworks span::after { position: absolute; inset: 17%; border: 1px dashed color-mix(in srgb, var(--confetti-pale) 72%, transparent); border-radius: inherit; content: ""; transform: rotate(28deg); }
+.winner-fireworks span::after { inset: 35%; border-color: color-mix(in srgb, var(--red) 68%, transparent); transform: rotate(-18deg); }
+.winner-fireworks span:nth-child(1) { left: 4%; top: 60px; animation-delay: -.4s; }
+.winner-fireworks span:nth-child(2) { left: 24%; top: 6px; animation-delay: -2.1s; }
+.winner-fireworks span:nth-child(3) { left: 45%; top: 52px; animation-delay: -1.2s; }
+.winner-fireworks span:nth-child(4) { right: 18%; top: 0; animation-delay: -2.8s; }
+.winner-fireworks span:nth-child(5) { right: 0; top: 67px; animation-delay: -1.7s; }
+
 @keyframes confetti-drift {
   0%, 100% { translate: 0 0; opacity: .45; }
   50% { translate: 0 9px; opacity: .9; }
+}
+@keyframes round-confetti-fall {
+  0% { translate: 0 -18px; rotate: 0deg; opacity: 0; }
+  18% { opacity: .95; }
+  100% { translate: 8px 118px; rotate: 210deg; opacity: 0; }
+}
+@keyframes firework-bloom {
+  0% { opacity: 0; scale: .18; }
+  20% { opacity: .72; }
+  70%, 100% { opacity: 0; scale: 1.08; }
 }
 
 .final-scores,
