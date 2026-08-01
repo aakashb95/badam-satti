@@ -386,7 +386,15 @@ if (process.env.NODE_ENV === 'test') {
       { suit: 'clubs', rank: 2 }, { suit: 'clubs', rank: 4 }, { suit: 'clubs', rank: 6 }, { suit: 'clubs', rank: 8 }, { suit: 'clubs', rank: 12 },
       { suit: 'spades', rank: 3 }, { suit: 'spades', rank: 6 }, { suit: 'spades', rank: 8 }, { suit: 'spades', rank: 13 },
     ];
-    const cards = Number(req.query.count) === 18 ? eighteenCardHand : thirteenCardHand;
+    const criticalHand = [
+      { suit: 'hearts', rank: 6 },
+      { suit: 'diamonds', rank: 6 },
+      { suit: 'clubs', rank: 6 },
+      { suit: 'spades', rank: 6 },
+    ];
+    const cards = req.query.critical === '1'
+      ? criticalHand
+      : Number(req.query.count) === 18 ? eighteenCardHand : thirteenCardHand;
     const player = room.players[playerIndex];
 
     player.cards = cards;
@@ -1077,6 +1085,11 @@ io.on("connection", (socket) => {
         playerName: cleanUsername,
         gameState: room.getState(),
       });
+
+      // A disconnect below the minimum clears every player's valid moves while
+      // the round is paused. Resend each hand after reconnection so the current
+      // player gets those moves back when play resumes.
+      emitPlayerHands(room);
     } catch (error) {
       console.error("Error reconnecting to room:", error);
       socket.emit("error", "Failed to reconnect to room");

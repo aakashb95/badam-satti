@@ -271,7 +271,7 @@ test('first-time guide completes the rules and table walkthrough on a phone', as
     'Only the next card fits',
     'Get out first for zero points',
     'Lowest total wins seven rounds',
-    'Look for the lifted card',
+    'Choose, then play',
   ];
   for (const title of expectedSteps) {
     await dialog.getByRole('button', { name: 'Next' }).click();
@@ -383,6 +383,18 @@ test('round results survive a player refresh', async ({ browser, page, baseURL }
   await expect(guest.page.getByText('Host takes the round.')).toBeVisible();
   await expect(guest.page.getByRole('button', { name: 'Finish game' })).toHaveCount(0);
 
+  await expect(page.locator('.results-screen')).toBeVisible();
+  await page.getByRole('button', { name: /Next round/ }).click();
+  await expect(page.locator('.round-intro')).toBeVisible();
+  await expect(page.locator('.round-intro')).toContainText('Round 2 starting');
+  await expect(page.locator('.round-intro')).toContainText('Guest is dealing');
+  await expect(page.locator('.round-intro')).toContainText('Guest had the most points last round.');
+  await expect(guest.page.locator('.round-intro')).toContainText('Round 2 starting');
+  if (process.env.CAPTURE_HAND_SCREENSHOTS === '1') {
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `/tmp/badam-round-two-${testInfo.project.name}.png` });
+  }
+
   await guest.context.close();
   await third.context.close();
 });
@@ -491,6 +503,39 @@ test('seven-player game renders and starts across responsive viewports', async (
     await expect(page.locator('.round-intro')).toBeHidden();
     await expect(page.locator('.notification')).toBeHidden();
     await page.screenshot({ path: `/tmp/badam-hand-${testInfo.project.name}-13.png` });
+  }
+  const handCountBeforeSelection = await page.locator('.hand-card').count();
+  const firstPlayableCard = page.locator('.hand-card.playable').first();
+  await firstPlayableCard.click({ position: { x: 5, y: 5 } });
+  await expect(page.locator('.hand-card.is-selected')).toHaveCount(1);
+  await expect(page.locator('.hand-card')).toHaveCount(handCountBeforeSelection);
+  await expect(page.locator('.hand-pass-button')).toHaveClass(/is-card-confirm/);
+  await expect(page.locator('.hand-pass-button')).toHaveAttribute('aria-label', /^Play /);
+  await expect.poll(() => page.locator('.hand-card.is-selected').evaluate((card) =>
+    new DOMMatrixReadOnly(getComputedStyle(card).transform).m42
+  )).toBeLessThanOrEqual(-12);
+  if (process.env.CAPTURE_HAND_SCREENSHOTS === '1') {
+    await page.screenshot({ path: `/tmp/badam-card-selected-${testInfo.project.name}.png` });
+  }
+  const confirmCardButton = page.locator('.hand-pass-button');
+  if (zoom === 1) {
+    await confirmCardButton.click();
+  } else {
+    await confirmCardButton.focus();
+    await confirmCardButton.press('Enter');
+  }
+  await expect(page.locator('.hand-card')).toHaveCount(handCountBeforeSelection - 1);
+
+  const normalPillBackground = await page.locator('.table-player.is-you').evaluate((pill) => getComputedStyle(pill).backgroundColor);
+  const criticalHandResponse = await fetch(`${baseURL}/__test__/rooms/${roomCode}/hand-layout?player=Host&critical=1`, { method: 'POST' });
+  expect(criticalHandResponse.ok).toBe(true);
+  await expect(page.locator('.hand-card')).toHaveCount(4);
+  const criticalPill = page.locator('.table-player.is-you');
+  await expect(criticalPill).toHaveClass(/critical-warning/);
+  await expect(criticalPill).toHaveCSS('border-top-color', 'rgb(240, 113, 103)');
+  expect(await criticalPill.evaluate((pill) => getComputedStyle(pill).backgroundColor)).not.toBe(normalPillBackground);
+  if (process.env.CAPTURE_HAND_SCREENSHOTS === '1') {
+    await page.screenshot({ path: `/tmp/badam-critical-pill-${testInfo.project.name}.png` });
   }
 
   const maximumHandResponse = await fetch(`${baseURL}/__test__/rooms/${roomCode}/hand-layout?player=Host&count=18`, { method: 'POST' });

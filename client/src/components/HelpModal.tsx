@@ -25,7 +25,7 @@ const LESSONS: Lesson[] = [
   { section: 'Game rules', eyebrow: 'After that', title: 'Only the next card fits', copy: 'Build one step at a time in the same suit. Play exactly one card on your turn — or pass if nothing fits.', visual: 'build' },
   { section: 'Game rules', eyebrow: 'Round scoring', title: 'Get out first for zero points', copy: 'Everyone else adds the value of cards left in hand. High cards inflict more points; a higher score is worse.', visual: 'score' },
   { section: 'Game rules', eyebrow: 'The full game', title: 'Lowest total wins seven rounds', copy: 'Win quickly, hold up useful cards, and leave opponents with costly cards when you can.', visual: 'rounds' },
-  { section: 'Using the table', eyebrow: 'Your first turn', title: 'Look for the lifted card', copy: 'Your timer is at the top. Playable cards lift and glow in your hand — just tap one.', visual: 'ui' },
+  { section: 'Using the table', eyebrow: 'Your first turn', title: 'Choose, then play', copy: 'Playable cards lift and glow. Tap one to select it, then tap Play in the middle. Tap another card if you change your mind.', visual: 'ui' },
 ];
 
 const MiniCard = ({ rank, suit, className = '' }: { rank: string; suit: string; className?: string }) => (
@@ -41,7 +41,7 @@ function LessonVisual({ visual }: { visual: Lesson['visual'] }) {
       {visual === 'build' && <><div className="lesson-built-run"><MiniCard rank="9" suit="♥" /><MiniCard rank="8" suit="♥" /><MiniCard rank="7" suit="♥" /><MiniCard rank="6" suit="♥" /></div><MiniCard rank="5" suit="♥" className="lesson-next-five" /><span className="lesson-one-card">One card per turn</span></>}
       {visual === 'score' && <><div className="lesson-score-row winner"><span>YOU · hand clear</span><strong>0</strong></div><div className="lesson-score-row"><span>MAYA · K + 8</span><strong>21</strong></div><div className="lesson-score-row"><span>DEV · Q + J + 6</span><strong>29</strong></div><span className="lesson-score-note">Higher points hurt more</span></>}
       {visual === 'rounds' && <><div className="lesson-round-track">{[1,2,3,4,5,6,7].map((round) => <i key={round}>{round}</i>)}</div><div className="lesson-total winner"><span>YOU</span><strong>34</strong></div><div className="lesson-total"><span>MAYA</span><strong>51</strong></div><span className="lesson-score-note">Lowest total wins</span></>}
-      {visual === 'ui' && <><div className="lesson-ui-top"><span>7♥</span><b>YOUR TURN</b><i>14s</i></div><div className="lesson-ui-players"><span>ANU · 5</span><span>MAYA · 3</span></div><div className="lesson-ui-board"><MiniCard rank="7" suit="♥" /><MiniCard rank="8" suit="♥" /></div><div className="lesson-ui-hand"><MiniCard rank="6" suit="♥" className="is-playable" /><MiniCard rank="K" suit="♣" /><MiniCard rank="3" suit="♦" /></div><span className="lesson-ui-finger">↑ tap</span></>}
+      {visual === 'ui' && <><div className="lesson-ui-top"><span>7♥</span><b>YOUR TURN</b><i>14s</i></div><div className="lesson-ui-players"><span>ANU · 5</span><span>MAYA · 3</span></div><div className="lesson-ui-board"><MiniCard rank="7" suit="♥" /><MiniCard rank="8" suit="♥" /></div><div className="lesson-ui-hand"><MiniCard rank="6" suit="♥" className="is-playable" /><MiniCard rank="K" suit="♣" /><MiniCard rank="3" suit="♦" /></div><span className="lesson-ui-finger">↑ choose</span><span className="lesson-ui-confirm">Play 6♥</span></>}
     </div>
   );
 }

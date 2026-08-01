@@ -39,6 +39,9 @@ King's Corner.
 - Dealer for the next round = highest scorer of the finished round.
 - Player indicators in state: `warning` (≤3 cards), `critical` (every
   remaining card is playable on the current board).
+- Playing a card uses select then confirm: tapping an eligible card selects
+  and lifts it, and tapping the central Play button sends the move. Selecting
+  another card changes the choice without accidentally sending the first one.
 
 ## Turn timing (server-authoritative)
 
@@ -87,9 +90,10 @@ late caller into the already-started round instead of erroring.
   player is removed and their cards are redistributed starting from the seat
   after theirs, clockwise when at least 3 players remain. If fewer than 3
   players are connected, play and the turn timer pause. Reconnecting the third
-  player starts a fresh turn window. If a confirmed departure leaves fewer
-  than 3 players, the match is abandoned without a winner and the room returns
-  to a clean waiting state.
+  player starts a fresh turn window and re-emits every connected player's hand
+  so the current player's valid moves are restored. If a confirmed departure
+  leaves fewer than 3 players, the match is abandoned without a winner and the
+  room returns to a clean waiting state.
 - Results screen (`gameFinished`): treated like the waiting room — 10-minute
   window, no redistribution, cumulative score kept. `roundResult` is persisted
   in room state so reconnecting restores the results screen.

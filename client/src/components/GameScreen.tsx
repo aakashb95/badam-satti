@@ -53,6 +53,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
   const [showHelp, setShowHelp] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showRoundIntro, setShowRoundIntro] = useState(() => isOpeningDeal(gameState));
+  const [selectedCardKey, setSelectedCardKey] = useState<string | null>(null);
   const [pendingCard, setPendingCard] = useState<string | null>(null);
   const intentionalLeave = useRef(false);
 
@@ -122,8 +123,15 @@ const GameScreen: React.FC<GameScreenProps> = ({
   const turnActive = Boolean(gameState?.started && !gameState?.gameFinished);
 
   useEffect(() => {
+    setSelectedCardKey(null);
     setPendingCard(null);
   }, [isMyTurn, myCards]);
+
+  useEffect(() => {
+    if (!selectedCardKey) return;
+    const stillPlayable = validMoves.some((card) => `${card.suit}-${card.rank}` === selectedCardKey);
+    if (!isMyTurn || !stillPlayable) setSelectedCardKey(null);
+  }, [isMyTurn, selectedCardKey, validMoves]);
 
   const isUrgent = isMyTurn && turnActive && timeLeft <= 5;
 
@@ -154,6 +162,9 @@ const GameScreen: React.FC<GameScreenProps> = ({
 
   const playHistory = gameState?.playHistory || [];
   const latestPlay = playHistory[playHistory.length - 1];
+  const selectedCard = selectedCardKey
+    ? sortedHand.find((card) => `${card.suit}-${card.rank}` === selectedCardKey)
+    : undefined;
 
   const clockSeat = (index: number, total: number) => {
     const safeTotal = Math.max(total, 1);
@@ -287,13 +298,28 @@ const GameScreen: React.FC<GameScreenProps> = ({
 
   const renderRoundIntro = () => {
     if (!gameState || !showRoundIntro) return null;
+    const isLaterRound = gameState.round > 1;
 
     return (
-      <div className="round-intro" role="status" aria-live="polite" onClick={() => setShowRoundIntro(false)}>
-        <strong>Round {gameState.round}</strong>
+      <div className={`round-intro ${isLaterRound ? 'is-next-round' : ''}`} role="status" aria-live="polite" onClick={() => setShowRoundIntro(false)}>
+        {isLaterRound ? (
+          <>
+            <span className="round-intro-kicker">Round {gameState.round} starting</span>
+            <strong>{gameState.dealerName} is dealing</strong>
+            <small>{gameState.dealerName} had the most points last round.</small>
+          </>
+        ) : (
+          <strong>Round 1</strong>
+        )}
         <small className="round-intro-dismiss">Tap to play</small>
       </div>
     );
+  };
+
+  const confirmSelectedCard = () => {
+    if (!selectedCard || pendingCard || !isMyTurn || !isValidMove(selectedCard)) return;
+    setPendingCard(selectedCardKey);
+    onPlayCard(selectedCard);
   };
 
   const renderHand = () => (
@@ -313,16 +339,16 @@ const GameScreen: React.FC<GameScreenProps> = ({
                   return (
                     <button
                       key={cardKey}
-                      className={`hand-card ${valid ? 'valid' : ''} ${playable ? 'playable' : ''} ${pendingCard === cardKey ? 'is-pending' : ''}`}
+                      className={`hand-card ${valid ? 'valid' : ''} ${playable ? 'playable' : ''} ${selectedCardKey === cardKey ? 'is-selected' : ''} ${pendingCard === cardKey ? 'is-pending' : ''}`}
                       data-suit={card.suit}
                       data-rank={card.rank}
                       onClick={() => {
                         if (!playable || pendingCard) return;
-                        setPendingCard(cardKey);
-                        onPlayCard(card);
+                        setSelectedCardKey((current) => current === cardKey ? null : cardKey);
                       }}
                       disabled={!playable || pendingCard !== null}
-                      aria-label={`${playable ? 'Play' : ''} ${getRankDisplay(card.rank)} of ${SUIT_LABELS[card.suit]}`.trim()}
+                      aria-pressed={selectedCardKey === cardKey}
+                      aria-label={`${selectedCardKey === cardKey ? 'Selected' : playable ? 'Select' : ''} ${getRankDisplay(card.rank)} of ${SUIT_LABELS[card.suit]}`.trim()}
                     >
                       <img src={getCardSrc(card)} alt="" decoding="async" />
                     </button>
@@ -333,12 +359,22 @@ const GameScreen: React.FC<GameScreenProps> = ({
           );
         })}
         <button
-          className="hand-pass-button"
-          onClick={onPassTurn}
-          disabled={!isMyTurn || !canPass}
-          aria-label={isMyTurn && canPass ? 'Pass this turn' : 'Pass is not available'}
+          className={`hand-pass-button ${selectedCard ? 'is-card-confirm' : ''}`}
+          onClick={selectedCard ? confirmSelectedCard : onPassTurn}
+          disabled={selectedCard ? pendingCard !== null : !isMyTurn || !canPass}
+          aria-label={selectedCard
+            ? `Play ${getRankDisplay(selectedCard.rank)} of ${SUIT_LABELS[selectedCard.suit]}`
+            : isMyTurn && canPass ? 'Pass this turn' : 'Pass is not available'}
         >
-          Pass
+          {selectedCard ? (
+            <>
+              <span>Play</span>
+              <strong data-suit={selectedCard.suit}>
+                {getRankDisplay(selectedCard.rank)}
+                <SuitIcon suit={selectedCard.suit} />
+              </strong>
+            </>
+          ) : 'Pass'}
         </button>
       </div>
     </section>

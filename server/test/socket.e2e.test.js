@@ -650,6 +650,50 @@ test('current player can reconnect and act before the existing turn deadline', a
   assert.equal(removalCount, 0);
 });
 
+test('reconnection restores eligible moves for the player whose turn was paused', async (t) => {
+  const { baseUrl } = await startServer(t, { ACTIVE_GAME_RECONNECT_MS: '1200' });
+  const names = ['Host', 'Guest', 'Third'];
+  const sockets = await Promise.all(names.map(() => connectClient(baseUrl)));
+  t.after(() => sockets.forEach((socket) => socket.close()));
+
+  const hostSession = await createRoom(sockets[0], names[0]);
+  const { roomCode } = hostSession;
+  const sessions = new Map([[names[0], hostSession.sessionToken]]);
+  for (let index = 1; index < sockets.length; index += 1) {
+    const session = await joinRoom(sockets[index], roomCode, names[index]);
+    sessions.set(names[index], session.sessionToken);
+  }
+
+  const started = Promise.all(sockets.map((socket) => once(socket, 'game_started')));
+  const initialHands = Promise.all(sockets.map((socket) => once(socket, 'your_cards')));
+  sockets[0].emit('start_game');
+  await Promise.all([started, initialHands]);
+
+  const arrangedHand = once(sockets[0], 'your_cards');
+  const layoutResponse = await fetch(`${baseUrl}/__test__/rooms/${roomCode}/hand-layout?player=Host&count=13`, {
+    method: 'POST',
+  });
+  assert.equal(layoutResponse.ok, true);
+  assert.equal((await arrangedHand).validMoves.length, 8);
+
+  const pausedHand = once(sockets[0], 'your_cards');
+  sockets[2].close();
+  assert.deepEqual((await pausedHand).validMoves, []);
+
+  const returningPlayer = await connectClient(baseUrl);
+  t.after(() => returningPlayer.close());
+  const restoredHand = once(sockets[0], 'your_cards');
+  const reconnected = once(returningPlayer, 'room_reconnected');
+  returningPlayer.emit('reconnect_to_room', {
+    roomCode,
+    username: names[2],
+    sessionToken: sessions.get(names[2]),
+  });
+
+  await reconnected;
+  assert.equal((await restoredHand).validMoves.length, 8);
+});
+
 test('server auto-plays the disconnected current player at the original deadline', async (t) => {
   const { baseUrl } = await startServer(t, {
     ACTIVE_GAME_RECONNECT_MS: '1200',
