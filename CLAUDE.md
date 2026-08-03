@@ -41,9 +41,12 @@ King's Corner.
 - Dealer for the next round = highest scorer of the finished round.
 - Player indicators in state: `warning` (≤3 cards), `critical` (every
   remaining card is playable on the current board).
-- Playing a card uses select then confirm: tapping an eligible card selects
-  and lifts it, and tapping the central Play button sends the move. Selecting
-  another card changes the choice without accidentally sending the first one.
+- Playing a card uses select then confirm: tapping an eligible card selects it
+  with a stronger outline but does not lift or enlarge it again, and tapping
+  the central Play button sends the move. Each hand card repeats its rank and
+  suit upright in the bottom-right corner so covered cards remain identifiable.
+  Selecting another card changes the choice without accidentally sending the
+  first one.
 - Round results say "You won!" to the winner and show confetti only on that
   player's screen. Other players see the winner's name without confetti. The
   overall winner sees a light fireworks effect on the final standings screen.

@@ -364,6 +364,10 @@ const GameScreen: React.FC<GameScreenProps> = ({
                       aria-label={`${selectedCardKey === cardKey ? 'Selected' : playable ? 'Select' : ''} ${getRankDisplay(card.rank)} of ${SUIT_LABELS[card.suit]}`.trim()}
                     >
                       <img src={getCardSrc(card)} alt="" decoding="async" />
+                      <span className="hand-card-corner" aria-hidden="true">
+                        <strong>{getRankDisplay(card.rank)}</strong>
+                        <SuitIcon suit={card.suit} />
+                      </span>
                     </button>
                   );
                 })}

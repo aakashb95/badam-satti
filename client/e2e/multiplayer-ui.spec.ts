@@ -555,14 +555,20 @@ test('seven-player game renders and starts across responsive viewports', async (
   }
   const handCountBeforeSelection = await page.locator('.hand-card').count();
   const firstPlayableCard = page.locator('.hand-card.playable').first();
+  const playableTransformBeforeSelection = await firstPlayableCard.evaluate((card) => {
+    const matrix = new DOMMatrixReadOnly(getComputedStyle(card).transform);
+    return { scale: matrix.a, lift: matrix.m42 };
+  });
+  await expect(firstPlayableCard.locator('.hand-card-corner')).toBeVisible();
   await firstPlayableCard.click({ position: { x: 5, y: 5 } });
   await expect(page.locator('.hand-card.is-selected')).toHaveCount(1);
   await expect(page.locator('.hand-card')).toHaveCount(handCountBeforeSelection);
   await expect(page.locator('.hand-pass-button')).toHaveClass(/is-card-confirm/);
   await expect(page.locator('.hand-pass-button')).toHaveAttribute('aria-label', /^Play /);
-  await expect.poll(() => page.locator('.hand-card.is-selected').evaluate((card) =>
-    new DOMMatrixReadOnly(getComputedStyle(card).transform).m42
-  )).toBeLessThanOrEqual(-12);
+  await expect.poll(() => page.locator('.hand-card.is-selected').evaluate((card) => {
+    const matrix = new DOMMatrixReadOnly(getComputedStyle(card).transform);
+    return { scale: matrix.a, lift: matrix.m42 };
+  })).toEqual(playableTransformBeforeSelection);
   if (process.env.CAPTURE_HAND_SCREENSHOTS === '1') {
     await page.screenshot({ path: `/tmp/badam-card-selected-${testInfo.project.name}.png` });
   }
