@@ -76,10 +76,10 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
       <div className="app-shell waiting-shell">
         <header className="app-header">
           <GameDeskLink onBeforeNavigate={onReturnToGameDesk} />
-          <div className="header-actions">
-            <SoundToggle soundOn={soundOn} onSoundChange={onSoundChange} variant="text" />
-            <button className="quiet-button" onClick={() => setShowHelp(true)}>How to play</button>
-            <button className="quiet-button danger-text" onClick={onLeaveRoom}>Leave room</button>
+          <div className="waiting-toolbar">
+            <SoundToggle soundOn={soundOn} onSoundChange={onSoundChange} />
+            <button className="round-icon-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button>
+            <button className="round-icon-button leave-button" onClick={onLeaveRoom} aria-label="Leave room">×</button>
           </div>
         </header>
 

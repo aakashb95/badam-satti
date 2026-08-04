@@ -3,8 +3,6 @@ import React from 'react';
 interface SoundToggleProps {
   soundOn: boolean;
   onSoundChange: (value: boolean) => void;
-  // 'icon' suits the game toolbar, 'text' the roomier waiting room header.
-  variant?: 'icon' | 'text';
 }
 
 const SoundIcon: React.FC<{ on: boolean }> = ({ on }) => (
@@ -21,15 +19,14 @@ const SoundIcon: React.FC<{ on: boolean }> = ({ on }) => (
   </svg>
 );
 
-const SoundToggle: React.FC<SoundToggleProps> = ({ soundOn, onSoundChange, variant = 'icon' }) => (
+const SoundToggle: React.FC<SoundToggleProps> = ({ soundOn, onSoundChange }) => (
   <button
-    className={`sound-toggle ${variant === 'icon' ? 'round-icon-button' : 'quiet-button'} ${soundOn ? '' : 'is-muted'}`}
+    className={`sound-toggle round-icon-button ${soundOn ? '' : 'is-muted'}`}
     onClick={() => onSoundChange(!soundOn)}
     aria-pressed={soundOn}
     aria-label={soundOn ? 'Turn table sounds off' : 'Turn table sounds on'}
   >
     <SoundIcon on={soundOn} />
-    {variant === 'text' && <span>{soundOn ? 'Sound on' : 'Sound off'}</span>}
   </button>
 );
 

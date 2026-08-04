@@ -285,11 +285,15 @@ p { margin-top: 0; }
 }
 
 .header-actions,
+.waiting-toolbar,
 .join-top-actions {
   display: flex;
   align-items: center;
   gap: 12px;
 }
+
+.waiting-toolbar { gap: 7px; }
+.waiting-toolbar .round-icon-button { width: 44px; height: 44px; }
 
 .join-top-actions {
   position: absolute;
@@ -1020,7 +1024,6 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 .round-icon-button.leave-button:hover { color: var(--red); }
 
 .sound-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
-.sound-toggle.quiet-button { min-height: 38px; }
 .sound-toggle.is-muted { color: var(--faint); }
 .sound-icon { display: block; width: 16px; height: 16px; flex: 0 0 auto; }
 .sound-icon path { fill: currentColor; }
@@ -1291,6 +1294,7 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
   overflow: visible;
   background: var(--card-face);
   border-radius: 5px;
+  isolation: isolate;
   opacity: 1;
   touch-action: manipulation;
   user-select: none;
@@ -1310,8 +1314,8 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 }
 .hand-card-corner {
   position: absolute;
-  right: calc(var(--hand-card-rendered-width) * .06);
-  bottom: calc(var(--hand-card-rendered-width) * .07);
+  right: calc(var(--hand-card-rendered-width) * .045);
+  bottom: calc(var(--hand-card-rendered-width) * .045);
   z-index: 1;
   display: grid;
   justify-items: center;
@@ -1322,12 +1326,12 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 .hand-card[data-suit="hearts"] .hand-card-corner,
 .hand-card[data-suit="diamonds"] .hand-card-corner { color: #e85d63; }
 .hand-card-corner strong {
-  font-size: calc(var(--hand-card-rendered-width) * .2);
+  font-size: calc(var(--hand-card-rendered-width) * .17);
   font-weight: 700;
 }
 .hand-card-corner .suit-icon {
-  width: calc(var(--hand-card-rendered-width) * .18);
-  height: calc(var(--hand-card-rendered-width) * .18);
+  width: calc(var(--hand-card-rendered-width) * .15);
+  height: calc(var(--hand-card-rendered-width) * .15);
 }
 .hand-card:disabled { opacity: 1; }
 .hand-card.playable { z-index: 4; cursor: pointer; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 92%, transparent)); transform: translateY(-9px); }

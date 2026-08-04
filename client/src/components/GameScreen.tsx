@@ -170,10 +170,13 @@ const GameScreen: React.FC<GameScreenProps> = ({
     const safeTotal = Math.max(total, 1);
     const clockPosition = (index * CLOCK_DIVISIONS) / safeTotal;
     const angle = (Math.PI * 2 * clockPosition) / CLOCK_DIVISIONS;
-    const horizontalRadius = safeTotal >= 9 ? 42 : safeTotal >= 6 ? 42 : 37;
-    const verticalRadius = safeTotal >= 9 ? 42 : safeTotal >= 6 ? 41 : 34;
-    const x = 50 - Math.sin(angle) * horizontalRadius;
-    const y = 50 + Math.cos(angle) * verticalRadius;
+    const compactTable = safeTotal <= 5;
+    const horizontalRadius = compactTable ? 46 : 42;
+    const verticalRadius = safeTotal >= 9 ? 42 : compactTable ? 47 : 41;
+    const rawX = 50 - Math.sin(angle) * horizontalRadius;
+    const rawY = 50 + Math.cos(angle) * verticalRadius;
+    const x = Math.min(88, Math.max(12, rawX));
+    const y = Math.min(91, Math.max(9, rawY));
 
     return {
       clockPosition,
@@ -344,10 +347,17 @@ const GameScreen: React.FC<GameScreenProps> = ({
           return (
             <div key={suit} className={`hand-suit ${cards.length ? '' : 'is-empty'}`} data-suit={suit} aria-label={SUIT_LABELS[suit]}>
               <div className="hand-card-fan">
-                {cards.map((card) => {
+                {cards.map((card, cardIndex) => {
                   const valid = isValidMove(card);
                   const playable = isMyTurn && valid;
                   const cardKey = `${card.suit}-${card.rank}`;
+                  const previousCard = cards[cardIndex - 1];
+                  const needsCoveredCorner = Boolean(
+                    isMyTurn &&
+                    !playable &&
+                    previousCard &&
+                    isValidMove(previousCard),
+                  );
 
                   return (
                     <button
@@ -364,10 +374,12 @@ const GameScreen: React.FC<GameScreenProps> = ({
                       aria-label={`${selectedCardKey === cardKey ? 'Selected' : playable ? 'Select' : ''} ${getRankDisplay(card.rank)} of ${SUIT_LABELS[card.suit]}`.trim()}
                     >
                       <img src={getCardSrc(card)} alt="" decoding="async" />
-                      <span className="hand-card-corner" aria-hidden="true">
-                        <strong>{getRankDisplay(card.rank)}</strong>
-                        <SuitIcon suit={card.suit} />
-                      </span>
+                      {needsCoveredCorner && (
+                        <span className="hand-card-corner" aria-hidden="true">
+                          <strong>{getRankDisplay(card.rank)}</strong>
+                          <SuitIcon suit={card.suit} />
+                        </span>
+                      )}
                     </button>
                   );
                 })}

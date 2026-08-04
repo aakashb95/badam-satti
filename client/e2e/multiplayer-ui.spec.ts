@@ -1,6 +1,7 @@
 import { expect, type Browser, type BrowserContextOptions, type Page, test } from '@playwright/test';
 
 const PLAYERS = ['Host', 'North', 'East', 'South', 'West', 'Guest', 'Corner'];
+const FIVE_PLAYERS = PLAYERS.slice(0, 5);
 
 async function applyZoom(page: Page, zoom: number) {
   if (zoom === 1) return;
@@ -47,6 +48,22 @@ async function joinRoom(page: Page, roomCode: string, name: string) {
 async function expectNoThemeToggle(page: Page) {
   await expect(page.locator('.theme-toggle')).toHaveCount(0);
   await expect(page.locator('.app')).not.toHaveAttribute('data-theme', /.+/);
+}
+
+async function expectWaitingToolbar(page: Page) {
+  const toolbar = page.locator('.waiting-toolbar');
+  const controls = toolbar.locator('.round-icon-button');
+  await expect(toolbar).toBeVisible();
+  await expect(controls).toHaveCount(3);
+  await expect(page.getByRole('button', { name: 'How to play' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Leave room' })).toBeVisible();
+  expect(await toolbar.evaluate((toolbarElement) => {
+    const elements = Array.from(toolbarElement.querySelectorAll<HTMLElement>('.round-icon-button'));
+    return elements.every((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width >= 44 && rect.height >= 44;
+    });
+  })).toBe(true);
 }
 
 async function expectGameLayoutStable(page: Page, label: string) {
@@ -202,6 +219,7 @@ async function expectFourSectionHandStable(page: Page, label: string, phonePortr
       suits: Object.fromEntries(suitOrder.map((suit) => [suit, cards.filter((card) => card.dataset.suit === suit).length])),
       playableCount: playableCards.length,
       playableLift: playableCards.map((card) => new DOMMatrixReadOnly(getComputedStyle(card).transform).m42),
+      cardIsolation: cards.map((card) => getComputedStyle(card).isolation),
       cardBounds: cards.map((card) => {
         const rect = card.getBoundingClientRect();
         return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
@@ -217,6 +235,7 @@ async function expectFourSectionHandStable(page: Page, label: string, phonePortr
   expect(result.suits.spades, `${label}: Spades should be visible`).toBeGreaterThan(0);
   expect(result.playableCount, `${label}: playable cards across all four suits should lift`).toBe(8);
   expect(result.playableLift.every((lift) => lift <= -6), `${label}: every playable card should be visibly raised`).toBe(true);
+  expect(result.cardIsolation.every((value) => value === 'isolate'), `${label}: card labels should remain inside their opaque card`).toBe(true);
   expect(
     result.sectionMeasurements.every((section) => section.steps.every((step) => step >= 12)),
     `${label}: each card corner needs enough reveal inside its suit. ${JSON.stringify(result)}`,
@@ -298,6 +317,7 @@ test('room session survives waiting and active-game refreshes with a safe recove
 
   await login(page, 'Host');
   const roomCode = await createRoom(page);
+  await expectWaitingToolbar(page);
   await page.getByRole('button', { name: 'How to play' }).click();
   await expect(page.getByRole('dialog', { name: 'How to play' })).toBeVisible();
   await page.getByRole('button', { name: 'Close help' }).click();
@@ -503,6 +523,7 @@ test('seven-player game renders and starts across responsive viewports', async (
 
   const roomCode = await createRoom(page);
   await expectNoThemeToggle(page);
+  await expectWaitingToolbar(page);
   const extraPlayers = [];
   for (const name of PLAYERS.slice(1)) {
     const player = await newPlayerPage(browser, contextOptions, baseURL || '');
@@ -559,7 +580,8 @@ test('seven-player game renders and starts across responsive viewports', async (
     const matrix = new DOMMatrixReadOnly(getComputedStyle(card).transform);
     return { scale: matrix.a, lift: matrix.m42 };
   });
-  await expect(firstPlayableCard.locator('.hand-card-corner')).toBeVisible();
+  await expect(page.locator('.hand-card-corner')).toHaveCount(1);
+  await expect(page.locator('.hand-card[data-suit="hearts"][data-rank="12"] .hand-card-corner')).toBeVisible();
   await firstPlayableCard.click({ position: { x: 5, y: 5 } });
   await expect(page.locator('.hand-card.is-selected')).toHaveCount(1);
   await expect(page.locator('.hand-card')).toHaveCount(handCountBeforeSelection);
@@ -580,6 +602,7 @@ test('seven-player game renders and starts across responsive viewports', async (
     await confirmCardButton.press('Enter');
   }
   await expect(page.locator('.hand-card')).toHaveCount(handCountBeforeSelection - 1);
+  await expect(page.locator('.hand-card-corner')).toHaveCount(0);
 
   const normalPillBackground = await page.locator('.table-player.is-you').evaluate((pill) => getComputedStyle(pill).backgroundColor);
   const criticalHandResponse = await fetch(`${baseURL}/__test__/rooms/${roomCode}/hand-layout?player=Host&critical=1`, { method: 'POST' });
@@ -615,6 +638,54 @@ test('seven-player game renders and starts across responsive viewports', async (
   await extraPlayers[0].page.getByRole('link', { name: 'Main menu — choose a game' }).click();
   await expect(extraPlayers[0].page).toHaveURL(/\/$/);
   await expect(page.locator('.table-player')).toHaveCount(PLAYERS.length - 1);
+
+  await Promise.all(extraPlayers.map((player) => player.context.close()));
+});
+
+test('five-player phone table keeps seats clear of stacked board cards', async ({ browser, page, baseURL }, testInfo) => {
+  test.skip(
+    !testInfo.project.name.includes('mobile-390') && !testInfo.project.name.includes('small-phone'),
+    'Phone layout regression',
+  );
+
+  const projectUse = testInfo.project.use as BrowserContextOptions;
+  const contextOptions: BrowserContextOptions = {
+    viewport: page.viewportSize() || projectUse.viewport || { width: 390, height: 844 },
+    deviceScaleFactor: projectUse.deviceScaleFactor,
+    isMobile: projectUse.isMobile,
+    hasTouch: projectUse.hasTouch,
+  };
+
+  await login(page, FIVE_PLAYERS[0]);
+  const textSizeButton = page.locator('.app-header .menu-text-size-button');
+  await textSizeButton.click();
+  await textSizeButton.click();
+  await textSizeButton.click();
+  await expect(textSizeButton).toHaveText('A+++');
+
+  const roomCode = await createRoom(page);
+  const extraPlayers = [];
+  for (const name of FIVE_PLAYERS.slice(1)) {
+    const player = await newPlayerPage(browser, contextOptions, baseURL || '');
+    extraPlayers.push(player);
+    await joinRoom(player.page, roomCode, name);
+  }
+
+  await page.locator('.start-button').click();
+  await expect(page.locator('.game-screen')).toBeVisible();
+  await page.locator('.round-intro').click();
+
+  const stackedBoardResponse = await fetch(`${baseURL}/__test__/rooms/${roomCode}/board-run?highest=13&includeSix=1`, { method: 'POST' });
+  expect(stackedBoardResponse.ok).toBe(true);
+  await expect(page.locator('.board-card-img')).toHaveCount(12);
+  await expect(page.locator('.table-player')).toHaveCount(FIVE_PLAYERS.length);
+  await expectGameLayoutStable(page, `${testInfo.project.name}:five-player-stacked-board`);
+  expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight + 1)).toBe(true);
+
+  if (process.env.CAPTURE_HAND_SCREENSHOTS === '1') {
+    await expect(page.locator('.notification')).toBeHidden();
+    await page.screenshot({ path: `/tmp/badam-five-player-${testInfo.project.name}.png` });
+  }
 
   await Promise.all(extraPlayers.map((player) => player.context.close()));
 });
