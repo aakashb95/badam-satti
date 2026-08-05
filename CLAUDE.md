@@ -45,10 +45,10 @@ King's Corner.
   remaining card is playable on the current board).
 - Playing a card uses select then confirm: tapping an eligible card selects it
   with a stronger outline but does not lift or enlarge it again, and tapping
-  the central Play button sends the move. A card covered by a raised eligible
-  card repeats its rank and suit upright in the bottom-right corner. Other
-  cards do not repeat the corner index. Selecting another card changes the
-  choice without accidentally sending the first one.
+  the central Play button sends the move. Every opaque card face has an upright
+  rank and suit in both the top-left and bottom-right corners. Overlapping cards
+  naturally hide the covered artwork. Selecting another card changes the choice
+  without accidentally sending the first one.
 - Round results say "You won!" to the winner and show confetti only on that
   player's screen. Other players see the winner's name without confetti. The
   overall winner sees a light fireworks effect on the final standings screen.

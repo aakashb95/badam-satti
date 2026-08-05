@@ -4,8 +4,8 @@
 // - Club uses a connected classic silhouette.
 // - Club pips use their own smaller scale so dense cards remain open.
 // - Spade reads as "pointed tip, flared tail" — never a rounded blob.
-// - Corner index (rank + pip) is what an overlapped fan actually shows,
-//   so it gets a bigger, bolder rank and a larger pip.
+// - Every opaque face includes the same upright rank + pip index in both
+//   corners. Overlapping cards naturally hide whichever parts are covered.
 //
 // Keep the club/spade paths in sync with SUIT_ICON_PATHS in
 // client/src/cards.tsx, and bump CARD_ASSET_VERSION there when rerunning.
@@ -35,6 +35,9 @@ const CLUB_CENTER_SCALES = {
   K: 0.24,
 };
 const CLUB_CORNER_SCALE = 0.17;
+const CARD_FONT_FAMILY = "Haskoy,-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif";
+const BOTTOM_CORNER_START = '<!-- bottom-right-index:start -->';
+const BOTTOM_CORNER_END = '<!-- bottom-right-index:end -->';
 
 const OLD_SPADE_BODY =
   'M0-38C-8-25-36-11-36 10c0 14 10 24 24 24 6 0 10-2 12-7 2 5 6 7 12 7 14 0 24-10 24-24C36-11 8-25 0-38Z';
@@ -50,6 +53,29 @@ if (files.length !== 52) {
 
 let clubFiles = 0;
 let spadeFiles = 0;
+
+const bottomCornerMarkup = (file) => {
+  const rank = file.slice(0, -5);
+  const suit = file.at(-5);
+  const red = suit === 'H' || suit === 'D';
+  const color = red ? '#e85d63' : '#151515';
+  const rankX = rank === '10' ? 84 : 85;
+  const fontSize = rank === '10' ? 15 : 20;
+  const fontWeight = rank === '10' ? 600 : 700;
+
+  const suitMarkup = {
+    H: `<path fill="${color}" d="M0-7C-7-18-23-12-23 3c0 14 15 23 23 31C8 26 23 17 23 3 23-12 7-18 0-7Z" transform="translate(85 121) scale(0.24) translate(0 -7)"/>`,
+    D: `<path fill="${color}" d="M0-23 16 0 0 23-16 0Z" transform="translate(85 121) scale(0.24)"/>`,
+    C: `<g fill="${color}" transform="translate(85 121) scale(${CLUB_CORNER_SCALE})"><path d="${CLASSIC_CLUB_PATH}"/></g>`,
+    S: `<g fill="${color}" transform="translate(85 121) scale(0.24)"><path d="${NEW_SPADE_BODY}"/><path d="${NEW_SPADE_STEM}"/></g>`,
+  }[suit];
+
+  if (!suitMarkup) {
+    throw new Error(`${file}: suit not recognized`);
+  }
+
+  return `${BOTTOM_CORNER_START}<g data-card-corner="bottom-right" font-family="${CARD_FONT_FAMILY}"><text x="${rankX}" y="104" fill="${color}" font-size="${fontSize}" font-weight="${fontWeight}" text-anchor="middle">${rank}</text>${suitMarkup}</g>${BOTTOM_CORNER_END}`;
+};
 
 for (const file of files) {
   const filePath = path.join(cardsDir, file);
@@ -89,6 +115,12 @@ for (const file of files) {
     svg = svg.replaceAll(OLD_SPADE_STEM, NEW_SPADE_STEM);
     spadeFiles += 1;
   }
+
+  svg = svg.replace(
+    /<!-- bottom-right-index:start -->.*?<!-- bottom-right-index:end -->/s,
+    '',
+  );
+  svg = svg.replace('</svg>', `${bottomCornerMarkup(file)}</svg>`);
 
   if (svg !== original) {
     await writeFile(filePath, svg);

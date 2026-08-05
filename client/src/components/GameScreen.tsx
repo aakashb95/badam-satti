@@ -325,17 +325,10 @@ const GameScreen: React.FC<GameScreenProps> = ({
           return (
             <div key={suit} className={`hand-suit ${cards.length ? '' : 'is-empty'}`} data-suit={suit} aria-label={SUIT_LABELS[suit]}>
               <div className="hand-card-fan">
-                {cards.map((card, cardIndex) => {
+                {cards.map((card) => {
                   const valid = isValidMove(card);
                   const playable = isMyTurn && valid;
                   const cardKey = `${card.suit}-${card.rank}`;
-                  const previousCard = cards[cardIndex - 1];
-                  const needsCoveredCorner = Boolean(
-                    isMyTurn &&
-                    !playable &&
-                    previousCard &&
-                    isValidMove(previousCard),
-                  );
 
                   return (
                     <button
@@ -352,12 +345,6 @@ const GameScreen: React.FC<GameScreenProps> = ({
                       aria-label={`${selectedCardKey === cardKey ? 'Selected' : playable ? 'Select' : ''} ${getRankDisplay(card.rank)} of ${SUIT_LABELS[card.suit]}`.trim()}
                     >
                       <img src={getCardSrc(card)} alt="" decoding="async" />
-                      {needsCoveredCorner && (
-                        <span className="hand-card-corner" aria-hidden="true">
-                          <strong>{getRankDisplay(card.rank)}</strong>
-                          <SuitIcon suit={card.suit} />
-                        </span>
-                      )}
                     </button>
                   );
                 })}

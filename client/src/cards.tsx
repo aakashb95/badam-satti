@@ -2,7 +2,7 @@ import React from 'react';
 import { Card } from './types';
 
 // Bump whenever the card SVGs change so cached art is refetched.
-export const CARD_ASSET_VERSION = 'v9';
+export const CARD_ASSET_VERSION = 'v10';
 
 export const SUIT_LABELS: Record<Card['suit'], string> = {
   hearts: 'Hearts',

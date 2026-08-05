@@ -219,7 +219,6 @@ async function expectFourSectionHandStable(page: Page, label: string, phonePortr
       suits: Object.fromEntries(suitOrder.map((suit) => [suit, cards.filter((card) => card.dataset.suit === suit).length])),
       playableCount: playableCards.length,
       playableLift: playableCards.map((card) => new DOMMatrixReadOnly(getComputedStyle(card).transform).m42),
-      cardIsolation: cards.map((card) => getComputedStyle(card).isolation),
       cardBounds: cards.map((card) => {
         const rect = card.getBoundingClientRect();
         return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
@@ -235,7 +234,6 @@ async function expectFourSectionHandStable(page: Page, label: string, phonePortr
   expect(result.suits.spades, `${label}: Spades should be visible`).toBeGreaterThan(0);
   expect(result.playableCount, `${label}: playable cards across all four suits should lift`).toBe(8);
   expect(result.playableLift.every((lift) => lift <= -6), `${label}: every playable card should be visibly raised`).toBe(true);
-  expect(result.cardIsolation.every((value) => value === 'isolate'), `${label}: card labels should remain inside their opaque card`).toBe(true);
   expect(
     result.sectionMeasurements.every((section) => section.steps.every((step) => step >= 12)),
     `${label}: each card corner needs enough reveal inside its suit. ${JSON.stringify(result)}`,
@@ -576,6 +574,17 @@ test('seven-player game renders and starts across responsive viewports', async (
   await expect(page.locator('.play-history')).toHaveCount(0);
   await expect(page.locator('.suit-pile[data-suit="clubs"] .empty-pile .suit-icon path')).toHaveCount(1);
   await expect(page.locator('.suit-pile[data-suit="spades"] .empty-pile .suit-icon path')).toHaveCount(2);
+  for (const suit of ['H', 'D', 'C', 'S']) {
+    for (const rank of ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']) {
+      const response = await fetch(`${baseURL}/badam7/images/cards/${rank}${suit}.svg`);
+      expect(response.ok, `${rank}${suit} asset should load`).toBe(true);
+      const markup = await response.text();
+      expect(markup.match(/data-card-corner="bottom-right"/g), `${rank}${suit} should have one bottom-right index`).toHaveLength(1);
+      expect(markup, `${rank}${suit} bottom-right index should stay upright`).not.toMatch(/data-card-corner="bottom-right"[^>]*transform=/);
+      expect(markup, `${rank}${suit} should place the bottom rank inside the right edge`).toContain(`y="104"`);
+      expect(markup, `${rank}${suit} should place the bottom suit inside the right edge`).toContain('translate(85 121)');
+    }
+  }
   for (const rank of [7, 8, 9, 10]) {
     const response = await fetch(`${baseURL}/badam7/images/cards/${rank}C.svg`);
     expect(response.ok, `${rank} of Clubs asset should load`).toBe(true);
@@ -612,8 +621,8 @@ test('seven-player game renders and starts across responsive viewports', async (
     const matrix = new DOMMatrixReadOnly(getComputedStyle(card).transform);
     return { scale: matrix.a, lift: matrix.m42 };
   });
-  await expect(page.locator('.hand-card-corner')).toHaveCount(1);
-  await expect(page.locator('.hand-card[data-suit="hearts"][data-rank="12"] .hand-card-corner')).toBeVisible();
+  await expect(page.locator('.hand-card-corner')).toHaveCount(0);
+  await expect(firstPlayableCard.locator('img')).toHaveAttribute('src', /\?v10$/);
   await firstPlayableCard.click({ position: { x: 5, y: 5 } });
   await expect(page.locator('.hand-card.is-selected')).toHaveCount(1);
   await expect(page.locator('.hand-card')).toHaveCount(handCountBeforeSelection);
