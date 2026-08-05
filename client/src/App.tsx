@@ -10,9 +10,12 @@ import LoadingScreen from './components/LoadingScreen';
 import LoginScreen from './components/LoginScreen';
 import MenuScreen from './components/MenuScreen';
 import Notification from './components/Notification';
+import RoundStartScreen from './components/RoundStartScreen';
 import SimulationScreen from './components/SimulationScreen';
 import SummaryScreen from './components/SummaryScreen';
 import WaitingRoom from './components/WaitingRoom';
+import { endAbandonedGame } from './gameAbandonment';
+import { NEXT_ROUND_SPLASH_MS, SCORE_COUNTING_SPLASH_MS } from './roundTiming';
 import { isSoundEnabled, playCardSound, playDealSound, playGameWinSound, playKnockSound, playRoundWinSound, setSoundEnabled, unlockAudio } from './sounds';
 import { AppState, Card, ComfortSize, GameSummary, Player, Winner } from './types';
 
@@ -280,6 +283,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, sou
   const notificationTimer = useRef<number | null>(null);
   const resultTimer = useRef<number | null>(null);
   const finalPlayTimer = useRef<number | null>(null);
+  const roundStartTimer = useRef<number | null>(null);
 
   useEffect(() => {
     stateRef.current = appState;
@@ -291,6 +295,13 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, sou
     notificationTimer.current = window.setTimeout(() => {
       setAppState((previous) => ({ ...previous, notification: null }));
     }, 2600);
+  }
+
+  function clearRoundStart() {
+    if (roundStartTimer.current !== null) {
+      window.clearTimeout(roundStartTimer.current);
+      roundStartTimer.current = null;
+    }
   }
 
   function showError(message: string) {
@@ -333,6 +344,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, sou
 
     socket.on('disconnect', (reason) => {
       actionPendingRef.current = false;
+      clearRoundStart();
       setIsConnected(false);
       if (reason === 'io server disconnect') socket.connect();
     });
@@ -407,6 +419,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, sou
 
     socket.on('room_reconnected', ({ roomCode, sessionToken, gameState, myCards, validMoves, canPass }) => {
       reconnectPendingRef.current = false;
+      clearRoundStart();
       const username = joinRequestRef.current?.username || stateRef.current.username;
       joinRequestRef.current = null;
       saveRoomSession({ roomCode, username, sessionToken });
@@ -430,6 +443,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, sou
 
     socket.on('game_started', ({ gameState }) => {
       actionPendingRef.current = false;
+      clearRoundStart();
       playDealSound();
       setAppState((previous) => ({
         ...previous,
@@ -465,6 +479,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, sou
 
     socket.on('game_over', (winner: Winner) => {
       actionPendingRef.current = false;
+      clearRoundStart();
       setAppState((previous) => ({ ...previous, winner }));
       if (finalPlayTimer.current !== null) window.clearTimeout(finalPlayTimer.current);
       if (resultTimer.current !== null) window.clearTimeout(resultTimer.current);
@@ -474,8 +489,20 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, sou
         resultTimer.current = window.setTimeout(() => {
           setShowingGameOverDelay(false);
           if (winner.winner === stateRef.current.username) playRoundWinSound();
-        }, 2200);
+        }, SCORE_COUNTING_SPLASH_MS);
       }, 2500);
+    });
+
+    socket.on('game_abandoned', ({ message }: { message: string }) => {
+      actionPendingRef.current = false;
+      reconnectPendingRef.current = false;
+      clearRoundStart();
+      clearRoomSession();
+      setRecoverySession(null);
+      setShowingGameOverDelay(false);
+      if (resultTimer.current !== null) window.clearTimeout(resultTimer.current);
+      if (finalPlayTimer.current !== null) window.clearTimeout(finalPlayTimer.current);
+      setAppState((previous) => endAbandonedGame(previous, message));
     });
 
     socket.on('cards_redistributed', ({ message }) => notify(message));
@@ -500,16 +527,39 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, sou
 
     socket.on('round_continued', ({ gameState }) => {
       actionPendingRef.current = false;
+      clearRoundStart();
       playDealSound();
       setShowingGameOverDelay(false);
+
+      if (!gameState.dealSummary) {
+        setAppState((previous) => ({
+          ...previous,
+          gameState,
+          currentScreen: 'game',
+          loading: null,
+          winner: null,
+          gameEndedByDepartures: false,
+        }));
+        return;
+      }
+
       setAppState((previous) => ({
         ...previous,
         gameState,
-        currentScreen: 'game',
+        currentScreen: 'round-start',
         loading: null,
         winner: null,
+        isMyTurn: false,
         gameEndedByDepartures: false,
       }));
+      roundStartTimer.current = window.setTimeout(() => {
+        roundStartTimer.current = null;
+        setAppState((previous) => (
+          previous.currentScreen === 'round-start'
+            ? { ...previous, currentScreen: 'game' }
+            : previous
+        ));
+      }, NEXT_ROUND_SPLASH_MS);
     });
 
     socket.on('turn_duration_changed', ({ gameState }) => {
@@ -517,6 +567,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, sou
     });
 
     socket.on('game_totals', (summary: GameSummary) => {
+      clearRoundStart();
       clearRoomSession();
       if (summary.winner === stateRef.current.username) playGameWinSound();
       setAppState((previous) => ({ ...previous, currentScreen: 'summary', loading: null, summary }));
@@ -538,7 +589,9 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, sou
         validMoves: playerState.validMoves || [],
         canPass: Boolean(playerState.canPass),
         winner: gameState?.gameFinished ? gameState.roundResult || previous.winner : null,
-        currentScreen: screenForGameState(gameState),
+        currentScreen: previous.currentScreen === 'round-start'
+          ? 'round-start'
+          : screenForGameState(gameState),
       }));
     });
 
@@ -608,6 +661,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, sou
       if (notificationTimer.current !== null) window.clearTimeout(notificationTimer.current);
       if (resultTimer.current !== null) window.clearTimeout(resultTimer.current);
       if (finalPlayTimer.current !== null) window.clearTimeout(finalPlayTimer.current);
+      clearRoundStart();
       socket.close();
       socketRef.current = null;
     };
@@ -647,12 +701,15 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, sou
   // The client only renders the countdown.
 
   useEffect(() => {
-    const isMyTurn = appState.gameState?.currentPlayerName === appState.username;
+    const isMyTurn =
+      isConnected &&
+      appState.currentScreen === 'game' &&
+      appState.gameState?.currentPlayerName === appState.username;
     if (isMyTurn !== appState.isMyTurn) setAppState((previous) => ({ ...previous, isMyTurn }));
-  }, [appState.gameState?.currentPlayerName, appState.isMyTurn, appState.username]);
+  }, [appState.currentScreen, appState.gameState?.currentPlayerName, appState.isMyTurn, appState.username, isConnected]);
 
   function requireConnection() {
-    if (socketRef.current && isConnected) return socketRef.current;
+    if (socketRef.current?.connected && isConnected) return socketRef.current;
     showError('Not connected to the server yet.');
     return null;
   }
@@ -735,6 +792,7 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, sou
   function leaveRoom() {
     actionPendingRef.current = false;
     reconnectPendingRef.current = false;
+    clearRoundStart();
     clearRoomSession();
     setRecoverySession(null);
     if (appState.currentRoom && socketRef.current?.connected) {
@@ -803,6 +861,10 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, sou
         return <GameScreen gameState={appState.gameState} myCards={appState.myCards} validMoves={appState.validMoves} isMyTurn={appState.isMyTurn} canPass={appState.canPass} username={appState.username} onPlayCard={playCard} onPassTurn={passTurn} onLeaveGame={leaveRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} soundOn={soundOn} onSoundChange={onSoundChange} onReturnToGameDesk={leaveRoomForGameDesk} roundWinnerName={appState.gameState?.gameFinished ? appState.winner?.winner : undefined} />;
       case 'game-over':
         return <GameOverScreen winner={appState.winner} username={appState.username} onContinueRound={() => { showLoading('Starting next round…'); socketRef.current?.emit('continue_round'); }} onExitGame={() => { showLoading('Calculating results…'); socketRef.current?.emit('exit_game'); }} showingDelay={showingGameOverDelay} canContinueRound={Boolean(hasMinimumPlayers && appState.gameState && appState.gameState.round < appState.gameState.maxRounds)} hasMinimumPlayers={hasMinimumPlayers} canFinishGame={canFinishGame} onReturnToGameDesk={leaveRoomForGameDesk} />;
+      case 'round-start':
+        return appState.gameState?.dealSummary
+          ? <RoundStartScreen round={appState.gameState.round} summary={appState.gameState.dealSummary} />
+          : <LoadingScreen message="Dealing the next round…" onReturnToGameDesk={leaveRoomForGameDesk} />;
       case 'summary':
         return <SummaryScreen summary={appState.summary} username={appState.username} onReturnToMenu={leaveRoom} onReturnToGameDesk={leaveRoomForGameDesk} />;
       case 'loading':

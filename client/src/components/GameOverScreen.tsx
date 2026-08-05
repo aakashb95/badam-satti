@@ -49,18 +49,14 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
   if (showingDelay) {
     return (
       <main className="screen results-reveal-screen">
-        <div className="results-reveal">
-          <GameDeskLink onBeforeNavigate={onReturnToGameDesk} className="results-game-desk" />
+        <GameDeskLink onBeforeNavigate={onReturnToGameDesk} className="results-game-desk" />
+        <div className="score-counting" aria-live="polite">
           <span className="eyebrow">Round complete</span>
-          <div className="game-over-delay">
-            <div className="reveal-seven">7<span>♥</span></div>
-            <h1>Cards down.</h1>
-            <p>Counting the table</p>
-            <div className="loading-dots">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
+          <strong>Counting scores</strong>
+          <div className="loading-dots" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
           </div>
         </div>
       </main>

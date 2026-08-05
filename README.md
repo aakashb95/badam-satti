@@ -4,6 +4,10 @@ This repository hosts a phone-first card-games site with Badam 7 (Badam Satti) a
 
 The public root is a lightweight game chooser. Badam runs at `/badam7/`; King’s Corner runs at `/kings-corner/`. See [`deploy/ROUTING.md`](deploy/ROUTING.md) for the reverse-proxy, SPA fallback, Socket.io, PWA, and backward-compatibility design.
 
+## Product principles
+
+Read [PRODUCT_PRINCIPLES.md](PRODUCT_PRINCIPLES.md) before changing gameplay, card layout, timers, or connection behavior. It defines the required card visibility, responsive layout, reconnection, and voluntary leave behavior.
+
 ## Requirements
 
 - Node.js 22. The repo includes `.nvmrc`, so `nvm use` is the easiest path.

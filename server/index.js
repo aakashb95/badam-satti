@@ -78,6 +78,7 @@ const io = require("socket.io")(server, {
 const path = require("path");
 
 const { GameRoom, TURN_DURATION_OPTIONS, MIN_PLAYERS } = require("./gameLogic");
+const { activeReconnectCutoffMs } = require("./connectionPolicy");
 const Database = require("./database");
 const IP_HASH_SALT = process.env.IP_HASH_SALT || crypto.randomBytes(32).toString('hex');
 const ROOM_CODE_PATTERN = /^[A-Z0-9]{6}$/;
@@ -89,6 +90,7 @@ const configuredActiveGameReconnectMs = Number(process.env.ACTIVE_GAME_RECONNECT
 const ACTIVE_GAME_RECONNECT_MS = Number.isFinite(configuredActiveGameReconnectMs) && configuredActiveGameReconnectMs >= 0
   ? configuredActiveGameReconnectMs
   : 60000;
+const ACTIVE_GAME_RECONNECT_CUTOFF_MS = activeReconnectCutoffMs(ACTIVE_GAME_RECONNECT_MS);
 
 function hashIP(ip) {
   return crypto.createHash('sha256').update(`${ip}${IP_HASH_SALT}`).digest('hex').substring(0, 16);
@@ -463,7 +465,7 @@ function scheduleTurnTimer(roomCode) {
   if (!TURN_TIMERS_ENABLED) return;
 
   const room = rooms[roomCode];
-  if (!room || !room.started || room.gameFinished || !room.hasMinimumConnectedPlayers()) return;
+  if (!room || !room.started || room.gameFinished || !room.hasMinimumSeatedPlayers()) return;
 
   // Small grace period so a human tap at the buzzer beats the server.
   const testDelayMs = process.env.NODE_ENV === 'test' ? Number(process.env.TURN_TIMER_TEST_DELAY_MS) : NaN;
@@ -490,7 +492,7 @@ function pickAutoPlayCard(validMoves) {
 
 async function runServerAutoPlay(roomCode, expectedTurnStartedAt) {
   const room = rooms[roomCode];
-  if (!room || !room.started || room.gameFinished || !room.hasMinimumConnectedPlayers()) return;
+  if (!room || !room.started || room.gameFinished || !room.hasMinimumSeatedPlayers()) return;
   // A real move landed while this callback was queued; its handler already
   // rescheduled the timer for the new turn.
   if (expectedTurnStartedAt && room.turnStartedAt !== expectedTurnStartedAt) return;
@@ -543,14 +545,13 @@ async function runServerAutoPlay(roomCode, expectedTurnStartedAt) {
   scheduleTurnTimer(roomCode);
 }
 
-function resumeTurnTimerIfReady(roomCode, room, wasBelowMinimum = false) {
-  if (!room.started || room.gameFinished || !room.hasMinimumConnectedPlayers()) {
+function resumeTurnTimerIfReady(roomCode, room) {
+  if (!room.started || room.gameFinished || !room.hasMinimumSeatedPlayers()) {
     clearTurnTimer(roomCode);
     return;
   }
 
-  if (wasBelowMinimum) {
-    room.markTurnStarted();
+  if (!activeTurnTimers.has(roomCode)) {
     scheduleTurnTimer(roomCode);
   }
 }
@@ -621,7 +622,17 @@ async function removePlayerFromRoom(roomCode, playerId, playerName, options = {}
   }
 
   if (activeGameWouldLoseMinimum) {
-    room.abandonGame();
+    clearTurnTimer(roomCode);
+    await Promise.all(
+      room.players.map((remainingPlayer) => db.removePlayerFromRoom(remainingPlayer.id, roomCode))
+    );
+    await db.deactivateRoom(roomCode);
+    io.to(roomCode).emit("game_abandoned", {
+      message: "All other players have left",
+    });
+    io.in(roomCode).socketsLeave(roomCode);
+    delete rooms[roomCode];
+    return null;
   }
 
   await db.saveGameRoom(roomCode, room);
@@ -637,13 +648,6 @@ async function removePlayerFromRoom(roomCode, playerId, playerName, options = {}
   if (notify) {
     io.to(roomCode).emit("player_disconnected", {
       playerName,
-      gameState: room.getState(),
-    });
-  }
-
-  if (activeGameWouldLoseMinimum) {
-    io.to(roomCode).emit("not_enough_players", {
-      message: "Need at least 3 players to play.",
       gameState: room.getState(),
     });
   }
@@ -1011,7 +1015,6 @@ io.on("connection", (socket) => {
         return;
       }
 
-      const wasBelowMinimum = !room.hasMinimumConnectedPlayers();
       if (existingPlayer?.connected) {
         if (existingPlayer.id !== socket.id) {
           const previousPlayerId = existingPlayer.id;
@@ -1066,7 +1069,7 @@ io.on("connection", (socket) => {
       currentRoom = cleanRoomCode;
       playerName = cleanUsername;
 
-      resumeTurnTimerIfReady(cleanRoomCode, room, wasBelowMinimum);
+      resumeTurnTimerIfReady(cleanRoomCode, room);
       await db.saveGameRoom(cleanRoomCode, room);
 
       console.log(`${playerName} reconnected to room: ${cleanRoomCode}`);
@@ -1086,9 +1089,7 @@ io.on("connection", (socket) => {
         gameState: room.getState(),
       });
 
-      // A disconnect below the minimum clears every player's valid moves while
-      // the round is paused. Resend each hand after reconnection so the current
-      // player gets those moves back when play resumes.
+      // Resend every hand because the returning socket has a new player ID.
       emitPlayerHands(room);
     } catch (error) {
       console.error("Error reconnecting to room:", error);
@@ -1210,14 +1211,6 @@ io.on("connection", (socket) => {
         socket.emit("error", "Not in a valid room");
         return;
       }
-      if (room.started && !room.gameFinished && !room.hasMinimumConnectedPlayers()) {
-        emitSocketError(
-          socket,
-          "PLAYERS_RECONNECTING",
-          "Need at least 3 connected players to continue"
-        );
-        return;
-      }
       const success = room.playCard(socket.id, card);
 
       if (!success) {
@@ -1275,14 +1268,6 @@ io.on("connection", (socket) => {
       const room = await ensureRoomExists(currentRoom);
       if (!room) {
         socket.emit("error", "Not in a valid room");
-        return;
-      }
-      if (room.started && !room.gameFinished && !room.hasMinimumConnectedPlayers()) {
-        emitSocketError(
-          socket,
-          "PLAYERS_RECONNECTING",
-          "Need at least 3 connected players to continue"
-        );
         return;
       }
       const success = room.passTurn(socket.id);
@@ -1497,16 +1482,13 @@ io.on("connection", (socket) => {
         // so it gets the same lenient window as the waiting room.
         const inActiveRound = room.started && !room.gameFinished;
         if (inActiveRound) {
-          // Active games get a short reconnection window. Mobile Safari and
-          // flaky networks can briefly drop sockets during app switches/taps.
+          // Active games preserve the seat through the full return window.
+          // The extra second makes a return at exactly 60 seconds valid.
           console.log(`Player ${playerName} disconnected during game - allowing ${ACTIVE_GAME_RECONNECT_MS / 1000}s reconnection`);
 
           room.setPlayerDisconnected(socket.id);
-          if (!room.hasMinimumConnectedPlayers()) {
-            clearTurnTimer(currentRoom);
-          }
 
-          await db.setPlayerDisconnected(socket.id, true, ACTIVE_GAME_RECONNECT_MS / 60000);
+          await db.setPlayerDisconnected(socket.id, true, ACTIVE_GAME_RECONNECT_CUTOFF_MS / 60000);
           await db.saveGameRoom(currentRoom, room);
 
           io.to(currentRoom).emit("player_temporarily_disconnected", {
@@ -1535,7 +1517,7 @@ io.on("connection", (socket) => {
             } catch (error) {
               console.error("Error finalizing active disconnect:", error);
             }
-          }, ACTIVE_GAME_RECONNECT_MS);
+          }, ACTIVE_GAME_RECONNECT_CUTOFF_MS);
           activeDisconnectTimers.set(disconnectTimerKey(disconnectedRoom, disconnectedPlayerId), timer);
         } else {
           // Waiting room or results screen - allow a long reconnection window

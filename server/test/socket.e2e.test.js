@@ -454,7 +454,7 @@ test('explicit active-game leave redistributes cards without waiting for disconn
   assert.deepEqual(leaveResult, { ok: true });
 });
 
-test('active game returns to waiting when fewer than three players remain', async (t) => {
+test('explicit leave ends the game cleanly when only two players remain', async (t) => {
   const { baseUrl } = await startServer(t);
   const sockets = await Promise.all([
     connectClient(baseUrl),
@@ -473,30 +473,28 @@ test('active game returns to waiting when fewer than three players remain', asyn
   await started;
 
   let redistributionCount = 0;
+  let removalCount = 0;
   host.on('cards_redistributed', () => { redistributionCount += 1; });
-  const minimumEvent = once(host, 'not_enough_players');
-  const playerRemoved = once(host, 'player_disconnected');
+  host.on('player_disconnected', () => { removalCount += 1; });
+  const abandonedForHost = once(host, 'game_abandoned');
+  const abandonedForThird = once(third, 'game_abandoned');
   const guestLeft = once(guest, 'left_room');
   guest.emit('leave_room');
 
-  const [minimum, removed] = await Promise.all([
-    minimumEvent,
-    playerRemoved,
+  const [hostAbandoned, thirdAbandoned] = await Promise.all([
+    abandonedForHost,
+    abandonedForThird,
     guestLeft,
   ]);
 
-  assert.equal(minimum.message, 'Need at least 3 players to play.');
-  assert.equal(minimum.gameState.started, false);
-  assert.equal(minimum.gameState.gameFinished, false);
-  assert.equal(minimum.gameState.round, 1);
-  assert.deepEqual(minimum.gameState.players.map((player) => player.name), ['Host', 'Third']);
-  assert.equal(minimum.gameState.players.every((player) => player.cardCount === 0), true);
-  assert.equal(removed.gameState.started, false);
+  assert.equal(hostAbandoned.message, 'All other players have left');
+  assert.equal(thirdAbandoned.message, 'All other players have left');
   await wait(50);
   assert.equal(redistributionCount, 0);
+  assert.equal(removalCount, 0);
 });
 
-test('active disconnect timeout returns the room to waiting below the minimum', async (t) => {
+test('expired disconnect ends the game cleanly when only two players remain', async (t) => {
   const { baseUrl } = await startServer(t);
   const sockets = await Promise.all([
     connectClient(baseUrl),
@@ -515,24 +513,26 @@ test('active disconnect timeout returns the room to waiting below the minimum', 
   await started;
 
   let redistributionCount = 0;
+  let removalCount = 0;
   host.on('cards_redistributed', () => { redistributionCount += 1; });
+  host.on('player_disconnected', () => { removalCount += 1; });
   const temporaryDisconnect = once(host, 'player_temporarily_disconnected');
-  const playerRemoved = once(host, 'player_disconnected');
-  const minimumEvent = once(host, 'not_enough_players');
+  const abandonedForHost = once(host, 'game_abandoned');
+  const abandonedForThird = once(third, 'game_abandoned');
   guest.close();
 
-  const [temporary, removed, minimum] = await Promise.all([
+  const [temporary, hostAbandoned, thirdAbandoned] = await Promise.all([
     temporaryDisconnect,
-    playerRemoved,
-    minimumEvent,
+    abandonedForHost,
+    abandonedForThird,
   ]);
 
   assert.equal(temporary.gameState.started, true);
   assert.equal(temporary.gameState.players.find((player) => player.name === 'Guest').connected, false);
-  assert.deepEqual(removed.gameState.players.map((player) => player.name), ['Host', 'Third']);
-  assert.equal(minimum.gameState.started, false);
-  assert.equal(minimum.gameState.players.every((player) => player.cardCount === 0), true);
+  assert.equal(hostAbandoned.message, 'All other players have left');
+  assert.equal(thirdAbandoned.message, 'All other players have left');
   assert.equal(redistributionCount, 0);
+  assert.equal(removalCount, 0);
 });
 
 test('active-game disconnect redistributes cards after the reconnection window', async (t) => {
@@ -632,7 +632,7 @@ test('current player can reconnect and act before the existing turn deadline', a
 
   assert.deepEqual(reconnectEvent.myCards, currentHand);
   assert.equal(reconnectEvent.gameState.currentPlayerName, currentName);
-  assert.ok(reconnectEvent.gameState.turnStartedAt > startingState.turnStartedAt);
+  assert.equal(reconnectEvent.gameState.turnStartedAt, startingState.turnStartedAt);
   assert.equal(reconnectEvent.gameState.players.filter((player) => player.name === currentName).length, 1);
   assert.equal(reconnectEvent.gameState.players.find((player) => player.name === currentName).connected, true);
 
@@ -650,7 +650,7 @@ test('current player can reconnect and act before the existing turn deadline', a
   assert.equal(removalCount, 0);
 });
 
-test('reconnection restores eligible moves for the player whose turn was paused', async (t) => {
+test('a weak connection does not freeze another player\'s eligible moves', async (t) => {
   const { baseUrl } = await startServer(t, { ACTIVE_GAME_RECONNECT_MS: '1200' });
   const names = ['Host', 'Guest', 'Third'];
   const sockets = await Promise.all(names.map(() => connectClient(baseUrl)));
@@ -676,9 +676,9 @@ test('reconnection restores eligible moves for the player whose turn was paused'
   assert.equal(layoutResponse.ok, true);
   assert.equal((await arrangedHand).validMoves.length, 8);
 
-  const pausedHand = once(sockets[0], 'your_cards');
+  const handDuringDrop = once(sockets[0], 'your_cards');
   sockets[2].close();
-  assert.deepEqual((await pausedHand).validMoves, []);
+  assert.equal((await handDuringDrop).validMoves.length, 8);
 
   const returningPlayer = await connectClient(baseUrl);
   t.after(() => returningPlayer.close());

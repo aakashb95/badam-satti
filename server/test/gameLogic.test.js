@@ -117,16 +117,31 @@ test('refuses to deal the next round with fewer than three players', () => {
   assert.equal(room.round, 1);
 });
 
-test('pauses card play when fewer than three players are connected', () => {
+test('continues the active round while a disconnected player still owns a seat', () => {
   const room = makeRoom(3);
   room.started = true;
   room.currentPlayerIndex = 0;
-  room.players[0].cards = [{ suit: 'hearts', rank: 7 }];
+  room.players[0].cards = [
+    { suit: 'hearts', rank: 7 },
+    { suit: 'clubs', rank: 2 },
+  ];
   room.setPlayerDisconnected('p2');
 
-  assert.equal(room.playCard('p0', { suit: 'hearts', rank: 7 }), false);
-  assert.equal(room.passTurn('p0'), false);
-  assert.deepEqual(room.getValidMoves('p0'), []);
+  assert.deepEqual(room.getValidMoves('p0'), [{ suit: 'hearts', rank: 7 }]);
+  assert.equal(room.playCard('p0', { suit: 'hearts', rank: 7 }), true);
+  assert.equal(room.players[room.currentPlayerIndex].id, 'p1');
+});
+
+test('never skips a disconnected player when advancing the turn', () => {
+  const room = makeRoom(5);
+  room.started = true;
+  room.currentPlayerIndex = 0;
+  room.setPlayerDisconnected('p1');
+
+  room.nextTurn();
+
+  assert.equal(room.players[room.currentPlayerIndex].id, 'p1');
+  assert.equal(room.getNextPlayerName(), 'Player 2');
 });
 
 test('stores the finished round result in public state', () => {
@@ -220,7 +235,7 @@ test('redistributes a leaver\'s cards starting from the next seat clockwise', ()
   assert.ok(byName.get('Player 0').some((card) => card.rank === 5 && card.suit === 'clubs'));
 });
 
-test('exposes turn timing and the next connected player in state', () => {
+test('exposes turn timing and the next seated player in state', () => {
   const room = makeRoom(4);
   assert.equal(room.setTurnDuration(40), true);
   assert.equal(room.setTurnDuration(37), false);
@@ -234,11 +249,41 @@ test('exposes turn timing and the next connected player in state', () => {
   const expectedNextIndex = (room.currentPlayerIndex + 1) % room.players.length;
   assert.equal(state.nextPlayerName, room.players[expectedNextIndex].name);
 
-  // Disconnected players are skipped in the "next" preview
+  // A temporary disconnect never changes seat order.
   room.players[expectedNextIndex].connected = false;
-  const skipIndex = (expectedNextIndex + 1) % room.players.length;
-  assert.equal(room.getState().nextPlayerName, room.players[skipIndex].name);
+  assert.equal(room.getState().nextPlayerName, room.players[expectedNextIndex].name);
 
   // Timer cannot change once the game has started
   assert.equal(room.setTurnDuration(60), false);
+});
+
+test('summarizes the dealer, starter, and extra cards in a five-player deal', () => {
+  const room = makeRoom(5);
+  room.dealerIndex = 0;
+  room.deck = room.createDeck();
+  room.dealCards();
+  room.started = true;
+  room.heartsSevenPlayerIndex = room.players.findIndex((player) =>
+    player.cards.some((card) => card.suit === 'hearts' && card.rank === 7)
+  );
+
+  assert.deepEqual(room.getState().dealSummary, {
+    dealerName: 'Player 0',
+    heartsSevenPlayerName: 'Player 2',
+    extraCardPlayerNames: ['Player 1', 'Player 2'],
+    cardsPerPlayer: 10,
+  });
+});
+
+test('summarizes an even four-player deal without extra-card recipients', () => {
+  const room = makeRoom(4);
+  room.deck = room.createDeck();
+  room.dealCards();
+  room.started = true;
+  room.heartsSevenPlayerIndex = room.players.findIndex((player) =>
+    player.cards.some((card) => card.suit === 'hearts' && card.rank === 7)
+  );
+
+  assert.deepEqual(room.getState().dealSummary.extraCardPlayerNames, []);
+  assert.equal(room.getState().dealSummary.cardsPerPlayer, 13);
 });

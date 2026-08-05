@@ -30,6 +30,13 @@ export interface GameBoard {
   spades: { up: number[]; down: number[] };
 }
 
+export interface DealSummary {
+  dealerName: string;
+  heartsSevenPlayerName: string;
+  extraCardPlayerNames: string[];
+  cardsPerPlayer: number;
+}
+
 export interface GameState {
   roomCode: string;
   players: Player[];
@@ -50,6 +57,7 @@ export interface GameState {
   turnDurationSeconds?: number;
   turnStartedAt?: number;
   roundResult?: Winner | null;
+  dealSummary?: DealSummary | null;
 }
 
 export interface Winner {
@@ -82,6 +90,7 @@ export type Screen =
   | 'waiting' 
   | 'game' 
   | 'game-over' 
+  | 'round-start'
   | 'loading' 
   | 'summary';
 
@@ -117,6 +126,7 @@ export interface SocketEvents {
   turn_passed: (data: { playerName: string; gameState: GameState; automatic?: boolean }) => void;
   turn_duration_changed: (data: { turnDurationSeconds: number; gameState: GameState }) => void;
   game_over: (winner: Winner) => void;
+  game_abandoned: (data: { message: string }) => void;
   cards_redistributed: (data: { message: string }) => void;
   not_enough_players: (data: { message: string; gameState: GameState }) => void;
   round_continued: (data: { gameState: GameState }) => void;

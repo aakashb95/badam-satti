@@ -269,7 +269,7 @@ class GameRoom {
   }
 
   isValidMove(playerId, card) {
-    if (!this.started || this.gameFinished || !this.hasMinimumConnectedPlayers()) {
+    if (!this.started || this.gameFinished || !this.hasMinimumSeatedPlayers()) {
       return false;
     }
 
@@ -396,7 +396,7 @@ class GameRoom {
   }
 
   canPlayerPlay(playerId) {
-    if (!this.started || this.gameFinished || !this.hasMinimumConnectedPlayers()) {
+    if (!this.started || this.gameFinished || !this.hasMinimumSeatedPlayers()) {
       return false;
     }
 
@@ -408,7 +408,7 @@ class GameRoom {
   }
 
   passTurn(playerId, automatic = false) {
-    if (!this.started || this.gameFinished || !this.hasMinimumConnectedPlayers()) {
+    if (!this.started || this.gameFinished || !this.hasMinimumSeatedPlayers()) {
       return false;
     }
 
@@ -440,33 +440,15 @@ class GameRoom {
     this.currentPlayerIndex =
       (this.currentPlayerIndex + 1) % this.players.length;
 
-    // Skip disconnected players
-    let attempts = 0;
-    while (
-      !this.players[this.currentPlayerIndex].connected &&
-      attempts < this.players.length
-    ) {
-      this.currentPlayerIndex =
-        (this.currentPlayerIndex + 1) % this.players.length;
-      attempts++;
-    }
-
     this.markTurnStarted();
   }
 
-  // Who plays after the current player, using the same disconnect-skip
-  // rules as nextTurn but without mutating state.
+  // A disconnected player still owns their seat during the reconnect window.
+  // Preview the next seat exactly as nextTurn will advance it.
   getNextPlayerName() {
     if (this.players.length === 0) return undefined;
-
-    let index = this.currentPlayerIndex;
-    for (let attempts = 0; attempts < this.players.length; attempts++) {
-      index = (index + 1) % this.players.length;
-      if (this.players[index].connected) {
-        return index === this.currentPlayerIndex ? undefined : this.players[index].name;
-      }
-    }
-    return undefined;
+    const index = (this.currentPlayerIndex + 1) % this.players.length;
+    return index === this.currentPlayerIndex ? undefined : this.players[index].name;
   }
 
   checkWinner() {
@@ -504,7 +486,7 @@ class GameRoom {
   }
 
   getValidMoves(playerId) {
-    if (!this.started || this.gameFinished || !this.hasMinimumConnectedPlayers()) {
+    if (!this.started || this.gameFinished || !this.hasMinimumSeatedPlayers()) {
       return [];
     }
 
@@ -581,6 +563,20 @@ class GameRoom {
   }
 
   getState() {
+    const cardsPerPlayer = this.players.length > 0
+      ? Math.floor(52 / this.players.length)
+      : 0;
+    const dealSummary = this.started
+      ? {
+          dealerName: this.players[this.dealerIndex]?.name || "",
+          heartsSevenPlayerName: this.players[this.heartsSevenPlayerIndex]?.name || "",
+          extraCardPlayerNames: this.players
+            .filter((player) => (player.dealtCardCount ?? 0) > cardsPerPlayer)
+            .map((player) => player.name),
+          cardsPerPlayer,
+        }
+      : null;
+
     return {
       roomCode: this.roomCode,
       currentPlayerIndex: this.currentPlayerIndex,
@@ -610,6 +606,7 @@ class GameRoom {
       turnDurationSeconds: this.turnDurationSeconds,
       turnStartedAt: this.turnStartedAt,
       roundResult: this.roundResult,
+      dealSummary,
     };
   }
 
@@ -620,7 +617,7 @@ class GameRoom {
     state.canPass =
       this.started &&
       !this.gameFinished &&
-      this.hasMinimumConnectedPlayers() &&
+      this.hasMinimumSeatedPlayers() &&
       this.players[this.currentPlayerIndex]?.id === playerId &&
       !this.canPlayerPlay(playerId);
     return state;
@@ -646,6 +643,10 @@ class GameRoom {
 
   hasMinimumConnectedPlayers() {
     return this.getConnectedPlayersCount() >= MIN_PLAYERS;
+  }
+
+  hasMinimumSeatedPlayers() {
+    return this.players.length >= MIN_PLAYERS;
   }
 
   isRoomEmpty() {

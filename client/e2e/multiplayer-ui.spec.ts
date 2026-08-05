@@ -412,19 +412,52 @@ test('round results survive a player refresh', async ({ browser, page, baseURL }
     await guest.page.screenshot({ path: `/tmp/badam-round-winner-other-${testInfo.project.name}.png` });
   }
   await page.getByRole('button', { name: /Next round/ }).click();
-  await expect(page.locator('.round-intro')).toBeVisible();
-  await expect(page.locator('.round-intro')).toContainText('Round 2');
-  await expect(page.locator('.round-intro')).toContainText('Cards are dealt.');
-  await expect(page.locator('.round-intro')).toContainText('Guest had the most points last round.');
-  await expect(page.locator('.round-intro-tiles > span')).toHaveCount(3);
-  await expect(page.locator('.round-intro')).toContainText('DealerGuest');
-  await expect(page.locator('.round-intro')).toContainText('Starts with 7♥');
-  await expect(page.locator('.round-intro')).toContainText('Your hand');
-  await expect(guest.page.locator('.round-intro')).toContainText('Round 2');
-  await expect(third.page.locator('.round-intro-tiles .has-extra-card')).toContainText('18 cards');
-  await expect(third.page.locator('.round-intro-tiles .has-extra-card')).toContainText('+1');
+  const hostSummary = page.locator('.deal-reveal-screen');
+  await expect(hostSummary).toBeVisible();
+  await expect(hostSummary).toContainText('Round 2');
+  await expect(hostSummary.locator('.round-reveal-tile')).toHaveCount(3);
+  await expect(hostSummary).toContainText('Highest score');
+  await expect(hostSummary).toContainText('Guest deals');
+  await expect(hostSummary).toContainText('7♥');
+  await expect(hostSummary).toContainText('Extra card');
+  await expect(hostSummary).toContainText('Third');
+  await expect(guest.page.locator('.deal-reveal-screen')).toContainText('Round 2');
+  await expect(third.page.locator('.deal-reveal-screen')).toContainText('Third');
+
+  await page.waitForTimeout(3_600);
+  const summaryLayout = await page.evaluate(() => {
+    const tiles = Array.from(document.querySelectorAll<HTMLElement>('.round-reveal-tile'));
+    const rects = tiles.map((tile) => tile.getBoundingClientRect());
+    return {
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      page: {
+        width: document.documentElement.scrollWidth,
+        height: document.documentElement.scrollHeight,
+      },
+      tiles: rects.map((rect, index) => ({
+        index,
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        opacity: getComputedStyle(tiles[index]).opacity,
+      })),
+    };
+  });
+  expect(summaryLayout.page.width, 'round summary must not scroll horizontally').toBeLessThanOrEqual(summaryLayout.viewport.width + 1);
+  expect(summaryLayout.page.height, 'round summary must fit without vertical scrolling').toBeLessThanOrEqual(summaryLayout.viewport.height + 1);
+  expect(summaryLayout.tiles.every((tile) =>
+    tile.left >= -1 &&
+    tile.top >= -1 &&
+    tile.right <= summaryLayout.viewport.width + 1 &&
+    tile.bottom <= summaryLayout.viewport.height + 1
+  ), `round summary rows must stay inside the phone viewport: ${JSON.stringify(summaryLayout)}`).toBe(true);
+  expect(summaryLayout.tiles.slice(1).every((tile, index) =>
+    summaryLayout.tiles[index].bottom <= tile.top
+  ), 'round summary rows must remain stacked without overlap').toBe(true);
+  expect(summaryLayout.tiles.every((tile) => tile.opacity === '1'), 'all three rows should remain visible together').toBe(true);
+
   if (process.env.CAPTURE_HAND_SCREENSHOTS === '1') {
-    await page.waitForTimeout(500);
     await page.screenshot({ path: `/tmp/badam-round-two-${testInfo.project.name}.png` });
     await third.page.screenshot({ path: `/tmp/badam-round-two-extra-${testInfo.project.name}.png` });
   }
@@ -468,7 +501,7 @@ test('overall winner sees the final celebration', async ({ browser, page, baseUR
   await third.context.close();
 });
 
-test('players leaving ends the game without an error dialog', async ({ browser, page, baseURL }, testInfo) => {
+test('a confirmed departure sends both remaining players to the menu', async ({ browser, page, baseURL }, testInfo) => {
   const projectUse = testInfo.project.use as BrowserContextOptions;
   const contextOptions: BrowserContextOptions = {
     viewport: page.viewportSize() || projectUse.viewport || { width: 1280, height: 720 },
@@ -489,13 +522,12 @@ test('players leaving ends the game without an error dialog', async ({ browser, 
   await guest.page.getByRole('button', { name: 'Leave game' }).click();
   await guest.page.getByRole('dialog', { name: 'Leave this game?' }).getByRole('button', { name: 'Leave game' }).click();
 
-  await expect(page.locator('.waiting-screen')).toBeVisible();
+  await expect(page.locator('.lobby-screen')).toBeVisible();
+  await expect(third.page.locator('.lobby-screen')).toBeVisible();
   await expect(page.getByRole('alertdialog')).toHaveCount(0);
-  await expect(page.locator('.waiting-heading h2')).toHaveText('Not enough players remain');
-
-  await third.page.getByRole('button', { name: 'Leave room' }).click();
-  await expect(page.locator('.waiting-heading h2')).toHaveText('Everyone has left the room');
-  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await expect(third.page.getByRole('alertdialog')).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText('All other players have left');
+  await expect(third.page.getByRole('status')).toContainText('All other players have left');
 
   await guest.context.close();
   await third.context.close();

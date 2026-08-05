@@ -1,0 +1,3 @@
+export const SCORE_COUNTING_SPLASH_MS = 1200;
+export const NEXT_ROUND_SPLASH_MS = 5000;
+export const NEXT_ROUND_STAGE_DELAYS_MS = [250, 1500, 2750];

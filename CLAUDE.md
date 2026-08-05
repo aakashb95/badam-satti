@@ -1,5 +1,7 @@
 # Badam Satti (Badam 7) — Project Guide
 
+Read `PRODUCT_PRINCIPLES.md` before changing gameplay, cards, layout, timers, player state, or connection behavior. Its rules are product requirements and acceptance criteria.
+
 Multiplayer PWA for the Indian card game Badam Satti (Sevens). Node.js +
 Socket.io backend, React 18 + TypeScript + Vite frontend, SQLite persistence.
 This repo also hosts a small static landing page and a second game,
@@ -50,9 +52,10 @@ King's Corner.
 - Round results say "You won!" to the winner and show confetti only on that
   player's screen. Other players see the winner's name without confetti. The
   overall winner sees a light fireworks effect on the final standings screen.
-- From round 2 onward, the opening screen shows the dealer, the player who has
-  7♥, and the current player's dealt hand size. A `+1` mark appears when that
-  player received an extra card.
+- After Next round, a five-second summary builds one row at a time. It shows
+  the highest scorer who deals, the player who received 7♥, and every player
+  who received an extra card. Earlier rows stay visible while the next row
+  appears.
 
 ## Turn timing (server-authoritative)
 
@@ -97,14 +100,14 @@ late caller into the already-started round instead of erroring.
 ## Disconnect / reconnect state machine
 
 - Waiting room: seat reserved 10 minutes (DB-backed), no removal timer.
-- Active round: 60s reconnection window (`ACTIVE_GAME_RECONNECT_MS`), then the
-  player is removed and their cards are redistributed starting from the seat
-  after theirs, clockwise when at least 3 players remain. If fewer than 3
-  players are connected, play and the turn timer pause. Reconnecting the third
-  player starts a fresh turn window and re-emits every connected player's hand
-  so the current player's valid moves are restored. If a confirmed departure
-  leaves fewer than 3 players, the match is abandoned without a winner and the
-  room returns to a clean waiting state.
+- Active round: 60s reconnection window (`ACTIVE_GAME_RECONNECT_MS`), with the
+  final displayed second included. The player keeps the same seat and cards.
+  Turn order never skips that player. The server may play or pass for the
+  missing player when the normal turn timer expires. After the return window,
+  the player is removed and their cards are redistributed clockwise when at
+  least 3 players remain. If a confirmed departure leaves 2 or fewer players,
+  the match ends and every remaining player returns to the menu with "All
+  other players have left".
 - Results screen (`gameFinished`): treated like the waiting room — 10-minute
   window, no redistribution, cumulative score kept. `roundResult` is persisted
   in room state so reconnecting restores the results screen.
@@ -135,6 +138,7 @@ cd server && npm test                 # node --test: unit + socket e2e
 
 # Client
 cd client && npm run dev              # Vite dev server
+cd client && npm test                 # focused client behavior tests
 cd client && npm run build            # tsc + vite build → dist/
 cd client && npm run test:e2e         # Playwright UI e2e (builds + runs server on :3101)
 cd client && npm run test:family      # headed 6-player smoke game (server must be running)
