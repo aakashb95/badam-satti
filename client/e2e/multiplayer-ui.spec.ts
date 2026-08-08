@@ -387,12 +387,40 @@ test('round results survive a player refresh', async ({ browser, page, baseURL }
   await joinRoom(guest.page, roomCode, 'Guest');
   await joinRoom(third.page, roomCode, 'Third');
 
+  const connectionDotInsets = await page.locator('.player-item').evaluateAll((items) =>
+    items.map((item) => {
+      const itemRect = item.getBoundingClientRect();
+      const dotRect = item.querySelector('.connection-dot')!.getBoundingClientRect();
+      return itemRect.right - dotRect.right;
+    }),
+  );
+  expect(connectionDotInsets.every((inset) => Math.abs(inset) < 0.1)).toBe(true);
+
   await page.locator('.start-button').click();
   await expect(guest.page.locator('.game-screen')).toBeVisible();
   const finishResponse = await fetch(`${baseURL}/__test__/rooms/${roomCode}/finish-round`, {
     method: 'POST',
   });
   expect(finishResponse.ok).toBe(true);
+
+  await expect(page.locator('.results-reveal-screen')).toBeVisible({ timeout: 6_000 });
+  const countingLayout = await page.locator('.results-reveal-screen').evaluate((screen) => {
+    const screenRect = screen.getBoundingClientRect();
+    const menuRect = screen.querySelector('.results-game-desk')?.getBoundingClientRect();
+    const scoreRect = screen.querySelector('.score-counting')?.getBoundingClientRect();
+    return {
+      screenCenter: screenRect.left + screenRect.width / 2,
+      menuCenter: menuRect ? menuRect.left + menuRect.width / 2 : null,
+      menuBottom: menuRect?.bottom ?? null,
+      scoreCenter: scoreRect ? scoreRect.left + scoreRect.width / 2 : null,
+      scoreTop: scoreRect?.top ?? null,
+    };
+  });
+  expect(countingLayout.menuCenter).not.toBeNull();
+  expect(countingLayout.scoreCenter).not.toBeNull();
+  expect(Math.abs(countingLayout.menuCenter! - countingLayout.screenCenter)).toBeLessThan(1);
+  expect(Math.abs(countingLayout.scoreCenter! - countingLayout.screenCenter)).toBeLessThan(1);
+  expect(countingLayout.menuBottom!).toBeLessThanOrEqual(countingLayout.scoreTop!);
 
   await expect(guest.page.locator('.results-screen')).toBeVisible({ timeout: 8_000 });
   await expect(guest.page.getByText('Host won.')).toBeVisible();
