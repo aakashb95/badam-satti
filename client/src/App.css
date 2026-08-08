@@ -923,7 +923,8 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 
 .dealer-badge,
 .dealer-chip { display: inline-grid; place-items: center; color: var(--accent); background: transparent; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); font-size: .53rem; font-weight: 500; text-transform: none; }
-.dealer-badge { padding: 4px 7px; border-radius: var(--radius); }
+.dealer-badge { grid-column: 3; padding: 4px 7px; border-radius: var(--radius); }
+.player-item .connection-dot { grid-column: 4; }
 .disconnected .connection-dot { background: var(--red); }
 .waiting-actions { display: flex; padding-top: 20px; justify-content: center; }
 .start-button { min-width: 240px; }
@@ -1339,7 +1340,7 @@ button.action-card:hover { background: #e8b85c12; border-color: #e8b85c66; trans
 @keyframes clock-seat-in { from { opacity: 0; transform: translate(-50%, -45%) scale(.97); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
 
 /* Results */
-.screen.results-reveal-screen { align-items: center; text-align: center; }
+.screen.results-reveal-screen { flex-direction: column; align-items: center; text-align: center; }
 .results-reveal { width: min(100%, 340px); }
 .score-counting {
   display: grid;
