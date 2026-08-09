@@ -306,13 +306,15 @@ test('first-time guide completes the rules and table walkthrough on a phone', as
 
 test('sound settings keep music and game sounds separate from the waiting room into the game', async ({ browser, page, baseURL }) => {
   await login(page, 'Music Host');
-  const roomCode = await createRoom(page);
-
+  await expect(page.getByRole('button', { name: 'How to play' })).toBeVisible();
   await page.getByRole('button', { name: 'Sound settings' }).click();
   const soundMenu = page.getByRole('group', { name: 'Sound settings' });
   const backgroundMusic = soundMenu.getByRole('checkbox', { name: 'Background music' });
+  const musicVolume = soundMenu.getByRole('slider', { name: 'Background music volume' });
   const gameSounds = soundMenu.getByRole('checkbox', { name: 'Game sounds' });
   await expect(backgroundMusic).toHaveAttribute('aria-checked', 'false');
+  await expect(musicVolume).toHaveValue('20');
+  await expect(musicVolume).toBeDisabled();
   await expect(gameSounds).toHaveAttribute('aria-checked', 'true');
   expect(await soundMenu.evaluate((menu) => {
     const rect = menu.getBoundingClientRect();
@@ -322,15 +324,29 @@ test('sound settings keep music and game sounds separate from the waiting room i
   const firstMusicRequest = page.waitForRequest((request) => request.url().endsWith('/music/shanghai.mp3'));
   await backgroundMusic.click();
   await firstMusicRequest;
-  await gameSounds.click();
+  await expect(musicVolume).toBeEnabled();
+  await musicVolume.fill('40');
+  await expect(musicVolume).toHaveValue('40');
+  await expect(soundMenu.getByText('40%', { exact: true })).toBeVisible();
   await expect(backgroundMusic).toHaveAttribute('aria-checked', 'true');
-  await expect(gameSounds).toHaveAttribute('aria-checked', 'false');
+  await expect(gameSounds).toHaveAttribute('aria-checked', 'true');
   expect(await page.evaluate(() => ({
     music: window.localStorage.getItem('badam-satti-background-music'),
+    musicVolume: window.localStorage.getItem('badam-satti-background-music-volume'),
     gameSounds: window.localStorage.getItem('badam-satti-sound'),
-  }))).toEqual({ music: 'on', gameSounds: 'off' });
+  }))).toEqual({ music: 'on', musicVolume: '0.4', gameSounds: null });
   await page.keyboard.press('Escape');
   await expect(soundMenu).not.toBeVisible();
+
+  const roomCode = await createRoom(page);
+  await page.getByRole('button', { name: 'Sound settings' }).click();
+  const waitingSoundMenu = page.getByRole('group', { name: 'Sound settings' });
+  await expect(waitingSoundMenu.getByRole('checkbox', { name: 'Background music' })).toHaveAttribute('aria-checked', 'true');
+  await expect(waitingSoundMenu.getByRole('slider', { name: 'Background music volume' })).toHaveValue('40');
+  const waitingGameSounds = waitingSoundMenu.getByRole('checkbox', { name: 'Game sounds' });
+  await waitingGameSounds.click();
+  await expect(waitingGameSounds).toHaveAttribute('aria-checked', 'false');
+  await page.keyboard.press('Escape');
 
   const guest = await newPlayerPage(browser, {}, baseURL || '');
   const third = await newPlayerPage(browser, {}, baseURL || '');
@@ -342,7 +358,22 @@ test('sound settings keep music and game sounds separate from the waiting room i
   await page.getByRole('button', { name: 'Sound settings' }).click();
   const gameSoundMenu = page.getByRole('group', { name: 'Sound settings' });
   await expect(gameSoundMenu.getByRole('checkbox', { name: 'Background music' })).toHaveAttribute('aria-checked', 'true');
+  await expect(gameSoundMenu.getByRole('slider', { name: 'Background music volume' })).toHaveValue('40');
   await expect(gameSoundMenu.getByRole('checkbox', { name: 'Game sounds' })).toHaveAttribute('aria-checked', 'false');
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: 'Leave game' }).click();
+  const leaveDialog = page.getByRole('dialog', { name: 'Leave this game?' });
+  await leaveDialog.getByRole('button', { name: 'Leave game' }).click();
+  await expect(page.locator('.lobby-screen')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'How to play' })).toBeVisible();
+  await page.getByRole('button', { name: 'Sound settings' }).click();
+  const returnedMenu = page.getByRole('group', { name: 'Sound settings' });
+  const returnedMusic = returnedMenu.getByRole('checkbox', { name: 'Background music' });
+  await expect(returnedMusic).toHaveAttribute('aria-checked', 'true');
+  await expect(returnedMenu.getByRole('slider', { name: 'Background music volume' })).toHaveValue('40');
+  await returnedMusic.click();
+  await expect(returnedMusic).toHaveAttribute('aria-checked', 'false');
 
   await guest.context.close();
   await third.context.close();

@@ -17,8 +17,10 @@ interface WaitingRoomProps {
   comfortSize: ComfortSize;
   onComfortSizeChange: (size: ComfortSize) => void;
   backgroundMusicOn: boolean;
+  backgroundMusicVolume: number;
   gameSoundsOn: boolean;
   onBackgroundMusicChange: (value: boolean) => void;
+  onBackgroundMusicVolumeChange: (value: number) => void;
   onGameSoundsChange: (value: boolean) => void;
 }
 
@@ -37,8 +39,10 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
   comfortSize,
   onComfortSizeChange,
   backgroundMusicOn,
+  backgroundMusicVolume,
   gameSoundsOn,
   onBackgroundMusicChange,
+  onBackgroundMusicVolumeChange,
   onGameSoundsChange,
 }) => {
   const [lanOrigin, setLanOrigin] = useState<string | null>(null);
@@ -83,8 +87,10 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
           <div className="waiting-toolbar">
             <SoundToggle
               backgroundMusicOn={backgroundMusicOn}
+              backgroundMusicVolume={backgroundMusicVolume}
               gameSoundsOn={gameSoundsOn}
               onBackgroundMusicChange={onBackgroundMusicChange}
+              onBackgroundMusicVolumeChange={onBackgroundMusicVolumeChange}
               onGameSoundsChange={onGameSoundsChange}
             />
             <button className="round-icon-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button>

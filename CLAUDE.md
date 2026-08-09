@@ -24,7 +24,8 @@ King's Corner.
   replacing an mp3 means bumping the cache names in `client/public/sw.js`,
   which precaches them.
 - `client/src/music.ts` — optional background music. Six tracks in
-  `client/public/music/` play in order, starting with Shanghai, at 25% volume.
+  `client/public/music/` play in order, starting with Shanghai, at 20% volume
+  by default. Players can change and save the music volume from the sound menu.
   Music has its own saved setting (`badam-satti-background-music`), starts only
   after a player enables it, pauses while the tab is hidden, and continues
   across the waiting room and game screens. The tracks load one at a time and

@@ -1,5 +1,6 @@
 const MUSIC_STORAGE_KEY = 'badam-satti-background-music';
-const BACKGROUND_MUSIC_VOLUME = 0.25;
+const MUSIC_VOLUME_STORAGE_KEY = 'badam-satti-background-music-volume';
+const DEFAULT_BACKGROUND_MUSIC_VOLUME = 0.2;
 
 const BACKGROUND_TRACKS = [
   'shanghai.mp3',
@@ -11,6 +12,7 @@ const BACKGROUND_TRACKS = [
 ];
 
 let enabled = readStoredPreference();
+let volume = readStoredVolume();
 let player: HTMLAudioElement | null = null;
 let trackIndex = 0;
 let failedTrackCount = 0;
@@ -22,6 +24,23 @@ function readStoredPreference(): boolean {
   } catch {
     return false;
   }
+}
+
+function readStoredVolume(): number {
+  try {
+    const storedValue = window.localStorage.getItem(MUSIC_VOLUME_STORAGE_KEY);
+    if (storedValue === null) return DEFAULT_BACKGROUND_MUSIC_VOLUME;
+    const storedVolume = Number(storedValue);
+    return Number.isFinite(storedVolume) && storedVolume >= 0 && storedVolume <= 1
+      ? storedVolume
+      : DEFAULT_BACKGROUND_MUSIC_VOLUME;
+  } catch {
+    return DEFAULT_BACKGROUND_MUSIC_VOLUME;
+  }
+}
+
+function clampVolume(value: number): number {
+  return Math.min(1, Math.max(0, value));
 }
 
 function trackUrl(index: number): string {
@@ -52,7 +71,7 @@ function getPlayer(): HTMLAudioElement {
   if (player) return player;
 
   player = new Audio();
-  player.volume = BACKGROUND_MUSIC_VOLUME;
+  player.volume = volume;
   player.preload = 'auto';
   player.addEventListener('playing', () => {
     failedTrackCount = 0;
@@ -90,6 +109,20 @@ export function setBackgroundMusicEnabled(value: boolean) {
 
   if (value) playCurrentTrack();
   else player?.pause();
+}
+
+export function getBackgroundMusicVolume(): number {
+  return volume;
+}
+
+export function setBackgroundMusicVolume(value: number) {
+  volume = clampVolume(value);
+  if (player) player.volume = volume;
+  try {
+    window.localStorage.setItem(MUSIC_VOLUME_STORAGE_KEY, String(volume));
+  } catch {
+    // The level still applies for this session when storage is unavailable.
+  }
 }
 
 export function resumeBackgroundMusic() {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import HelpModal from './HelpModal';
 import { ComfortSize } from '../types';
 import GameDeskLink from './GameDeskLink';
+import SoundToggle from './SoundToggle';
 
 interface MenuScreenProps {
   username: string;
@@ -9,6 +10,12 @@ interface MenuScreenProps {
   onJoinRoom: (roomCode: string) => void;
   comfortSize: ComfortSize;
   onComfortSizeChange: (size: ComfortSize) => void;
+  backgroundMusicOn: boolean;
+  backgroundMusicVolume: number;
+  gameSoundsOn: boolean;
+  onBackgroundMusicChange: (value: boolean) => void;
+  onBackgroundMusicVolumeChange: (value: number) => void;
+  onGameSoundsChange: (value: boolean) => void;
 }
 
 const LOBBY_GREETINGS = [
@@ -27,7 +34,19 @@ const LobbyGreeting: React.FC<{ username: string }> = ({ username }) => {
   return <h2>{greeting.lead}, <span>{username}</span>{greeting.punctuation}</h2>;
 };
 
-const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinRoom, comfortSize, onComfortSizeChange }) => {
+const MenuScreen: React.FC<MenuScreenProps> = ({
+  username,
+  onCreateRoom,
+  onJoinRoom,
+  comfortSize,
+  onComfortSizeChange,
+  backgroundMusicOn,
+  backgroundMusicVolume,
+  gameSoundsOn,
+  onBackgroundMusicChange,
+  onBackgroundMusicVolumeChange,
+  onGameSoundsChange,
+}) => {
   const [roomCode, setRoomCode] = useState('');
   const [showHelpModal, setShowHelpModal] = useState(false);
 
@@ -56,6 +75,14 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ username, onCreateRoom, onJoinR
         <header className="app-header">
           <GameDeskLink />
           <div className="header-actions">
+            <SoundToggle
+              backgroundMusicOn={backgroundMusicOn}
+              backgroundMusicVolume={backgroundMusicVolume}
+              gameSoundsOn={gameSoundsOn}
+              onBackgroundMusicChange={onBackgroundMusicChange}
+              onBackgroundMusicVolumeChange={onBackgroundMusicVolumeChange}
+              onGameSoundsChange={onGameSoundsChange}
+            />
             <button className="quiet-button" onClick={() => setShowHelpModal(true)}>How to play</button>
             <button
               className="text-size-button menu-text-size-button"
