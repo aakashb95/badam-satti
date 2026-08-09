@@ -304,6 +304,50 @@ test('first-time guide completes the rules and table walkthrough on a phone', as
   await context.close();
 });
 
+test('sound settings keep music and game sounds separate from the waiting room into the game', async ({ browser, page, baseURL }) => {
+  await login(page, 'Music Host');
+  const roomCode = await createRoom(page);
+
+  await page.getByRole('button', { name: 'Sound settings' }).click();
+  const soundMenu = page.getByRole('group', { name: 'Sound settings' });
+  const backgroundMusic = soundMenu.getByRole('checkbox', { name: 'Background music' });
+  const gameSounds = soundMenu.getByRole('checkbox', { name: 'Game sounds' });
+  await expect(backgroundMusic).toHaveAttribute('aria-checked', 'false');
+  await expect(gameSounds).toHaveAttribute('aria-checked', 'true');
+  expect(await soundMenu.evaluate((menu) => {
+    const rect = menu.getBoundingClientRect();
+    return rect.left >= 0 && rect.top >= 0 && rect.right <= window.innerWidth && rect.bottom <= window.innerHeight;
+  })).toBe(true);
+
+  const firstMusicRequest = page.waitForRequest((request) => request.url().endsWith('/music/shanghai.mp3'));
+  await backgroundMusic.click();
+  await firstMusicRequest;
+  await gameSounds.click();
+  await expect(backgroundMusic).toHaveAttribute('aria-checked', 'true');
+  await expect(gameSounds).toHaveAttribute('aria-checked', 'false');
+  expect(await page.evaluate(() => ({
+    music: window.localStorage.getItem('badam-satti-background-music'),
+    gameSounds: window.localStorage.getItem('badam-satti-sound'),
+  }))).toEqual({ music: 'on', gameSounds: 'off' });
+  await page.keyboard.press('Escape');
+  await expect(soundMenu).not.toBeVisible();
+
+  const guest = await newPlayerPage(browser, {}, baseURL || '');
+  const third = await newPlayerPage(browser, {}, baseURL || '');
+  await joinRoom(guest.page, roomCode, 'Music Guest');
+  await joinRoom(third.page, roomCode, 'Music Third');
+  await page.locator('.start-button').click();
+  await expect(page.locator('.game-screen')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Sound settings' }).click();
+  const gameSoundMenu = page.getByRole('group', { name: 'Sound settings' });
+  await expect(gameSoundMenu.getByRole('checkbox', { name: 'Background music' })).toHaveAttribute('aria-checked', 'true');
+  await expect(gameSoundMenu.getByRole('checkbox', { name: 'Game sounds' })).toHaveAttribute('aria-checked', 'false');
+
+  await guest.context.close();
+  await third.context.close();
+});
+
 test('room session survives waiting and active-game refreshes with a safe recovery exit', async ({ browser, page, baseURL }, testInfo) => {
   const projectUse = testInfo.project.use as BrowserContextOptions;
   const contextOptions: BrowserContextOptions = {

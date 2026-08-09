@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 
 interface SoundToggleProps {
-  soundOn: boolean;
-  onSoundChange: (value: boolean) => void;
+  backgroundMusicOn: boolean;
+  gameSoundsOn: boolean;
+  onBackgroundMusicChange: (value: boolean) => void;
+  onGameSoundsChange: (value: boolean) => void;
 }
 
 const SoundIcon: React.FC<{ on: boolean }> = ({ on }) => (
@@ -19,15 +21,74 @@ const SoundIcon: React.FC<{ on: boolean }> = ({ on }) => (
   </svg>
 );
 
-const SoundToggle: React.FC<SoundToggleProps> = ({ soundOn, onSoundChange }) => (
-  <button
-    className={`sound-toggle round-icon-button ${soundOn ? '' : 'is-muted'}`}
-    onClick={() => onSoundChange(!soundOn)}
-    aria-pressed={soundOn}
-    aria-label={soundOn ? 'Turn table sounds off' : 'Turn table sounds on'}
-  >
-    <SoundIcon on={soundOn} />
-  </button>
-);
+const SoundToggle: React.FC<SoundToggleProps> = ({
+  backgroundMusicOn,
+  gameSoundsOn,
+  onBackgroundMusicChange,
+  onGameSoundsChange,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const controlRef = useRef<HTMLDivElement>(null);
+  const menuId = useId();
+  const anySoundOn = backgroundMusicOn || gameSoundsOn;
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const closeOnOutsidePress = (event: PointerEvent) => {
+      if (!controlRef.current?.contains(event.target as Node)) setIsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsidePress);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePress);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className="sound-control" ref={controlRef}>
+      <button
+        className={`sound-toggle round-icon-button ${anySoundOn ? '' : 'is-muted'}`}
+        onClick={() => setIsOpen((open) => !open)}
+        aria-expanded={isOpen}
+        aria-controls={menuId}
+        aria-label="Sound settings"
+      >
+        <SoundIcon on={anySoundOn} />
+      </button>
+      {isOpen && (
+        <div className="sound-menu" id={menuId} role="group" aria-label="Sound settings">
+          <button
+            className="sound-menu-option"
+            role="checkbox"
+            aria-checked={backgroundMusicOn}
+            onClick={() => onBackgroundMusicChange(!backgroundMusicOn)}
+          >
+            <span className={`sound-menu-check ${backgroundMusicOn ? 'is-checked' : ''}`} aria-hidden="true">
+              {backgroundMusicOn ? '✓' : ''}
+            </span>
+            <span>Background music</span>
+          </button>
+          <button
+            className="sound-menu-option"
+            role="checkbox"
+            aria-checked={gameSoundsOn}
+            onClick={() => onGameSoundsChange(!gameSoundsOn)}
+          >
+            <span className={`sound-menu-check ${gameSoundsOn ? 'is-checked' : ''}`} aria-hidden="true">
+              {gameSoundsOn ? '✓' : ''}
+            </span>
+            <span>Game sounds</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default SoundToggle;
