@@ -2,8 +2,10 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 
 interface SoundToggleProps {
   backgroundMusicOn: boolean;
+  backgroundMusicVolume: number;
   gameSoundsOn: boolean;
   onBackgroundMusicChange: (value: boolean) => void;
+  onBackgroundMusicVolumeChange: (value: number) => void;
   onGameSoundsChange: (value: boolean) => void;
 }
 
@@ -23,8 +25,10 @@ const SoundIcon: React.FC<{ on: boolean }> = ({ on }) => (
 
 const SoundToggle: React.FC<SoundToggleProps> = ({
   backgroundMusicOn,
+  backgroundMusicVolume,
   gameSoundsOn,
   onBackgroundMusicChange,
+  onBackgroundMusicVolumeChange,
   onGameSoundsChange,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -74,6 +78,22 @@ const SoundToggle: React.FC<SoundToggleProps> = ({
             </span>
             <span>Background music</span>
           </button>
+          <label className={`sound-volume ${backgroundMusicOn ? '' : 'is-disabled'}`}>
+            <span>
+              Music volume
+              <output>{Math.round(backgroundMusicVolume * 100)}%</output>
+            </span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              value={Math.round(backgroundMusicVolume * 100)}
+              disabled={!backgroundMusicOn}
+              aria-label="Background music volume"
+              onChange={(event) => onBackgroundMusicVolumeChange(Number(event.target.value) / 100)}
+            />
+          </label>
           <button
             className="sound-menu-option"
             role="checkbox"

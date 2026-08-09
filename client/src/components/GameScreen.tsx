@@ -18,8 +18,10 @@ interface GameScreenProps {
   comfortSize: ComfortSize;
   onComfortSizeChange: (size: ComfortSize) => void;
   backgroundMusicOn: boolean;
+  backgroundMusicVolume: number;
   gameSoundsOn: boolean;
   onBackgroundMusicChange: (value: boolean) => void;
+  onBackgroundMusicVolumeChange: (value: number) => void;
   onGameSoundsChange: (value: boolean) => void;
   onReturnToGameDesk: () => Promise<void>;
   roundWinnerName?: string;
@@ -47,8 +49,10 @@ const GameScreen: React.FC<GameScreenProps> = ({
   comfortSize,
   onComfortSizeChange,
   backgroundMusicOn,
+  backgroundMusicVolume,
   gameSoundsOn,
   onBackgroundMusicChange,
+  onBackgroundMusicVolumeChange,
   onGameSoundsChange,
   onReturnToGameDesk,
   roundWinnerName,
@@ -399,8 +403,10 @@ const GameScreen: React.FC<GameScreenProps> = ({
           <div className="game-toolbar">
             <SoundToggle
               backgroundMusicOn={backgroundMusicOn}
+              backgroundMusicVolume={backgroundMusicVolume}
               gameSoundsOn={gameSoundsOn}
               onBackgroundMusicChange={onBackgroundMusicChange}
+              onBackgroundMusicVolumeChange={onBackgroundMusicVolumeChange}
               onGameSoundsChange={onGameSoundsChange}
             />
             <button className="round-icon-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button>
