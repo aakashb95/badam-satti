@@ -17,8 +17,10 @@ interface GameScreenProps {
   onLeaveGame: () => void;
   comfortSize: ComfortSize;
   onComfortSizeChange: (size: ComfortSize) => void;
-  soundOn: boolean;
-  onSoundChange: (value: boolean) => void;
+  backgroundMusicOn: boolean;
+  gameSoundsOn: boolean;
+  onBackgroundMusicChange: (value: boolean) => void;
+  onGameSoundsChange: (value: boolean) => void;
   onReturnToGameDesk: () => Promise<void>;
   roundWinnerName?: string;
 }
@@ -44,8 +46,10 @@ const GameScreen: React.FC<GameScreenProps> = ({
   onLeaveGame,
   comfortSize,
   onComfortSizeChange,
-  soundOn,
-  onSoundChange,
+  backgroundMusicOn,
+  gameSoundsOn,
+  onBackgroundMusicChange,
+  onGameSoundsChange,
   onReturnToGameDesk,
   roundWinnerName,
 }) => {
@@ -393,7 +397,12 @@ const GameScreen: React.FC<GameScreenProps> = ({
           {turnControl}
 
           <div className="game-toolbar">
-            <SoundToggle soundOn={soundOn} onSoundChange={onSoundChange} />
+            <SoundToggle
+              backgroundMusicOn={backgroundMusicOn}
+              gameSoundsOn={gameSoundsOn}
+              onBackgroundMusicChange={onBackgroundMusicChange}
+              onGameSoundsChange={onGameSoundsChange}
+            />
             <button className="round-icon-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button>
             <button className="text-size-button" onClick={nextComfortSize} aria-label={`Change text size. Current size ${COMFORT_BUTTON_LABELS[comfortSize]}`}>{COMFORT_BUTTON_LABELS[comfortSize]}</button>
             <button className="round-icon-button leave-button" onClick={() => setShowLeaveConfirm(true)} aria-label="Leave game">×</button>

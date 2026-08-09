@@ -23,6 +23,12 @@ King's Corner.
   context is unlocked (and samples warmed) on the first tap. Adding or
   replacing an mp3 means bumping the cache names in `client/public/sw.js`,
   which precaches them.
+- `client/src/music.ts` — optional background music. Six tracks in
+  `client/public/music/` play in order, starting with Shanghai, at 25% volume.
+  Music has its own saved setting (`badam-satti-background-music`), starts only
+  after a player enables it, pauses while the tab is hidden, and continues
+  across the waiting room and game screens. The tracks load one at a time and
+  are not part of the service worker app shell.
 - `client/public/images/cards/` — 52 generated SVG card faces. Regenerate with
   `node client/scripts/generate-cards.mjs`; keep pip paths in sync with
   `client/src/cards.tsx` and bump `CARD_ASSET_VERSION` there plus the cache

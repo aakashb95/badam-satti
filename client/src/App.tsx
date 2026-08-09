@@ -15,6 +15,7 @@ import SimulationScreen from './components/SimulationScreen';
 import SummaryScreen from './components/SummaryScreen';
 import WaitingRoom from './components/WaitingRoom';
 import { endAbandonedGame } from './gameAbandonment';
+import { isBackgroundMusicEnabled, resumeBackgroundMusic, setBackgroundMusicEnabled } from './music';
 import { NEXT_ROUND_SPLASH_MS, SCORE_COUNTING_SPLASH_MS } from './roundTiming';
 import { isSoundEnabled, playCardSound, playDealSound, playGameWinSound, playKnockSound, playRoundWinSound, setSoundEnabled, unlockAudio } from './sounds';
 import { AppState, Card, ComfortSize, GameSummary, Player, Winner } from './types';
@@ -163,6 +164,7 @@ const screenForGameState = (gameState: AppState['gameState']): AppState['current
 const App: React.FC = () => {
   const [comfortSize, setComfortSize] = useState<ComfortSize>(getInitialComfortSize);
   const [soundOn, setSoundOn] = useState<boolean>(isSoundEnabled);
+  const [backgroundMusicOn, setBackgroundMusicOn] = useState<boolean>(isBackgroundMusicEnabled);
 
   useEffect(() => {
     document.documentElement.dataset.comfortSize = comfortSize;
@@ -176,7 +178,10 @@ const App: React.FC = () => {
   // Browsers only let audio start from a user gesture, so the first tap or key
   // press anywhere opens the audio context for the rest of the session.
   useEffect(() => {
-    const unlock = () => unlockAudio();
+    const unlock = () => {
+      unlockAudio();
+      resumeBackgroundMusic();
+    };
     window.addEventListener('pointerdown', unlock, { once: true });
     window.addEventListener('keydown', unlock, { once: true });
     return () => {
@@ -188,6 +193,11 @@ const App: React.FC = () => {
   const changeSound = (value: boolean) => {
     setSoundEnabled(value);
     setSoundOn(value);
+  };
+
+  const changeBackgroundMusic = (value: boolean) => {
+    setBackgroundMusicEnabled(value);
+    setBackgroundMusicOn(value);
   };
 
   return (
@@ -203,6 +213,8 @@ const App: React.FC = () => {
               onComfortSizeChange={setComfortSize}
               soundOn={soundOn}
               onSoundChange={changeSound}
+              backgroundMusicOn={backgroundMusicOn}
+              onBackgroundMusicChange={changeBackgroundMusic}
             />
           )}
         />
@@ -256,9 +268,18 @@ interface MainAppProps {
   onComfortSizeChange: (size: ComfortSize) => void;
   soundOn: boolean;
   onSoundChange: (value: boolean) => void;
+  backgroundMusicOn: boolean;
+  onBackgroundMusicChange: (value: boolean) => void;
 }
 
-const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, soundOn, onSoundChange }) => {
+const MainApp: React.FC<MainAppProps> = ({
+  comfortSize,
+  onComfortSizeChange,
+  soundOn,
+  onSoundChange,
+  backgroundMusicOn,
+  onBackgroundMusicChange,
+}) => {
   const navigate = useNavigate();
   const location = useLocation();
   const initialJoinRequest = (location.state as RouteState | null)?.joinRoom;
@@ -856,9 +877,9 @@ const MainApp: React.FC<MainAppProps> = ({ comfortSize, onComfortSizeChange, sou
       case 'menu':
         return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />;
       case 'waiting':
-        return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} gameEndedByDepartures={appState.gameEndedByDepartures} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} onReturnToGameDesk={leaveRoomForGameDesk} onSetTurnDuration={setTurnDuration} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} soundOn={soundOn} onSoundChange={onSoundChange} />;
+        return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} gameEndedByDepartures={appState.gameEndedByDepartures} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} onReturnToGameDesk={leaveRoomForGameDesk} onSetTurnDuration={setTurnDuration} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} backgroundMusicOn={backgroundMusicOn} gameSoundsOn={soundOn} onBackgroundMusicChange={onBackgroundMusicChange} onGameSoundsChange={onSoundChange} />;
       case 'game':
-        return <GameScreen gameState={appState.gameState} myCards={appState.myCards} validMoves={appState.validMoves} isMyTurn={appState.isMyTurn} canPass={appState.canPass} username={appState.username} onPlayCard={playCard} onPassTurn={passTurn} onLeaveGame={leaveRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} soundOn={soundOn} onSoundChange={onSoundChange} onReturnToGameDesk={leaveRoomForGameDesk} roundWinnerName={appState.gameState?.gameFinished ? appState.winner?.winner : undefined} />;
+        return <GameScreen gameState={appState.gameState} myCards={appState.myCards} validMoves={appState.validMoves} isMyTurn={appState.isMyTurn} canPass={appState.canPass} username={appState.username} onPlayCard={playCard} onPassTurn={passTurn} onLeaveGame={leaveRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} backgroundMusicOn={backgroundMusicOn} gameSoundsOn={soundOn} onBackgroundMusicChange={onBackgroundMusicChange} onGameSoundsChange={onSoundChange} onReturnToGameDesk={leaveRoomForGameDesk} roundWinnerName={appState.gameState?.gameFinished ? appState.winner?.winner : undefined} />;
       case 'game-over':
         return <GameOverScreen winner={appState.winner} username={appState.username} onContinueRound={() => { showLoading('Starting next round…'); socketRef.current?.emit('continue_round'); }} onExitGame={() => { showLoading('Calculating results…'); socketRef.current?.emit('exit_game'); }} showingDelay={showingGameOverDelay} canContinueRound={Boolean(hasMinimumPlayers && appState.gameState && appState.gameState.round < appState.gameState.maxRounds)} hasMinimumPlayers={hasMinimumPlayers} canFinishGame={canFinishGame} onReturnToGameDesk={leaveRoomForGameDesk} />;
       case 'round-start':

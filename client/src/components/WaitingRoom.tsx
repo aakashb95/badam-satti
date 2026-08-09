@@ -16,8 +16,10 @@ interface WaitingRoomProps {
   onSetTurnDuration: (seconds: number) => void;
   comfortSize: ComfortSize;
   onComfortSizeChange: (size: ComfortSize) => void;
-  soundOn: boolean;
-  onSoundChange: (value: boolean) => void;
+  backgroundMusicOn: boolean;
+  gameSoundsOn: boolean;
+  onBackgroundMusicChange: (value: boolean) => void;
+  onGameSoundsChange: (value: boolean) => void;
 }
 
 const TURN_DURATION_CHOICES = [20, 40, 60];
@@ -34,8 +36,10 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
   onSetTurnDuration,
   comfortSize,
   onComfortSizeChange,
-  soundOn,
-  onSoundChange,
+  backgroundMusicOn,
+  gameSoundsOn,
+  onBackgroundMusicChange,
+  onGameSoundsChange,
 }) => {
   const [lanOrigin, setLanOrigin] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -77,7 +81,12 @@ const WaitingRoom: React.FC<WaitingRoomProps> = ({
         <header className="app-header">
           <GameDeskLink onBeforeNavigate={onReturnToGameDesk} />
           <div className="waiting-toolbar">
-            <SoundToggle soundOn={soundOn} onSoundChange={onSoundChange} />
+            <SoundToggle
+              backgroundMusicOn={backgroundMusicOn}
+              gameSoundsOn={gameSoundsOn}
+              onBackgroundMusicChange={onBackgroundMusicChange}
+              onGameSoundsChange={onGameSoundsChange}
+            />
             <button className="round-icon-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button>
             <button className="round-icon-button leave-button" onClick={onLeaveRoom} aria-label="Leave room">×</button>
           </div>

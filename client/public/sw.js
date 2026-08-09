@@ -1,4 +1,4 @@
-const APP_CACHE = 'badam-satti-app-v15';
+const APP_CACHE = 'badam-satti-app-v16';
 const CARD_CACHE = 'badam-satti-cards-v15';
 const APP_ROOT = '/badam7/';
 const APP_SHELL = [
