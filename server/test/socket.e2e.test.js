@@ -164,6 +164,26 @@ async function joinRoom(socket, roomCode, username) {
   return joined;
 }
 
+test('room state checks return codes that distinguish ended rooms from expired seats', async (t) => {
+  const { baseUrl } = await startServer(t);
+  const client = await connectClient(baseUrl);
+  t.after(() => client.close());
+
+  const noSeatError = once(client, 'error');
+  client.emit('get_state');
+  assert.equal((await noSeatError).code, 'RECONNECT_UNAVAILABLE');
+
+  const missingRoomError = once(client, 'error');
+  const endedRoom = new Promise((resolve) => client.once('game_abandoned', resolve));
+  client.emit('reconnect_to_room', {
+    roomCode: 'ZZZZZZ',
+    username: 'Old Tab',
+    sessionToken: '00000000-0000-4000-8000-000000000000',
+  });
+  assert.equal((await missingRoomError).code, 'ROOM_NOT_FOUND');
+  assert.equal((await endedRoom).message, 'This game has ended.');
+});
+
 test('explicit waiting-room leave removes the player immediately', async (t) => {
   const { baseUrl } = await startServer(t);
   const host = await connectClient(baseUrl);

@@ -379,7 +379,7 @@ test('sound settings keep music and game sounds separate from the waiting room i
   await third.context.close();
 });
 
-test('room session survives waiting and active-game refreshes with a safe recovery exit', async ({ browser, page, baseURL }, testInfo) => {
+test('room session survives waiting and active-game refreshes and clears an ended room', async ({ browser, page, baseURL }, testInfo) => {
   const projectUse = testInfo.project.use as BrowserContextOptions;
   const contextOptions: BrowserContextOptions = {
     viewport: page.viewportSize() || projectUse.viewport || { width: 1280, height: 720 },
@@ -433,17 +433,61 @@ test('room session survives waiting and active-game refreshes with a safe recove
   });
   await missingRoom.page.goto('/badam7/');
 
-  const recoveryDialog = missingRoom.page.getByRole('alertdialog');
-  await expect(recoveryDialog).toContainText('Your saved seat is no longer available.');
-  await expect(recoveryDialog.getByRole('button', { name: 'Reconnect to room' })).toBeVisible();
-  await recoveryDialog.getByRole('button', { name: 'Leave room' }).click();
   await expect(missingRoom.page.locator('.lobby-screen')).toBeVisible();
+  await expect(missingRoom.page.getByRole('alertdialog')).toHaveCount(0);
+  await missingRoom.page.getByRole('button', { name: 'Continue room ZZZZZZ' }).click();
+  await expect(missingRoom.page.getByRole('status')).toContainText('This game has ended.');
   expect(await missingRoom.page.evaluate(() => window.localStorage.getItem('badam-satti-room-session'))).toBeNull();
+  expect(await missingRoom.page.evaluate(() => window.sessionStorage.getItem('badam-satti-tab-room-session-v2'))).toBeNull();
 
   await guest.context.close();
   await third.context.close();
   await secondHost.context.close();
   await missingRoom.context.close();
+});
+
+test('different tabs keep different rooms and an ended old tab cannot clear the new game', async ({ browser, page, baseURL }) => {
+  await login(page, 'First Host');
+  const firstRoomCode = await createRoom(page);
+
+  const secondHost = await newPlayerPage(browser, {}, baseURL || '');
+  await login(secondHost.page, 'Second Host');
+  const secondRoomCode = await createRoom(secondHost.page);
+
+  const secondTab = await page.context().newPage();
+  await joinRoom(secondTab, secondRoomCode, 'Second Tab');
+  await expect(secondTab.locator('.invite-copy strong')).toHaveText(secondRoomCode);
+
+  await page.bringToFront();
+  await page.reload();
+  await expect(page.locator('.waiting-screen')).toBeVisible();
+  await expect(page.locator('.invite-copy strong')).toHaveText(firstRoomCode);
+
+  await secondTab.bringToFront();
+  await secondTab.reload();
+  await expect(secondTab.locator('.waiting-screen')).toBeVisible();
+  await expect(secondTab.locator('.invite-copy strong')).toHaveText(secondRoomCode);
+
+  const staleTab = await page.context().newPage();
+  await staleTab.addInitScript(() => {
+    window.sessionStorage.setItem('badam-satti-tab-room-session-v2', JSON.stringify({
+      roomCode: 'ZZZZZZ',
+      username: 'Old Tab',
+      sessionToken: '00000000-0000-4000-8000-000000000000',
+    }));
+  });
+  await staleTab.goto('/badam7/');
+  await expect(staleTab.locator('.lobby-screen')).toBeVisible();
+  await expect(staleTab.getByRole('alertdialog')).toHaveCount(0);
+  await expect(staleTab.getByRole('status')).toContainText('This game has ended.');
+
+  await secondTab.reload();
+  await expect(secondTab.locator('.waiting-screen')).toBeVisible();
+  await expect(secondTab.locator('.invite-copy strong')).toHaveText(secondRoomCode);
+
+  await staleTab.close();
+  await secondTab.close();
+  await secondHost.context.close();
 });
 
 test('round results survive a player refresh', async ({ browser, page, baseURL }, testInfo) => {

@@ -177,6 +177,16 @@ function emitSocketError(socket, code, message) {
   socket.emit("error", { code, message });
 }
 
+function emitEndedRoomRecovery(socket) {
+  emitSocketError(socket, "ROOM_NOT_FOUND", "Room not found");
+  // Clients that were already open before the tab recovery fix understand
+  // game_abandoned, so this second event also releases them from stale rooms.
+  socket.emit("game_abandoned", {
+    message: "This game has ended.",
+    recoveryFailure: true,
+  });
+}
+
 // Room validation and restoration utility
 async function ensureRoomExists(roomCode) {
   // If room exists in memory, return it
@@ -1001,7 +1011,7 @@ io.on("connection", (socket) => {
 
       const room = await ensureRoomExists(cleanRoomCode);
       if (!room) {
-        emitSocketError(socket, "ROOM_NOT_FOUND", "Room not found");
+        emitEndedRoomRecovery(socket);
         return;
       }
 
@@ -1450,13 +1460,18 @@ io.on("connection", (socket) => {
   socket.on("get_state", async () => {
     try {
       if (!currentRoom) {
-        socket.emit("error", "Not in a valid room");
+        emitSocketError(socket, "RECONNECT_UNAVAILABLE", "Your room session is no longer available");
         return;
       }
 
       const room = await ensureRoomExists(currentRoom);
       if (!room) {
-        socket.emit("error", "Not in a valid room");
+        emitEndedRoomRecovery(socket);
+        return;
+      }
+
+      if (!room.players.some((player) => player.id === socket.id)) {
+        emitSocketError(socket, "RECONNECT_UNAVAILABLE", "Your room session is no longer available");
         return;
       }
 

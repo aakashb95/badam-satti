@@ -126,7 +126,7 @@ export interface SocketEvents {
   turn_passed: (data: { playerName: string; gameState: GameState; automatic?: boolean }) => void;
   turn_duration_changed: (data: { turnDurationSeconds: number; gameState: GameState }) => void;
   game_over: (winner: Winner) => void;
-  game_abandoned: (data: { message: string }) => void;
+  game_abandoned: (data: { message: string; recoveryFailure?: boolean }) => void;
   cards_redistributed: (data: { message: string }) => void;
   not_enough_players: (data: { message: string; gameState: GameState }) => void;
   round_continued: (data: { gameState: GameState }) => void;

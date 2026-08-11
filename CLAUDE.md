@@ -96,7 +96,7 @@ validMoves, canPass})`, `card_played({playerName, card, gameState, automatic?})`
 `turn_duration_changed({turnDurationSeconds, gameState})`, `game_over(winner)`,
 `round_continued({gameState})`, `cards_redistributed({message})`,
 `not_enough_players({message, gameState})`, `game_totals`, `left_room`,
-`game_state`, and `error` (string or
+`game_state`, `game_abandoned({message, recoveryFailure?})`, and `error` (string or
 `{code, message}`; codes include `ROOM_NOT_FOUND`, `USERNAME_TAKEN`,
 `GAME_ALREADY_STARTED`, `HOST_ONLY`, `NOT_ENOUGH_CONNECTED_PLAYERS`,
 `PLAYERS_RECONNECTING`, `RECONNECT_REQUIRED`, `RECONNECT_UNAVAILABLE`).
@@ -121,6 +121,10 @@ late caller into the already-started round instead of erroring.
 - Rooms are persisted to SQLite on every state change and on shutdown;
   `ensureRoomExists` restores a room from the DB on demand and starts a fresh
   turn timer if a round is active. Socket.io: 120s ping timeout, 30s interval.
+- Each browser tab keeps its active room in `sessionStorage`. Saved recovery
+  records are kept per room in `localStorage`, so one tab cannot replace or
+  clear another tab's room. Returning tabs check the server state. An ended
+  room returns to the menu without requiring an explicit Leave action.
 
 ## Security / infra notes
 
