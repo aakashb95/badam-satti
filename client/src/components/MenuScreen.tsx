@@ -8,6 +8,8 @@ interface MenuScreenProps {
   username: string;
   onCreateRoom: () => void;
   onJoinRoom: (roomCode: string) => void;
+  savedRoomCode?: string;
+  onContinueRoom?: () => void;
   comfortSize: ComfortSize;
   onComfortSizeChange: (size: ComfortSize) => void;
   backgroundMusicOn: boolean;
@@ -38,6 +40,8 @@ const MenuScreen: React.FC<MenuScreenProps> = ({
   username,
   onCreateRoom,
   onJoinRoom,
+  savedRoomCode,
+  onContinueRoom,
   comfortSize,
   onComfortSizeChange,
   backgroundMusicOn,
@@ -98,6 +102,11 @@ const MenuScreen: React.FC<MenuScreenProps> = ({
           <span className="eyebrow game-lobby-label"><b aria-hidden="true">7♥</b> Badam 7 table</span>
           <LobbyGreeting username={username} />
           <p>Choose one: host a new room, or join using a code someone sent you.</p>
+          {savedRoomCode && onContinueRoom && (
+            <button className="quiet-button saved-room-button" onClick={onContinueRoom}>
+              Continue room {savedRoomCode}
+            </button>
+          )}
         </section>
 
         <div className="menu-grid">

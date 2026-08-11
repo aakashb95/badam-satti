@@ -17,6 +17,8 @@ import WaitingRoom from './components/WaitingRoom';
 import { endAbandonedGame } from './gameAbandonment';
 import { getBackgroundMusicVolume, isBackgroundMusicEnabled, resumeBackgroundMusic, setBackgroundMusicEnabled, setBackgroundMusicVolume } from './music';
 import { NEXT_ROUND_SPLASH_MS, SCORE_COUNTING_SPLASH_MS } from './roundTiming';
+import { clearRoomSession, findSavedRoomSession, findSavedRoomSessionForRoom, loadMostRecentSavedRoomSession, loadTabRoomSession, saveRoomSession } from './roomSession';
+import type { RoomSession } from './roomSession';
 import { isSoundEnabled, playCardSound, playDealSound, playGameWinSound, playKnockSound, playRoundWinSound, setSoundEnabled, unlockAudio } from './sounds';
 import { AppState, Card, ComfortSize, GameSummary, Player, Winner } from './types';
 
@@ -37,14 +39,7 @@ interface ServerErrorPayload {
   message?: string;
 }
 
-interface RoomSession {
-  roomCode: string;
-  username: string;
-  sessionToken: string;
-}
-
 const COMFORT_SIZE_STORAGE_KEY = 'badam-satti-comfort-size';
-const ROOM_SESSION_STORAGE_KEY = 'badam-satti-room-session';
 const COMFORT_SIZES: ComfortSize[] = ['standard', 'large', 'extra-large', 'maximum'];
 
 const createEmptyAppState = (): AppState => ({
@@ -65,50 +60,18 @@ const createEmptyAppState = (): AppState => ({
   gameEndedByDepartures: false,
 });
 
-
-function loadRoomSession(): RoomSession | null {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(ROOM_SESSION_STORAGE_KEY) || 'null');
-    if (
-      parsed &&
-      typeof parsed.username === 'string' &&
-      parsed.username.trim().length > 0 &&
-      typeof parsed.roomCode === 'string' &&
-      /^[A-Z0-9]{6}$/.test(parsed.roomCode) &&
-      typeof parsed.sessionToken === 'string' &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(parsed.sessionToken)
-    ) {
-      return {
-        username: parsed.username,
-        roomCode: parsed.roomCode,
-        sessionToken: parsed.sessionToken,
-      };
-    }
-  } catch {
-    // Invalid or unavailable storage should not prevent the app from opening.
-  }
-  return null;
-}
-
-function saveRoomSession(session: RoomSession) {
-  try {
-    window.localStorage.setItem(ROOM_SESSION_STORAGE_KEY, JSON.stringify(session));
-  } catch {
-    // The live in-memory session still works when storage is unavailable.
-  }
-}
-
-function clearRoomSession() {
-  try {
-    window.localStorage.removeItem(ROOM_SESSION_STORAGE_KEY);
-  } catch {
-    // The live in-memory session can still be cleared.
-  }
-}
-
 function getInitialAppState(): AppState {
-  const session = loadRoomSession();
-  if (!session) return createEmptyAppState();
+  const session = loadTabRoomSession();
+  if (!session) {
+    const savedSession = loadMostRecentSavedRoomSession();
+    return savedSession
+      ? {
+          ...createEmptyAppState(),
+          username: savedSession.username,
+          currentScreen: 'menu',
+        }
+      : createEmptyAppState();
+  }
 
   return {
     ...createEmptyAppState(),
@@ -236,7 +199,7 @@ const JoinRoomRoute: React.FC = () => {
   const navigate = useNavigate();
   const routeLocation = useLocation();
   const routeState = routeLocation.state as RouteState | null;
-  const savedSession = loadRoomSession();
+  const savedSession = roomCode ? findSavedRoomSessionForRoom(roomCode) : null;
 
   if (!roomCode) return <div>Invalid room code</div>;
 
@@ -245,20 +208,14 @@ const JoinRoomRoute: React.FC = () => {
       <JoinRoomScreen
         roomCode={roomCode.toUpperCase()}
         onJoinRoom={(code, username) => {
-          const sessionToken =
-            savedSession?.roomCode === code &&
-            savedSession.username === username
-              ? savedSession.sessionToken
-              : undefined;
+          const sessionToken = findSavedRoomSession(code, username)?.sessionToken;
           navigate(`/${routeLocation.search}`, {
             state: { joinRoom: { roomCode: code, username, sessionToken } },
           });
         }}
         onBackToMenu={() => navigate('/')}
         error={routeState?.error || null}
-        initialUsername={routeState?.username || (
-          savedSession?.roomCode === roomCode.toUpperCase() ? savedSession.username : ''
-        )}
+        initialUsername={routeState?.username || savedSession?.username || ''}
         onClearError={() => navigate(`/r/${roomCode}`, { replace: true })}
       />
     </div>
@@ -308,6 +265,9 @@ const MainApp: React.FC<MainAppProps> = ({
   const [isConnected, setIsConnected] = useState(false);
   const [showingGameOverDelay, setShowingGameOverDelay] = useState(false);
   const [recoverySession, setRecoverySession] = useState<RoomSession | null>(null);
+  const [savedRoomSession, setSavedRoomSession] = useState<RoomSession | null>(() => (
+    initialJoinRequest ? null : loadMostRecentSavedRoomSession()
+  ));
   const socketRef = useRef<Socket | null>(null);
   const stateRef = useRef(appState);
   const joinRequestRef = useRef<JoinRequest | null>(null);
@@ -398,6 +358,7 @@ const MainApp: React.FC<MainAppProps> = ({
     socket.on('room_created', ({ roomCode, sessionToken, gameState }) => {
       saveRoomSession({ roomCode, username: stateRef.current.username, sessionToken });
       setRecoverySession(null);
+      setSavedRoomSession(null);
       setAppState((previous) => ({
         ...previous,
         currentRoom: roomCode,
@@ -415,6 +376,7 @@ const MainApp: React.FC<MainAppProps> = ({
       joinRequestRef.current = null;
       saveRoomSession({ roomCode, username, sessionToken });
       setRecoverySession(null);
+      setSavedRoomSession(null);
       setAppState((previous) => ({
         ...previous,
         currentRoom: roomCode,
@@ -457,6 +419,7 @@ const MainApp: React.FC<MainAppProps> = ({
       joinRequestRef.current = null;
       saveRoomSession({ roomCode, username, sessionToken });
       setRecoverySession(null);
+      setSavedRoomSession(null);
       setShowingGameOverDelay(false);
       setAppState((previous) => ({
         ...previous,
@@ -526,12 +489,14 @@ const MainApp: React.FC<MainAppProps> = ({
       }, 2500);
     });
 
-    socket.on('game_abandoned', ({ message }: { message: string }) => {
+    socket.on('game_abandoned', ({ message, recoveryFailure }: { message: string; recoveryFailure?: boolean }) => {
+      if (recoveryFailure && joinRequestRef.current && !joinRequestRef.current.sessionToken) return;
       actionPendingRef.current = false;
       reconnectPendingRef.current = false;
       clearRoundStart();
       clearRoomSession();
       setRecoverySession(null);
+      setSavedRoomSession(null);
       setShowingGameOverDelay(false);
       if (resultTimer.current !== null) window.clearTimeout(resultTimer.current);
       if (finalPlayTimer.current !== null) window.clearTimeout(finalPlayTimer.current);
@@ -614,6 +579,7 @@ const MainApp: React.FC<MainAppProps> = ({
 
     socket.on('game_state', (playerState) => {
       if (!playerState) return;
+      reconnectPendingRef.current = false;
       const gameState = playerState.gameState || playerState;
       setAppState((previous) => ({
         ...previous,
@@ -625,16 +591,73 @@ const MainApp: React.FC<MainAppProps> = ({
         currentScreen: previous.currentScreen === 'round-start'
           ? 'round-start'
           : screenForGameState(gameState),
+        loading: null,
+        error: null,
       }));
     });
 
     socket.on('error', (message: string | Error | ServerErrorPayload) => {
       actionPendingRef.current = false;
       const errorMessage = getServerErrorMessage(message);
+      const errorCode = typeof message === 'object' && !(message instanceof Error) ? message.code : undefined;
+      const current = stateRef.current;
+      const recoveryEnded =
+        (errorCode === 'ROOM_NOT_FOUND' || errorCode === 'RECONNECT_UNAVAILABLE') &&
+        Boolean(current.currentRoom && current.username && current.sessionToken);
+
+      if (recoveryEnded) {
+        reconnectPendingRef.current = false;
+        setRecoverySession(null);
+        setSavedRoomSession(null);
+        clearRoomSession({
+          roomCode: current.currentRoom,
+          username: current.username,
+          sessionToken: current.sessionToken,
+        });
+
+        const pendingJoin = joinRequestRef.current;
+        if (pendingJoin?.sessionToken && errorCode === 'RECONNECT_UNAVAILABLE') {
+          const freshJoin = { roomCode: pendingJoin.roomCode, username: pendingJoin.username };
+          joinRequestRef.current = freshJoin;
+          setAppState((previous) => ({
+            ...previous,
+            currentRoom: '',
+            sessionToken: '',
+            currentScreen: 'loading',
+            loading: 'Joining room…',
+            error: null,
+          }));
+          socket.emit('join_room', freshJoin);
+          return;
+        }
+
+        if (pendingJoin) {
+          joinRequestRef.current = null;
+          setAppState((previous) => ({
+            ...previous,
+            currentRoom: '',
+            sessionToken: '',
+            gameState: null,
+            loading: null,
+            error: null,
+          }));
+          navigate(`/r/${pendingJoin.roomCode}`, {
+            state: { error: errorMessage, username: pendingJoin.username },
+            replace: true,
+          });
+          return;
+        }
+
+        const endedMessage = errorCode === 'ROOM_NOT_FOUND'
+          ? 'This game has ended.'
+          : 'Your seat in this game has expired.';
+        setAppState((previous) => endAbandonedGame(previous, endedMessage));
+        navigate('/', { replace: true });
+        return;
+      }
+
       if (reconnectPendingRef.current) {
         reconnectPendingRef.current = false;
-        const errorCode = typeof message === 'object' && !(message instanceof Error) ? message.code : undefined;
-        const current = stateRef.current;
         if (current.currentRoom && current.username) {
           setRecoverySession({
             roomCode: current.currentRoom,
@@ -790,6 +813,26 @@ const MainApp: React.FC<MainAppProps> = ({
     socket.emit('create_room', appState.username);
   }
 
+  function continueSavedRoom() {
+    const session = savedRoomSession;
+    const socket = requireConnection();
+    if (!session || !socket) return;
+
+    saveRoomSession(session);
+    reconnectPendingRef.current = true;
+    setSavedRoomSession(null);
+    setAppState((previous) => ({
+      ...previous,
+      username: session.username,
+      currentRoom: session.roomCode,
+      sessionToken: session.sessionToken,
+      currentScreen: 'loading',
+      loading: 'Checking your saved game…',
+      error: null,
+    }));
+    socket.emit('reconnect_to_room', session);
+  }
+
   function joinRoom(roomCode: string, username = appState.username) {
     const socket = requireConnection();
     if (!socket || !username) return;
@@ -887,7 +930,7 @@ const MainApp: React.FC<MainAppProps> = ({
       case 'login':
         return <LoginScreen onContinue={(username) => setAppState((previous) => ({ ...previous, username, currentScreen: 'menu' }))} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />;
       case 'menu':
-        return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} backgroundMusicOn={backgroundMusicOn} backgroundMusicVolume={backgroundMusicVolume} gameSoundsOn={soundOn} onBackgroundMusicChange={onBackgroundMusicChange} onBackgroundMusicVolumeChange={onBackgroundMusicVolumeChange} onGameSoundsChange={onSoundChange} />;
+        return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} savedRoomCode={savedRoomSession?.roomCode} onContinueRoom={savedRoomSession ? continueSavedRoom : undefined} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} backgroundMusicOn={backgroundMusicOn} backgroundMusicVolume={backgroundMusicVolume} gameSoundsOn={soundOn} onBackgroundMusicChange={onBackgroundMusicChange} onBackgroundMusicVolumeChange={onBackgroundMusicVolumeChange} onGameSoundsChange={onSoundChange} />;
       case 'waiting':
         return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} gameEndedByDepartures={appState.gameEndedByDepartures} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} onReturnToGameDesk={leaveRoomForGameDesk} onSetTurnDuration={setTurnDuration} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} backgroundMusicOn={backgroundMusicOn} backgroundMusicVolume={backgroundMusicVolume} gameSoundsOn={soundOn} onBackgroundMusicChange={onBackgroundMusicChange} onBackgroundMusicVolumeChange={onBackgroundMusicVolumeChange} onGameSoundsChange={onSoundChange} />;
       case 'game':
