@@ -15,7 +15,7 @@ function makeRoom(playerCount = 4) {
   return room;
 }
 
-test('computer turn delay stays between 0.1 and 2 seconds', () => {
+test('computer turn delay stays between 2 and 3 seconds', () => {
   const minimum = getBotTurnDelayMs(undefined, (from, to) => {
     assert.equal(from, BOT_TURN_DELAY_MIN_MS);
     assert.equal(to, BOT_TURN_DELAY_MAX_MS + 1);
@@ -23,8 +23,8 @@ test('computer turn delay stays between 0.1 and 2 seconds', () => {
   });
   const maximum = getBotTurnDelayMs(undefined, (_from, to) => to - 1);
 
-  assert.equal(minimum, 100);
-  assert.equal(maximum, 2000);
+  assert.equal(minimum, 2000);
+  assert.equal(maximum, 3000);
   assert.equal(getBotTurnDelayMs('15'), 15);
 });
 

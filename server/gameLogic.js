@@ -3,8 +3,8 @@ const crypto = require("crypto");
 const SUIT_ORDER = { hearts: 0, diamonds: 1, clubs: 2, spades: 3 };
 const TURN_DURATION_OPTIONS = [20, 40, 60];
 const MIN_PLAYERS = 3;
-const BOT_TURN_DELAY_MIN_MS = 100;
-const BOT_TURN_DELAY_MAX_MS = 2000;
+const BOT_TURN_DELAY_MIN_MS = 2000;
+const BOT_TURN_DELAY_MAX_MS = 3000;
 
 function getBotTurnDelayMs(configuredValue, randomInt = crypto.randomInt) {
   const configuredDelay = Number(configuredValue);
