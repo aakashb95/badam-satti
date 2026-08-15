@@ -7,6 +7,7 @@ import SoundToggle from './SoundToggle';
 interface MenuScreenProps {
   username: string;
   onCreateRoom: () => void;
+  onPlaySolo: (botCount: number) => void;
   onJoinRoom: (roomCode: string) => void;
   savedRoomCode?: string;
   onContinueRoom?: () => void;
@@ -29,6 +30,7 @@ const LOBBY_GREETINGS = [
 
 const COMFORT_SIZES: ComfortSize[] = ['standard', 'large', 'extra-large', 'maximum'];
 const COMFORT_BUTTON_LABELS: Record<ComfortSize, string> = { standard: 'A', large: 'A+', 'extra-large': 'A++', maximum: 'A+++' };
+const BOT_COUNT_OPTIONS = Array.from({ length: 8 }, (_, index) => index + 3);
 
 const LobbyGreeting: React.FC<{ username: string }> = ({ username }) => {
   const [greeting] = useState(() => LOBBY_GREETINGS[Math.floor(Math.random() * LOBBY_GREETINGS.length)] || LOBBY_GREETINGS[0]);
@@ -39,6 +41,7 @@ const LobbyGreeting: React.FC<{ username: string }> = ({ username }) => {
 const MenuScreen: React.FC<MenuScreenProps> = ({
   username,
   onCreateRoom,
+  onPlaySolo,
   onJoinRoom,
   savedRoomCode,
   onContinueRoom,
@@ -52,6 +55,7 @@ const MenuScreen: React.FC<MenuScreenProps> = ({
   onGameSoundsChange,
 }) => {
   const [roomCode, setRoomCode] = useState('');
+  const [botCount, setBotCount] = useState(3);
   const [showHelpModal, setShowHelpModal] = useState(false);
 
   const handleJoinRoom = () => {
@@ -101,7 +105,7 @@ const MenuScreen: React.FC<MenuScreenProps> = ({
         <section className="menu-hero">
           <span className="eyebrow game-lobby-label"><b aria-hidden="true">7♥</b> Badam 7 table</span>
           <LobbyGreeting username={username} />
-          <p>Choose one: host a new room, or join using a code someone sent you.</p>
+          <p>Bring family to the table, join their room, or play a quick practice game against the computer.</p>
           {savedRoomCode && onContinueRoom && (
             <button className="quiet-button saved-room-button" onClick={onContinueRoom}>
               Continue room {savedRoomCode}
@@ -109,12 +113,12 @@ const MenuScreen: React.FC<MenuScreenProps> = ({
           )}
         </section>
 
-        <div className="menu-grid">
+        <div className="menu-grid" aria-label="Ways to play">
           <button className="action-card action-card-primary" onClick={onCreateRoom}>
             <span className="action-card-icon">＋</span>
             <span className="action-card-copy">
-              <strong>Host a new room</strong>
-              <small>Choose this to create a fresh invite code</small>
+              <strong>Play with family</strong>
+              <small>Host a new room and share the invite code</small>
             </span>
             <span className="action-card-arrow">→</span>
           </button>
@@ -138,6 +142,29 @@ const MenuScreen: React.FC<MenuScreenProps> = ({
                 inputMode="text"
               />
               <button className="code-submit" onClick={handleJoinRoom} disabled={roomCode.length !== 6}>Join room</button>
+            </div>
+          </section>
+
+          <section className="action-card solo-card">
+            <span className="action-card-icon" aria-hidden="true">♠</span>
+            <span className="action-card-copy">
+              <strong>Practice with computer</strong>
+              <small>Choose how many computer players join your table</small>
+            </span>
+            <div className="solo-controls">
+              <label className="bot-count-field">
+                <span>Computer players</span>
+                <select
+                  aria-label="Number of computer players"
+                  value={botCount}
+                  onChange={(event) => setBotCount(Number(event.target.value))}
+                >
+                  {BOT_COUNT_OPTIONS.map((count) => <option key={count} value={count}>{count}</option>)}
+                </select>
+              </label>
+              <button className="solo-start-button" onClick={() => onPlaySolo(botCount)}>
+                Start practice <span aria-hidden="true">→</span>
+              </button>
             </div>
           </section>
         </div>

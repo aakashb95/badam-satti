@@ -83,7 +83,7 @@ const Database = require("./database");
 const IP_HASH_SALT = process.env.IP_HASH_SALT || crypto.randomBytes(32).toString('hex');
 const ROOM_CODE_PATTERN = /^[A-Z0-9]{6}$/;
 const CARD_SUITS = new Set(['hearts', 'diamonds', 'clubs', 'spades']);
-const RATE_LIMITED_EVENTS = new Set(['create_room', 'join_room', 'reconnect_to_room', 'start_game', 'play_card', 'pass_turn', 'continue_round', 'exit_game', 'leave_room', 'set_turn_duration']);
+const RATE_LIMITED_EVENTS = new Set(['create_room', 'create_single_player_game', 'join_room', 'reconnect_to_room', 'start_game', 'play_card', 'pass_turn', 'continue_round', 'exit_game', 'leave_room', 'set_turn_duration']);
 // Deterministic e2e runs need turns to sit still unless a test opts in.
 const TURN_TIMERS_ENABLED = process.env.NODE_ENV !== 'test' || process.env.ENABLE_TURN_TIMERS === '1';
 const configuredActiveGameReconnectMs = Number(process.env.ACTIVE_GAME_RECONNECT_MS);
@@ -478,10 +478,17 @@ function scheduleTurnTimer(roomCode) {
   if (!room || !room.started || room.gameFinished || !room.hasMinimumSeatedPlayers()) return;
 
   // Small grace period so a human tap at the buzzer beats the server.
+  const currentPlayer = room.players[room.currentPlayerIndex];
+  const configuredBotDelayMs = Number(process.env.BOT_TURN_DELAY_MS);
+  const botDelayMs = Number.isFinite(configuredBotDelayMs) && configuredBotDelayMs >= 0
+    ? configuredBotDelayMs
+    : 700;
   const testDelayMs = process.env.NODE_ENV === 'test' ? Number(process.env.TURN_TIMER_TEST_DELAY_MS) : NaN;
-  const delayMs = Number.isFinite(testDelayMs) && testDelayMs > 0
-    ? testDelayMs
-    : (room.turnDurationSeconds || 20) * 1000 + 1000;
+  const delayMs = currentPlayer?.isBot
+    ? botDelayMs
+    : Number.isFinite(testDelayMs) && testDelayMs > 0
+      ? testDelayMs
+      : (room.turnDurationSeconds || 20) * 1000 + 1000;
   const expectedTurnStartedAt = room.turnStartedAt;
   const timer = setTimeout(() => {
     activeTurnTimers.delete(roomCode);
@@ -512,7 +519,9 @@ async function runServerAutoPlay(roomCode, expectedTurnStartedAt) {
 
   const validMoves = room.getValidMoves(player.id);
   if (validMoves.length > 0) {
-    const card = pickAutoPlayCard(validMoves);
+    const card = player.isBot
+      ? room.chooseBotCard(player.id, validMoves)
+      : pickAutoPlayCard(validMoves);
     if (!room.playCard(player.id, card, true)) {
       scheduleTurnTimer(roomCode);
       return;
@@ -615,6 +624,16 @@ async function removePlayerFromRoom(roomCode, playerId, playerName, options = {}
   const room = await ensureRoomExists(roomCode);
   const player = room?.players.find((candidate) => candidate.id === playerId);
   if (!room || !player) return room || null;
+
+  if (room.mode === 'single-player' && !player.isBot) {
+    clearTurnTimer(roomCode);
+    room.players.forEach((seat) => clearActiveDisconnectTimer(roomCode, seat.id));
+    await db.removePlayerFromRoom(playerId, roomCode);
+    await db.deactivateRoom(roomCode);
+    io.in(roomCode).socketsLeave(roomCode);
+    delete rooms[roomCode];
+    return null;
+  }
 
   clearActiveDisconnectTimer(roomCode, playerId);
   const activeGameWouldLoseMinimum =
@@ -901,6 +920,79 @@ io.on("connection", (socket) => {
     } catch (error) {
       console.error("Error creating room:", error);
       socket.emit("error", "Failed to create room");
+    }
+  });
+
+  socket.on("create_single_player_game", async (payload) => {
+    try {
+      const cleanUsername = normalizeUsername(
+        typeof payload === 'string' ? payload : payload?.username
+      );
+      if (!cleanUsername) {
+        socket.emit("error", "Username must be between 1 and 20 characters");
+        return;
+      }
+      const botCount = typeof payload === 'string' ? 3 : payload?.botCount;
+      if (!Number.isInteger(botCount) || botCount < 3 || botCount > 10) {
+        emitSocketError(socket, "INVALID_BOT_COUNT", "Choose between 3 and 10 computer players");
+        return;
+      }
+
+      const clientIP = hashIP(getClientAddress(socket));
+      const rateLimitCheck = await db.checkRateLimit(clientIP, 10, 1);
+      if (!rateLimitCheck.allowed) {
+        socket.emit("error", "Too many game creation attempts. Please wait.");
+        return;
+      }
+
+      const roomCode = await generateRoomCode();
+      const room = new GameRoom(roomCode);
+      room.mode = 'single-player';
+      const sessionToken = crypto.randomUUID();
+
+      if (!room.addPlayer(socket.id, cleanUsername, sessionToken)) {
+        socket.emit("error", "Failed to start practice game");
+        return;
+      }
+
+      const botNames = ['Meera', 'Kabir', 'Tara', 'Arjun', 'Nisha', 'Rohan', 'Leela', 'Vikram', 'Priya', 'Dev'];
+      for (const baseName of botNames.slice(0, botCount)) {
+        const name = baseName === cleanUsername ? `${baseName} Bot` : baseName;
+        if (!room.addBot(name)) {
+          socket.emit("error", "Failed to seat computer players");
+          return;
+        }
+      }
+
+      rooms[roomCode] = room;
+      socket.join(roomCode);
+      currentRoom = roomCode;
+      playerName = cleanUsername;
+
+      if (!room.startGame()) {
+        delete rooms[roomCode];
+        socket.emit("error", "Failed to start practice game");
+        return;
+      }
+
+      await db.saveGameRoom(roomCode, room);
+      await db.savePlayer(socket.id, playerName, roomCode, socket.id);
+
+      console.log(`Single-player game created: ${roomCode} by ${playerName}`);
+      socket.emit("room_created", {
+        roomCode,
+        sessionToken,
+        gameState: room.getState(),
+      });
+      socket.emit("your_cards", {
+        cards: room.getPlayerCards(socket.id),
+        validMoves: room.getValidMoves(socket.id),
+        canPass: room.getPlayerState(socket.id).canPass,
+      });
+      scheduleTurnTimer(roomCode);
+    } catch (error) {
+      console.error("Error creating single-player game:", error);
+      socket.emit("error", "Failed to start practice game");
     }
   });
 

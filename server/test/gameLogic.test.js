@@ -44,6 +44,76 @@ test('requires at least three players to start', () => {
   assert.equal(room.started, false);
 });
 
+test('single-player rooms expose computer seats without changing the minimum player rule', () => {
+  const room = new GameRoom('SOLO01');
+  room.mode = 'single-player';
+  room.addPlayer('human', 'Aakash');
+  room.addBot('Meera');
+  room.addBot('Kabir');
+  room.addBot('Tara');
+
+  assert.equal(room.startGame(), true);
+  assert.equal(room.getState().mode, 'single-player');
+  assert.deepEqual(
+    room.getState().players.map((player) => ({ name: player.name, isBot: player.isBot })),
+    [
+      { name: 'Aakash', isBot: false },
+      { name: 'Meera', isBot: true },
+      { name: 'Kabir', isBot: true },
+      { name: 'Tara', isBot: true },
+    ],
+  );
+  assert.equal(room.players.reduce((total, player) => total + player.cards.length, 0), 51);
+});
+
+test('computer strategy sheds the highest score when moves have equal table impact', () => {
+  const room = makeRoom(3);
+  room.started = true;
+  room.currentPlayerIndex = 0;
+  room.board.hearts = { up: [7, 8, 9, 10, 11, 12], down: [6, 5, 4, 3, 2] };
+  room.players[0].cards = [
+    { suit: 'hearts', rank: 1 },
+    { suit: 'hearts', rank: 13 },
+  ];
+
+  assert.deepEqual(room.chooseBotCard('p0'), { suit: 'hearts', rank: 13 });
+});
+
+test('computer strategy avoids opening the more expensive opponent card', () => {
+  const room = makeRoom(3);
+  room.started = true;
+  room.currentPlayerIndex = 0;
+  room.board.hearts = { up: [7], down: [] };
+  room.players[0].cards = [
+    { suit: 'hearts', rank: 6 },
+    { suit: 'hearts', rank: 8 },
+    { suit: 'clubs', rank: 2 },
+  ];
+  room.players[1].cards = [
+    { suit: 'hearts', rank: 5 },
+    { suit: 'hearts', rank: 9 },
+  ];
+
+  assert.deepEqual(room.chooseBotCard('p0'), { suit: 'hearts', rank: 6 });
+});
+
+test('computer strategy avoids giving the next player a winning card', () => {
+  const room = makeRoom(3);
+  room.started = true;
+  room.currentPlayerIndex = 0;
+  room.board.hearts = { up: [7], down: [] };
+  room.board.diamonds = { up: [7], down: [] };
+  room.players[0].cards = [
+    { suit: 'hearts', rank: 8 },
+    { suit: 'diamonds', rank: 8 },
+    { suit: 'clubs', rank: 2 },
+  ];
+  room.players[1].cards = [{ suit: 'hearts', rank: 9 }];
+  room.players[2].cards = [{ suit: 'diamonds', rank: 9 }];
+
+  assert.deepEqual(room.chooseBotCard('p0'), { suit: 'diamonds', rank: 8 });
+});
+
 test('deals clockwise from the player after the dealer', () => {
   const room = makeRoom(4);
   room.dealerIndex = 1;

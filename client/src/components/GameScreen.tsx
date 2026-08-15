@@ -217,7 +217,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
             style={seat.style}
             data-seat-index={index}
             data-clock-position={Number(seat.clockPosition.toFixed(3))}
-            aria-label={`${player.name === username ? 'You' : player.name}, clockwise seat ${index + 1} of ${seatedPlayers.length}, ${playerStatus(player)}${hasExtraCard ? ', dealt one extra card' : ''}${player.isCurrentPlayer ? ', playing now' : ''}${isNext ? ', plays next' : ''}${player.isDealer ? ', dealer' : ''}`}
+            aria-label={`${player.name === username ? 'You' : player.name}, clockwise seat ${index + 1} of ${seatedPlayers.length}, ${player.isBot ? 'computer player, ' : ''}${playerStatus(player)}${hasExtraCard ? ', dealt one extra card' : ''}${player.isCurrentPlayer ? ', playing now' : ''}${isNext ? ', plays next' : ''}${player.isDealer ? ', dealer' : ''}`}
           >
             {playerLatestPlay && (
               <span
@@ -243,6 +243,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
             <span className="table-player-copy">
               <strong title={player.name}>
                 {player.name === username ? 'You' : player.name}
+                {player.isBot && <span className="bot-chip" title="Computer player">BOT</span>}
                 {player.isDealer && <span className="dealer-chip" title="Dealer">D</span>}
                 {hasExtraCard && <span className="extra-card-chip" title="Dealt one extra card this round">+1</span>}
               </strong>

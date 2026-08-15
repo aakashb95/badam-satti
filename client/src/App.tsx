@@ -364,7 +364,7 @@ const MainApp: React.FC<MainAppProps> = ({
         currentRoom: roomCode,
         sessionToken,
         gameState,
-        currentScreen: 'waiting',
+        currentScreen: screenForGameState(gameState),
         loading: null,
         error: null,
         gameEndedByDepartures: false,
@@ -813,6 +813,13 @@ const MainApp: React.FC<MainAppProps> = ({
     socket.emit('create_room', appState.username);
   }
 
+  function playSolo(botCount: number) {
+    const socket = requireConnection();
+    if (!socket || !appState.username) return;
+    showLoading('Seating computer players…');
+    socket.emit('create_single_player_game', { username: appState.username, botCount });
+  }
+
   function continueSavedRoom() {
     const session = savedRoomSession;
     const socket = requireConnection();
@@ -930,7 +937,7 @@ const MainApp: React.FC<MainAppProps> = ({
       case 'login':
         return <LoginScreen onContinue={(username) => setAppState((previous) => ({ ...previous, username, currentScreen: 'menu' }))} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} />;
       case 'menu':
-        return <MenuScreen username={appState.username} onCreateRoom={createRoom} onJoinRoom={joinRoom} savedRoomCode={savedRoomSession?.roomCode} onContinueRoom={savedRoomSession ? continueSavedRoom : undefined} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} backgroundMusicOn={backgroundMusicOn} backgroundMusicVolume={backgroundMusicVolume} gameSoundsOn={soundOn} onBackgroundMusicChange={onBackgroundMusicChange} onBackgroundMusicVolumeChange={onBackgroundMusicVolumeChange} onGameSoundsChange={onSoundChange} />;
+        return <MenuScreen username={appState.username} onCreateRoom={createRoom} onPlaySolo={playSolo} onJoinRoom={joinRoom} savedRoomCode={savedRoomSession?.roomCode} onContinueRoom={savedRoomSession ? continueSavedRoom : undefined} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} backgroundMusicOn={backgroundMusicOn} backgroundMusicVolume={backgroundMusicVolume} gameSoundsOn={soundOn} onBackgroundMusicChange={onBackgroundMusicChange} onBackgroundMusicVolumeChange={onBackgroundMusicVolumeChange} onGameSoundsChange={onSoundChange} />;
       case 'waiting':
         return <WaitingRoom roomCode={appState.currentRoom} gameState={appState.gameState} username={appState.username} gameEndedByDepartures={appState.gameEndedByDepartures} onStartGame={startGame} onLeaveRoom={leaveRoom} onShowNotification={notify} onReturnToGameDesk={leaveRoomForGameDesk} onSetTurnDuration={setTurnDuration} comfortSize={comfortSize} onComfortSizeChange={onComfortSizeChange} backgroundMusicOn={backgroundMusicOn} backgroundMusicVolume={backgroundMusicVolume} gameSoundsOn={soundOn} onBackgroundMusicChange={onBackgroundMusicChange} onBackgroundMusicVolumeChange={onBackgroundMusicVolumeChange} onGameSoundsChange={onSoundChange} />;
       case 'game':

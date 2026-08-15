@@ -14,6 +14,7 @@ function sortHand(cards) {
 class GameRoom {
   constructor(roomCode) {
     this.roomCode = roomCode;
+    this.mode = "family";
     this.players = [];
     this.board = {
       hearts: { up: [], down: [] },
@@ -62,9 +63,28 @@ class GameRoom {
       connected: true,
       totalScore: 0,
       sessionToken,
+      isBot: false,
     });
 
     // Initialize score tracking
+    this.playerScores[id] = 0;
+    return true;
+  }
+
+  addBot(name) {
+    if (this.players.length >= 11) return false;
+    if (this.players.some((player) => player.name === name)) return false;
+
+    const id = `bot-${crypto.randomUUID()}`;
+    this.players.push({
+      id,
+      name,
+      cards: [],
+      connected: true,
+      totalScore: 0,
+      sessionToken: null,
+      isBot: true,
+    });
     this.playerScores[id] = 0;
     return true;
   }
@@ -497,8 +517,8 @@ class GameRoom {
     return player.cards.filter((card) => this.isValidMove(playerId, card));
   }
 
-  isCardPlayableOnBoard(card) {
-    const suitBoard = this.board[card.suit];
+  isCardPlayableOnBoard(card, board = this.board) {
+    const suitBoard = board[card.suit];
 
     // If suit not started, must be 7
     if (suitBoard.up.length === 0 && suitBoard.down.length === 0) {
@@ -536,6 +556,84 @@ class GameRoom {
     }
 
     return false;
+  }
+
+  getBoardAfterCard(card) {
+    const board = Object.fromEntries(
+      Object.entries(this.board).map(([suit, sequence]) => [
+        suit,
+        { up: [...sequence.up], down: [...sequence.down] },
+      ])
+    );
+    const suitBoard = board[card.suit];
+
+    if (suitBoard.up.length === 0 && suitBoard.down.length === 0) {
+      suitBoard.up.push(card.rank);
+    } else if (card.rank > suitBoard.up[suitBoard.up.length - 1]) {
+      suitBoard.up.push(card.rank);
+    } else {
+      suitBoard.down.push(card.rank);
+    }
+
+    return board;
+  }
+
+  scoreBotMove(playerId, card) {
+    const playerIndex = this.players.findIndex((player) => player.id === playerId);
+    if (playerIndex < 0) return Number.NEGATIVE_INFINITY;
+
+    const player = this.players[playerIndex];
+    const remainingCards = player.cards.filter(
+      (candidate) => candidate.suit !== card.suit || candidate.rank !== card.rank
+    );
+    if (remainingCards.length === 0) return Number.POSITIVE_INFINITY;
+
+    const boardAfterMove = this.getBoardAfterCard(card);
+    const newlyPlayableScore = (cards) => cards.reduce((total, candidate) => {
+      const playableBefore = this.isCardPlayableOnBoard(candidate, this.board);
+      const playableAfter = this.isCardPlayableOnBoard(candidate, boardAfterMove);
+      return total + (!playableBefore && playableAfter ? candidate.rank : 0);
+    }, 0);
+
+    const ownCardsReleased = newlyPlayableScore(remainingCards);
+    const ownFinishBonus = remainingCards.every((candidate) =>
+      this.isCardPlayableOnBoard(candidate, boardAfterMove)
+    ) ? 180 : 0;
+
+    let opponentReleaseCost = 0;
+    this.players.forEach((opponent, opponentIndex) => {
+      if (opponent.id === playerId) return;
+
+      const releasedScore = newlyPlayableScore(opponent.cards);
+      if (releasedScore === 0) return;
+
+      const seatDistance = (opponentIndex - playerIndex + this.players.length) % this.players.length;
+      const playsNextWeight = seatDistance === 1 ? 2 : 1;
+      const lowHandWeight = opponent.cards.length <= 3 ? 2 : 1;
+      const winningThreat = opponent.cards.length === 1 ? 500 : 0;
+      opponentReleaseCost += releasedScore * playsNextWeight * lowHandWeight + winningThreat;
+    });
+
+    // Shed expensive cards, open useful follow-up cards, and avoid releasing
+    // cards for opponents. The next seat and players close to going out carry
+    // extra weight because they can punish the bot sooner.
+    return card.rank * 8 + ownCardsReleased * 4 + ownFinishBonus - opponentReleaseCost * 5;
+  }
+
+  chooseBotCard(playerId, validMoves = this.getValidMoves(playerId)) {
+    if (!validMoves.length) return null;
+
+    return validMoves.reduce((best, card) => {
+      const score = this.scoreBotMove(playerId, card);
+      const bestScore = this.scoreBotMove(playerId, best);
+      if (score !== bestScore) return score > bestScore ? card : best;
+
+      // A stable tie-breaker keeps replays understandable and gets rid of the
+      // highest remaining points first.
+      if (card.rank !== best.rank) return card.rank > best.rank ? card : best;
+      if (card.suit !== best.suit) return SUIT_ORDER[card.suit] < SUIT_ORDER[best.suit] ? card : best;
+      return best;
+    }, validMoves[0]);
   }
 
   getPlayableCardsOnBoard(cards) {
@@ -582,6 +680,7 @@ class GameRoom {
       currentPlayerIndex: this.currentPlayerIndex,
       players: this.players.map((p, index) => ({
         name: p.name,
+        isBot: Boolean(p.isBot),
         cardCount: p.cards.length,
         dealtCardCount: p.dealtCardCount ?? p.cards.length,
         connected: p.connected,
@@ -591,6 +690,7 @@ class GameRoom {
         indicator: this.started && !this.gameFinished ? this.analyzePlayerPosition(p) : 'none',
       })),
       board: this.board,
+      mode: this.mode,
       started: this.started,
       round: this.round,
       roundsPlayed: this.roundsPlayed,

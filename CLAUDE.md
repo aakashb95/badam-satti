@@ -7,6 +7,15 @@ Socket.io backend, React 18 + TypeScript + Vite frontend, SQLite persistence.
 This repo also hosts a small static landing page and a second game,
 King's Corner.
 
+The main menu keeps private family rooms as the primary mode. Practice mode
+creates one human seat and 3 to 10 server-controlled computer seats, then
+starts the game immediately. Computer turns use the same server-side move
+validation as family play and run on a short delay. Computer players prefer to
+shed expensive cards, open useful cards in their own hand, and avoid opening
+cards for opponents. They give extra weight to the next seat and any opponent
+who is close to emptying their hand. Practice rooms keep the human seat's normal
+reconnect window and close when that seat leaves or expires.
+
 ## Repository layout
 
 - `server/` — Express + Socket.io server (`index.js`), game rules
@@ -81,7 +90,8 @@ King's Corner.
 
 ## Socket contract
 
-Client → server: `create_room(username)`, `join_room({roomCode, username})`,
+Client → server: `create_room(username)`,
+`create_single_player_game({username, botCount})`, `join_room({roomCode, username})`,
 `reconnect_to_room({roomCode, username, sessionToken})`, `start_game` (host
 only, ≥3 connected players), `set_turn_duration(seconds)` (host only, before start),
 `play_card(card)`, `pass_turn`, `continue_round`, `exit_game` (host only),

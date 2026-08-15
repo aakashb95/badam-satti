@@ -6,6 +6,7 @@ export interface Card {
 
 export interface Player {
   name: string;
+  isBot?: boolean;
   connected: boolean;
   cardCount: number;
   dealtCardCount: number;
@@ -39,6 +40,7 @@ export interface DealSummary {
 
 export interface GameState {
   roomCode: string;
+  mode?: 'family' | 'single-player';
   players: Player[];
   board: GameBoard;
   currentPlayerIndex: number;
@@ -98,6 +100,7 @@ export type Screen =
 export interface SocketEvents {
   // Client to Server
   create_room: (username: string) => void;
+  create_single_player_game: (data: { username: string; botCount: number }) => void;
   join_room: (data: { roomCode: string; username: string }) => void;
   reconnect_to_room: (data: { roomCode: string; username: string; sessionToken: string }) => void;
   start_game: () => void;

@@ -158,6 +158,14 @@ async function createRoom(socket, username) {
   return created;
 }
 
+async function createSinglePlayerGame(socket, username, botCount = 3) {
+  const created = once(socket, 'room_created');
+  const hand = once(socket, 'your_cards');
+  socket.emit('create_single_player_game', { username, botCount });
+  const [room, cards] = await Promise.all([created, hand]);
+  return { ...room, hand: cards };
+}
+
 async function joinRoom(socket, roomCode, username) {
   const joined = once(socket, 'room_joined');
   socket.emit('join_room', { roomCode, username });
@@ -182,6 +190,87 @@ test('room state checks return codes that distinguish ended rooms from expired s
   });
   assert.equal((await missingRoomError).code, 'ROOM_NOT_FOUND');
   assert.equal((await endedRoom).message, 'This game has ended.');
+});
+
+test('single-player starts immediately with one human and three computer players', async (t) => {
+  const { baseUrl } = await startServer(t);
+  const client = await connectClient(baseUrl);
+  t.after(() => client.close());
+
+  const created = await createSinglePlayerGame(client, 'Aakash');
+
+  assert.equal(created.gameState.started, true);
+  assert.equal(created.gameState.mode, 'single-player');
+  assert.deepEqual(
+    created.gameState.players.map((player) => [player.name, player.isBot]),
+    [['Aakash', false], ['Meera', true], ['Kabir', true], ['Tara', true]],
+  );
+  assert.equal(created.gameState.players.every((player) => player.connected), true);
+  assert.equal(created.gameState.players.reduce((total, player) => total + player.cardCount, 0), 51);
+  assert.ok(created.hand.cards.length >= 12);
+  assert.match(created.sessionToken, /^[0-9a-f-]{36}$/i);
+});
+
+test('single-player accepts ten computer players without exceeding the table limit', async (t) => {
+  const { baseUrl } = await startServer(t);
+  const client = await connectClient(baseUrl);
+  t.after(() => client.close());
+
+  const created = await createSinglePlayerGame(client, 'Aakash', 10);
+
+  assert.equal(created.gameState.players.length, 11);
+  assert.equal(created.gameState.players.filter((player) => player.isBot).length, 10);
+  assert.equal(created.gameState.players.reduce((total, player) => total + player.cardCount, 0), 51);
+  assert.deepEqual(
+    created.gameState.players.slice(1).map((player) => player.name),
+    ['Meera', 'Kabir', 'Tara', 'Arjun', 'Nisha', 'Rohan', 'Leela', 'Vikram', 'Priya', 'Dev'],
+  );
+});
+
+test('single-player rejects computer counts outside 3 to 10', async (t) => {
+  const { baseUrl } = await startServer(t);
+  const client = await connectClient(baseUrl);
+  t.after(() => client.close());
+
+  const tooFew = once(client, 'error');
+  client.emit('create_single_player_game', { username: 'Aakash', botCount: 2 });
+  assert.equal((await tooFew).code, 'INVALID_BOT_COUNT');
+
+  const tooMany = once(client, 'error');
+  client.emit('create_single_player_game', { username: 'Aakash', botCount: 11 });
+  assert.equal((await tooMany).code, 'INVALID_BOT_COUNT');
+});
+
+test('computer players take their turns without waiting for the human timer', async (t) => {
+  const { baseUrl } = await startServer(t, {
+    ENABLE_TURN_TIMERS: '1',
+    BOT_TURN_DELAY_MS: '15',
+    TURN_TIMER_TEST_DELAY_MS: '4000',
+  });
+  const client = await connectClient(baseUrl);
+  t.after(() => client.close());
+
+  let resolveAutomatic;
+  const automaticTurn = new Promise((resolve) => { resolveAutomatic = resolve; });
+  const captureAutomatic = (payload) => {
+    if (payload?.automatic) resolveAutomatic(payload);
+  };
+  client.on('card_played', captureAutomatic);
+  client.on('turn_passed', captureAutomatic);
+
+  const created = await createSinglePlayerGame(client, 'Aakash');
+  if (created.gameState.currentPlayerName === 'Aakash') {
+    if (created.hand.validMoves.length > 0) client.emit('play_card', created.hand.validMoves[0]);
+    else client.emit('pass_turn');
+  }
+
+  const botTurn = await Promise.race([
+    automaticTurn,
+    wait(1500).then(() => { throw new Error('Computer player did not take a turn'); }),
+  ]);
+  assert.ok(['Meera', 'Kabir', 'Tara'].includes(botTurn.playerName));
+  assert.equal(botTurn.automatic, true);
+  assert.equal(botTurn.gameState.playHistory.at(-1).automatic, true);
 });
 
 test('explicit waiting-room leave removes the player immediately', async (t) => {
