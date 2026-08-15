@@ -10,11 +10,12 @@ King's Corner.
 The main menu keeps private family rooms as the primary mode. Practice mode
 creates one human seat and 3 to 10 server-controlled computer seats, then
 starts the game immediately. Computer turns use the same server-side move
-validation as family play and run on a short delay. Computer players prefer to
-shed expensive cards, open useful cards in their own hand, and avoid opening
-cards for opponents. They give extra weight to the next seat and any opponent
-who is close to emptying their hand. Practice rooms keep the human seat's normal
-reconnect window and close when that seat leaves or expires.
+validation as family play and run after a random delay from 0.1 to 2 seconds.
+Computer players prefer to shed expensive cards, open useful cards in their own
+hand, and avoid opening cards for opponents. They give extra weight to the next
+seat and any opponent who is close to emptying their hand. Practice rooms keep
+the human seat's normal reconnect window and close when that seat leaves or
+expires.
 
 ## Repository layout
 
@@ -79,11 +80,12 @@ reconnect window and close when that seat leaves or expires.
   waiting room via `set_turn_duration`). `turnStartedAt` +
   `turnDurationSeconds` are in every `getState()` so all clients can render
   the countdown for whoever is playing.
-- `server/index.js` keeps one timer per room (`activeTurnTimers`). On expiry
-  the server plays the valid card farthest from 7 (or passes) for the current
-  player, broadcasting the same `card_played` / `turn_passed` events as a
-  human move with `automatic: true`. Timers restart on every turn advance and
-  on room restore; they are cleared on round end, room cleanup, and shutdown.
+- `server/index.js` keeps one timer per room (`activeTurnTimers`). A computer
+  player uses its strategic move choice after a random 0.1 to 2 second delay.
+  A human whose timer expires uses the valid card farthest from 7, or passes.
+  Both paths broadcast the same `card_played` / `turn_passed` events with
+  `automatic: true`. Timers restart on every turn advance and on room restore.
+  They are cleared on round end, room cleanup, and shutdown.
 - The client countdown is display-only. It never emits moves.
 - Timers are disabled when `NODE_ENV=test` unless `ENABLE_TURN_TIMERS=1`
   (`TURN_TIMER_TEST_DELAY_MS` shortens expiry in tests).

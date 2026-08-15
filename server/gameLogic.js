@@ -3,6 +3,14 @@ const crypto = require("crypto");
 const SUIT_ORDER = { hearts: 0, diamonds: 1, clubs: 2, spades: 3 };
 const TURN_DURATION_OPTIONS = [20, 40, 60];
 const MIN_PLAYERS = 3;
+const BOT_TURN_DELAY_MIN_MS = 100;
+const BOT_TURN_DELAY_MAX_MS = 2000;
+
+function getBotTurnDelayMs(configuredValue, randomInt = crypto.randomInt) {
+  const configuredDelay = Number(configuredValue);
+  if (Number.isFinite(configuredDelay) && configuredDelay >= 0) return configuredDelay;
+  return randomInt(BOT_TURN_DELAY_MIN_MS, BOT_TURN_DELAY_MAX_MS + 1);
+}
 
 function sortHand(cards) {
   return cards.sort((a, b) => {
@@ -832,4 +840,12 @@ class GameRoom {
   }
 }
 
-module.exports = { GameRoom, sortHand, TURN_DURATION_OPTIONS, MIN_PLAYERS };
+module.exports = {
+  GameRoom,
+  sortHand,
+  getBotTurnDelayMs,
+  TURN_DURATION_OPTIONS,
+  MIN_PLAYERS,
+  BOT_TURN_DELAY_MIN_MS,
+  BOT_TURN_DELAY_MAX_MS,
+};

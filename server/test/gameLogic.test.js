@@ -1,6 +1,11 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { GameRoom } = require('../gameLogic');
+const {
+  GameRoom,
+  getBotTurnDelayMs,
+  BOT_TURN_DELAY_MIN_MS,
+  BOT_TURN_DELAY_MAX_MS,
+} = require('../gameLogic');
 
 function makeRoom(playerCount = 4) {
   const room = new GameRoom('TEST01');
@@ -9,6 +14,19 @@ function makeRoom(playerCount = 4) {
   }
   return room;
 }
+
+test('computer turn delay stays between 0.1 and 2 seconds', () => {
+  const minimum = getBotTurnDelayMs(undefined, (from, to) => {
+    assert.equal(from, BOT_TURN_DELAY_MIN_MS);
+    assert.equal(to, BOT_TURN_DELAY_MAX_MS + 1);
+    return from;
+  });
+  const maximum = getBotTurnDelayMs(undefined, (_from, to) => to - 1);
+
+  assert.equal(minimum, 100);
+  assert.equal(maximum, 2000);
+  assert.equal(getBotTurnDelayMs('15'), 15);
+});
 
 test('starts with 7 of hearts on the board and advances to the next player', () => {
   const room = makeRoom(4);

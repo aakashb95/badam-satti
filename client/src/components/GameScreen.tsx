@@ -243,7 +243,6 @@ const GameScreen: React.FC<GameScreenProps> = ({
             <span className="table-player-copy">
               <strong title={player.name}>
                 {player.name === username ? 'You' : player.name}
-                {player.isBot && <span className="bot-chip" title="Computer player">BOT</span>}
                 {player.isDealer && <span className="dealer-chip" title="Dealer">D</span>}
                 {hasExtraCard && <span className="extra-card-chip" title="Dealt one extra card this round">+1</span>}
               </strong>
@@ -396,7 +395,7 @@ const GameScreen: React.FC<GameScreenProps> = ({
         <header className="game-top-bar">
           <div className="game-brand">
             <GameDeskLink onBeforeNavigate={returnToGameDeskSafely} />
-            <div><strong>Badam Satti</strong><small>Round {gameState?.round || 1} of {gameState?.maxRounds || 7}</small></div>
+            <div><strong>Badam Satti</strong></div>
           </div>
 
           {turnControl}
@@ -417,6 +416,13 @@ const GameScreen: React.FC<GameScreenProps> = ({
         </header>
 
         <div className="table-stage">
+          <div
+            className="board-round-label"
+            role="status"
+            aria-label={`Current round ${gameState?.round || 1}`}
+          >
+            Round {gameState?.round || 1}
+          </div>
           {renderPlayers()}
           {renderBoard()}
           {renderRoundIntro()}

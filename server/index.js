@@ -77,7 +77,7 @@ const io = require("socket.io")(server, {
 });
 const path = require("path");
 
-const { GameRoom, TURN_DURATION_OPTIONS, MIN_PLAYERS } = require("./gameLogic");
+const { GameRoom, getBotTurnDelayMs, TURN_DURATION_OPTIONS, MIN_PLAYERS } = require("./gameLogic");
 const { activeReconnectCutoffMs } = require("./connectionPolicy");
 const Database = require("./database");
 const IP_HASH_SALT = process.env.IP_HASH_SALT || crypto.randomBytes(32).toString('hex');
@@ -479,13 +479,9 @@ function scheduleTurnTimer(roomCode) {
 
   // Small grace period so a human tap at the buzzer beats the server.
   const currentPlayer = room.players[room.currentPlayerIndex];
-  const configuredBotDelayMs = Number(process.env.BOT_TURN_DELAY_MS);
-  const botDelayMs = Number.isFinite(configuredBotDelayMs) && configuredBotDelayMs >= 0
-    ? configuredBotDelayMs
-    : 700;
   const testDelayMs = process.env.NODE_ENV === 'test' ? Number(process.env.TURN_TIMER_TEST_DELAY_MS) : NaN;
   const delayMs = currentPlayer?.isBot
-    ? botDelayMs
+    ? getBotTurnDelayMs(process.env.BOT_TURN_DELAY_MS)
     : Number.isFinite(testDelayMs) && testDelayMs > 0
       ? testDelayMs
       : (room.turnDurationSeconds || 20) * 1000 + 1000;
