@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 test('two players create, join, and begin a game', async ({ browser }) => {
   test.setTimeout(45_000);
@@ -10,21 +10,21 @@ test('two players create, join, and begin a game', async ({ browser }) => {
   await host.goto('/kings-corner/');
   await host.getByPlaceholder('Enter your name').fill('Aakash');
   await host.getByRole('button', { name: 'Continue' }).click();
-  await host.getByRole('button', { name: /Host a new table/ }).click();
-  await expect(host.locator('.waiting-screen h1')).toBeVisible();
+  await host.getByRole('button', { name: /Host a new room/ }).click();
+  await expect(host.getByRole('heading', { name: 'Waiting for players' })).toBeVisible();
   const roomCode = await host.locator('.invite-copy strong').innerText();
 
   await expect(host.locator('.invite-link')).toContainText(`/kings-corner/r/${roomCode}`);
   await guest.goto(`/kings-corner/r/${roomCode}`);
-  await expect(guest.getByText(`You’re invited to room ${roomCode}`)).toBeVisible();
+  await expect(guest.getByText(`You're invited to room ${roomCode}`)).toBeVisible();
   await guest.getByPlaceholder('Enter your name').fill('Maya');
   await guest.getByRole('button', { name: 'Join invited table' }).click();
-  await expect(guest.locator('.waiting-screen h1')).toBeVisible();
+  await expect(guest.getByRole('heading', { name: 'Waiting for players' })).toBeVisible();
   await expect(host.getByText('Maya')).toBeVisible();
 
   await host.getByRole('button', { name: 'Start game' }).click();
-  await expect(host.getByRole('heading', { name: 'King’s Corner' })).toBeVisible();
-  await expect(guest.getByRole('heading', { name: 'King’s Corner' })).toBeVisible();
+  await expect(host.locator('.game-brand')).toContainText("King's Corner");
+  await expect(guest.locator('.game-brand')).toContainText("King's Corner");
   await expect(host.getByText('Your hand')).toBeVisible();
   await expect(guest.getByText('Your hand')).toBeVisible();
   await expect(host.locator('.game-starter-note')).toContainText('started this game');
@@ -53,13 +53,13 @@ test('phone menu and animated help stay inside a narrow viewport', async ({ brow
   const context = await browser.newContext({ viewport: { width: 393, height: 852 } });
   const page = await context.newPage();
   await page.goto('/kings-corner/');
-  await page.getByRole('button', { name: /New to King’s Corner/ }).click();
+  await page.getByRole('button', { name: /New to King's Corner/ }).click();
   await expect(page.getByRole('dialog', { name: 'How to play' })).toBeVisible();
   await page.getByRole('button', { name: 'Close help' }).click();
   await page.getByPlaceholder('Enter your name').fill('Phone Player');
   await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page.getByText('King’s Corner table')).toBeVisible();
-  const greeting = (await page.locator('.menu-hero h1').innerText()).replace(/\s+/g, ' ').trim();
+  const greeting = (await page.locator('.menu-hero h2').innerText()).replace(/\s+/g, ' ').trim();
   expect([
     'Welcome, Phone Player.',
     'Ready, Phone Player?',
@@ -80,9 +80,13 @@ test('phone menu and animated help stay inside a narrow viewport', async ({ brow
   expect(layout.codeLeft).toBeGreaterThanOrEqual(0);
   expect(layout.codeRight).toBeLessThanOrEqual(layout.viewportWidth);
 
+  await page.getByRole('button', { name: 'Sound settings' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Background music' })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Game sounds' })).toBeVisible();
+  await page.getByRole('button', { name: 'Sound settings' }).click();
   await page.getByRole('button', { name: 'How to play' }).click();
   await expect(page.getByRole('dialog', { name: 'How to play' })).toBeVisible();
-  for (const title of ['Only Kings open a corner', 'Go down. Alternate colours.', 'Move a whole pile together', 'Play all you can, then finish', 'Follow the arrow — or choose', 'Use Finish turn when you’re done']) {
+  for (const title of ['Only Kings open a corner', 'Go down. Alternate colours.', 'Move a whole pile together', 'Play all you can, then finish', 'Follow the arrow or choose', 'Use Finish turn when you’re done']) {
     await page.getByRole('button', { name: 'Next' }).click();
     await expect(page.getByText(title)).toBeVisible();
   }
@@ -129,15 +133,15 @@ test('phone landscape gameplay fits while card images load slowly', async ({ bro
   await host.goto('/kings-corner/');
   await host.getByPlaceholder('Enter your name').fill('Landscape Host');
   await host.getByRole('button', { name: 'Continue' }).click();
-  await host.getByRole('button', { name: /Host a new table/ }).click();
-  await expect(host.locator('.waiting-screen h1')).toBeVisible();
+  await host.getByRole('button', { name: /Host a new room/ }).click();
+  await expect(host.getByRole('heading', { name: 'Waiting for players' })).toBeVisible();
   const roomCode = await host.locator('.invite-copy strong').innerText();
 
   await guest.goto('/kings-corner/');
   await guest.getByPlaceholder('Enter your name').fill('Landscape Guest');
   await guest.getByRole('button', { name: 'Continue' }).click();
   await guest.getByLabel('Room code').fill(roomCode);
-  await guest.getByRole('button', { name: 'Join table' }).click();
+  await guest.getByRole('button', { name: 'Join room' }).click();
   await expect(host.getByText('Landscape Guest')).toBeVisible();
   await host.getByRole('button', { name: 'Start game' }).click();
   await expect(host.getByText('Your hand')).toBeVisible();
@@ -166,4 +170,103 @@ test('phone landscape gameplay fits while card images load slowly', async ({ bro
   expect(layout.deskRight).toBeLessThanOrEqual(layout.clockLeft);
   await hostContext.close();
   await guestContext.close();
+});
+
+test('gameplay parity holds across phone, tablet, and desktop sizes', async ({ browser }, testInfo) => {
+  test.setTimeout(45_000);
+  const sizes = [
+    { label: 'small-phone', width: 320, height: 568 },
+    { label: 'current-phone', width: 393, height: 852 },
+    { label: 'tablet', width: 768, height: 1024 },
+    { label: 'desktop', width: 1440, height: 900 },
+  ];
+  const contexts = await Promise.all(sizes.map(({ width, height }) => browser.newContext({ viewport: { width, height }, hasTouch: width < 900 })));
+  const pages = await Promise.all(contexts.map((context) => context.newPage()));
+
+  for (const [index, page] of pages.entries()) {
+    await page.goto('/kings-corner/');
+    await page.getByPlaceholder('Enter your name').fill(`Parity ${index + 1}`);
+    await page.getByRole('button', { name: 'Continue' }).click();
+  }
+
+  await pages[1].screenshot({ path: testInfo.outputPath('current-phone-lobby.png'), fullPage: true });
+  await pages[3].screenshot({ path: testInfo.outputPath('desktop-lobby.png'), fullPage: true });
+
+  await pages[0].getByRole('button', { name: /Host a new room/ }).click();
+  const roomCode = await pages[0].locator('.invite-copy strong').innerText();
+  for (const page of pages.slice(1)) {
+    await page.getByLabel('Room code').fill(roomCode);
+    await page.getByRole('button', { name: 'Join room' }).click();
+  }
+  await expect(pages[0].getByText('Parity 4')).toBeVisible();
+  await pages[1].screenshot({ path: testInfo.outputPath('current-phone-waiting.png'), fullPage: true });
+  await pages[2].screenshot({ path: testInfo.outputPath('tablet-waiting.png'), fullPage: true });
+  await pages[0].getByRole('button', { name: 'Start game' }).click();
+  await Promise.all(pages.map((page) => expect(page.getByText('Your hand')).toBeVisible()));
+
+  for (let index = 0; index < 3; index += 1) await pages[2].getByRole('button', { name: /Change text size/ }).click();
+
+  for (const [index, page] of pages.entries()) {
+    const layout = await page.evaluate(() => {
+      const box = (selector: string) => {
+        const rect = document.querySelector(selector)?.getBoundingClientRect();
+        return rect ? { top: rect.top, right: rect.right, bottom: rect.bottom, left: rect.left, width: rect.width, height: rect.height } : null;
+      };
+      const cards = Array.from(document.querySelectorAll<HTMLElement>('.hand-cards .playing-card')).map((card) => {
+        const rect = card.getBoundingClientRect();
+        return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+      });
+      return {
+        viewport: { width: innerWidth, height: innerHeight },
+        scrollWidth: document.documentElement.scrollWidth,
+        header: box('.game-top-bar'),
+        players: box('.players-strip'),
+        board: box('.tableau'),
+        hand: box('.hand-area'),
+        cards,
+      };
+    });
+    expect(layout.scrollWidth, `${sizes[index].label} should not scroll sideways`).toBeLessThanOrEqual(layout.viewport.width + 1);
+    expect(layout.header?.left, `${sizes[index].label} header starts onscreen`).toBeGreaterThanOrEqual(-1);
+    expect(layout.header?.right, `${sizes[index].label} header ends onscreen. ${JSON.stringify(layout)}`).toBeLessThanOrEqual(layout.viewport.width + 1);
+    expect(layout.board?.width, `${sizes[index].label} board remains visible`).toBeGreaterThan(180);
+    expect(layout.hand?.width, `${sizes[index].label} hand remains visible`).toBeGreaterThan(180);
+    expect(layout.cards.length, `${sizes[index].label} shows every hand card`).toBeGreaterThan(0);
+    expect(layout.cards.every((card) => card.left >= -1 && card.right <= layout.viewport.width + 1), `${sizes[index].label} keeps cards reachable`).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`${sizes[index].label}.png`), fullPage: true });
+  }
+
+  let selectedPage: Page | null = null;
+  for (let turn = 0; turn < 12 && !selectedPage; turn += 1) {
+    for (const page of pages) {
+      if (await page.locator('.turn-status.is-active').count()) {
+        if (await page.locator('.hand-cards .playing-card.playable').count()) {
+          selectedPage = page;
+          break;
+        }
+        await page.getByRole('button', { name: /Finish turn/ }).click();
+        await page.waitForTimeout(80);
+        break;
+      }
+    }
+  }
+
+  expect(selectedPage, 'at least one turn should offer a playable hand card').not.toBeNull();
+  if (selectedPage) {
+    const playable = selectedPage.locator('.hand-cards .playing-card.playable').first();
+    const playableStyle = await playable.evaluate((card) => ({
+      lift: new DOMMatrixReadOnly(getComputedStyle(card).transform).m42,
+      outline: getComputedStyle(card, '::after').borderTopWidth,
+    }));
+    expect(playableStyle.lift).toBeLessThanOrEqual(-6);
+    expect(playableStyle.outline).toBe('2px');
+    await playable.click();
+    await expect(playable).toHaveClass(/is-selected/);
+    const playButton = selectedPage.locator('.play-card-button');
+    if (await playButton.isDisabled()) await selectedPage.locator('.pile-card-target .pile-hitbox').first().click();
+    await expect(playButton).toBeEnabled();
+    await selectedPage.screenshot({ path: testInfo.outputPath('selected-card.png'), fullPage: true });
+  }
+
+  await Promise.all(contexts.map((context) => context.close()));
 });

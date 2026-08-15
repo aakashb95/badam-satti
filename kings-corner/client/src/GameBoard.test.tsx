@@ -56,8 +56,29 @@ describe('GameBoard', () => {
     const northPile = container.querySelector('.pile-north');
     expect(northPile?.querySelectorAll('.playing-card')).toHaveLength(2);
     expect(northPile).toHaveTextContent('+2');
-    expect(northPile?.querySelector('img[alt="9 of clubs"]')).not.toBeInTheDocument();
-    expect(northPile?.querySelector('img[alt="10 of diamonds"]')).toBeInTheDocument();
-    expect(northPile?.querySelector('img[alt="7 of spades"]')).toBeInTheDocument();
+    expect(northPile?.querySelector('img[alt="9 of Clubs"]')).not.toBeInTheDocument();
+    expect(northPile?.querySelector('img[alt="10 of Diamonds"]')).toBeInTheDocument();
+    expect(northPile?.querySelector('img[alt="7 of Spades"]')).toBeInTheDocument();
+  });
+
+  it('lets a selected hand card choose between every legal target pile', () => {
+    const onSelectTarget = vi.fn();
+    const actions = [
+      { type: 'play_card', card: { rank: 12, suit: 'hearts' }, targetPileId: 'south' },
+      { type: 'play_card', card: { rank: 12, suit: 'hearts' }, targetPileId: 'west' },
+    ] satisfies GameState['handActions'];
+    const { container } = render(
+      <GameBoard
+        state={state}
+        onMovePile={vi.fn()}
+        selectedCardActions={actions}
+        selectedTargetPileId="west"
+        onSelectCardTarget={onSelectTarget}
+      />,
+    );
+    screen.getByRole('button', { name: 'Choose South for Q of Hearts' }).click();
+    expect(onSelectTarget).toHaveBeenCalledWith('south');
+    expect(container.querySelector('.pile-south')).toHaveClass('pile-card-target');
+    expect(container.querySelector('.pile-west')).toHaveClass('pile-selected-target');
   });
 });

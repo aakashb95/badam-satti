@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import CardView from './CardView';
+import { cardKey, getRankDisplay, SUIT_SYMBOLS } from './cards';
 import GameBoard from './GameBoard';
 import GameDeskLink from './GameDeskLink';
 import HelpModal from './HelpModal';
+import { getBackgroundMusicVolume, isBackgroundMusicEnabled, resumeBackgroundMusic, setBackgroundMusicEnabled, setBackgroundMusicVolume } from './music';
 import ResultsScreen from './ResultsScreen';
-import type { Card, ComfortSize, GameState, MovePileAction, PlayCardAction } from './types';
+import SoundToggle from './SoundToggle';
+import { isSoundEnabled, playCardSound, playDealSound, playWinSound, setSoundEnabled, unlockAudio } from './sounds';
+import type { Card, ComfortSize, GameState, MovePileAction, PileId, PlayCardAction } from './types';
 
 const SESSION_KEY = 'kings-corner-session';
 const COMFORT_KEY = 'kings-corner-comfort-size';
@@ -20,7 +24,7 @@ const LOBBY_GREETINGS = [
 
 function LobbyGreeting({ name }: { name: string }) {
   const [greeting] = useState(() => LOBBY_GREETINGS[Math.floor(Math.random() * LOBBY_GREETINGS.length)] || LOBBY_GREETINGS[0]);
-  return <h1>{greeting.lead}, <em>{name}</em>{greeting.punctuation}</h1>;
+  return <h2>{greeting.lead}, <em>{name}</em>{greeting.punctuation}</h2>;
 }
 
 function useCountdown(deadline: number | null) {
@@ -41,6 +45,9 @@ function inviteCodeFromPath() {
 
 export default function App() {
   const socketRef = useRef<Socket | null>(null);
+  const latestStateRef = useRef<GameState | null>(null);
+  const lastActionSignatureRef = useRef('');
+  const nameRef = useRef('');
   const [state, setState] = useState<GameState | null>(null);
   const [name, setName] = useState('');
   const [roomCode, setRoomCode] = useState(inviteCodeFromPath);
@@ -52,6 +59,12 @@ export default function App() {
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [selectedCardKey, setSelectedCardKey] = useState<string | null>(null);
+  const [selectedTargetPileId, setSelectedTargetPileId] = useState<PileId | null>(null);
+  const [movePending, setMovePending] = useState(false);
+  const [gameSoundsOn, setGameSoundsOn] = useState(isSoundEnabled);
+  const [backgroundMusicOn, setBackgroundMusicOn] = useState(isBackgroundMusicEnabled);
+  const [backgroundMusicVolume, setBackgroundMusicVolumeState] = useState(getBackgroundMusicVolume);
   const intentionalLeave = useRef(false);
   const [comfortSize, setComfortSize] = useState<ComfortSize>(() => {
     const stored = window.localStorage.getItem(COMFORT_KEY);
@@ -59,6 +72,21 @@ export default function App() {
   });
   const inviteRoomCode = useMemo(inviteCodeFromPath, []);
   const countdown = useCountdown(state?.actionDeadline || null);
+
+  useEffect(() => { nameRef.current = name; }, [name]);
+
+  useEffect(() => {
+    const unlock = () => {
+      unlockAudio();
+      resumeBackgroundMusic();
+    };
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
 
   useEffect(() => {
     const socket = io({ path: '/kings-corner/socket.io', reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 800, reconnectionDelayMax: 5_000, timeout: 20_000 });
@@ -74,8 +102,23 @@ export default function App() {
     });
     socket.on('disconnect', () => setConnected(false));
     socket.on('connect_error', () => setConnected(false));
-    socket.on('state', setState);
-    socket.on('error_message', setError);
+    socket.on('state', (nextState: GameState) => {
+      const previous = latestStateRef.current;
+      if (!previous?.started && nextState.started) playDealSound();
+      const actionSignature = nextState.lastAction ? JSON.stringify([nextState.turnNumber, nextState.lastAction]) : '';
+      if (actionSignature && actionSignature !== lastActionSignatureRef.current) {
+        const actionType = String(nextState.lastAction?.type || '');
+        if (actionType.includes('play_card') || actionType.includes('move_pile')) playCardSound();
+      }
+      lastActionSignatureRef.current = actionSignature;
+      if (!previous?.finished && nextState.finished && nextState.winnerName === nameRef.current) playWinSound();
+      latestStateRef.current = nextState;
+      setState(nextState);
+    });
+    socket.on('error_message', (message: string) => {
+      setMovePending(false);
+      setError(message);
+    });
     socket.on('session_invalid', () => {
       window.localStorage.removeItem(SESSION_KEY);
       setIdentityConfirmed(false);
@@ -101,9 +144,19 @@ export default function App() {
   }, [state?.finished]);
 
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0 });
+  }, [state?.started, state?.finished]);
+
+  useEffect(() => {
     document.documentElement.dataset.comfortSize = comfortSize;
     window.localStorage.setItem(COMFORT_KEY, comfortSize);
   }, [comfortSize]);
+
+  useEffect(() => {
+    setSelectedCardKey(null);
+    setSelectedTargetPileId(null);
+    setMovePending(false);
+  }, [state?.turnNumber, state?.myHand.length, state?.isMyTurn]);
 
   useEffect(() => {
     if (!state?.started || state.finished) return undefined;
@@ -151,6 +204,18 @@ export default function App() {
     const index = COMFORT_SIZES.indexOf(comfortSize);
     setComfortSize(COMFORT_SIZES[(index + 1) % COMFORT_SIZES.length]);
   };
+  const changeGameSounds = (value: boolean) => {
+    setSoundEnabled(value);
+    setGameSoundsOn(value);
+  };
+  const changeBackgroundMusic = (value: boolean) => {
+    setBackgroundMusicEnabled(value);
+    setBackgroundMusicOn(value);
+  };
+  const changeBackgroundMusicVolume = (value: number) => {
+    setBackgroundMusicVolume(value);
+    setBackgroundMusicVolumeState(value);
+  };
   const copyText = async (text: string, kind: 'code' | 'invite') => {
     try {
       await navigator.clipboard.writeText(text);
@@ -158,10 +223,13 @@ export default function App() {
       else setCopiedInvite(true);
       window.setTimeout(() => kind === 'code' ? setCopiedRoomCode(false) : setCopiedInvite(false), 1600);
     } catch {
-      setError('Copy failed — select the text instead.');
+      setError('Copy failed. Select the text instead.');
     }
   };
-  const playCard = (action: PlayCardAction) => socketRef.current?.emit('play_card', action);
+  const playCard = (action: PlayCardAction) => {
+    setMovePending(true);
+    socketRef.current?.emit('play_card', action);
+  };
   const movePile = (action: MovePileAction) => socketRef.current?.emit('move_pile', action);
   const returnToLobby = () => {
     socketRef.current?.emit('leave_room');
@@ -202,22 +270,34 @@ export default function App() {
     });
   };
 
-  const playableCards = useMemo(() => {
-    const map = new Map<string, PlayCardAction>();
-    state?.handActions.forEach((action) => {
-      const key = `${action.card.rank}:${action.card.suit}`;
-      if (!map.has(key)) map.set(key, action);
-    });
-    state?.suggestedActions.forEach((action) => {
-      if (action.type === 'play_card') map.set(`${action.card.rank}:${action.card.suit}`, action);
-    });
-    return map;
-  }, [state?.handActions, state?.suggestedActions]);
+  const playableCardKeys = useMemo(() => new Set(state?.handActions.map((action) => cardKey(action.card)) || []), [state?.handActions]);
 
   const recommendedCardKey = useMemo(() => {
     const action = state?.suggestedActions.find((item): item is PlayCardAction => item.type === 'play_card');
-    return action ? `${action.card.rank}:${action.card.suit}` : null;
+    return action ? cardKey(action.card) : null;
   }, [state?.suggestedActions]);
+
+  const selectedCardActions = useMemo(
+    () => state?.handActions.filter((action) => cardKey(action.card) === selectedCardKey) || [],
+    [selectedCardKey, state?.handActions],
+  );
+  const selectedCard = selectedCardActions[0]?.card || null;
+  const selectedPlayAction = selectedCardActions.find((action) => action.targetPileId === selectedTargetPileId) || null;
+
+  const selectCard = (card: Card) => {
+    const key = cardKey(card);
+    if (selectedCardKey === key) {
+      setSelectedCardKey(null);
+      setSelectedTargetPileId(null);
+      return;
+    }
+    const actions = state?.handActions.filter((action) => cardKey(action.card) === key) || [];
+    const suggestion = state?.suggestedActions.find(
+      (action): action is PlayCardAction => action.type === 'play_card' && cardKey(action.card) === key,
+    );
+    setSelectedCardKey(key);
+    setSelectedTargetPileId(suggestion?.targetPileId || (actions.length === 1 ? actions[0].targetPileId : null));
+  };
 
   const automaticAction = typeof state?.lastAction?.type === 'string' && state.lastAction.type.startsWith('auto_');
   const connectionBanner = !connected ? <div className="connection-banner" role="status"><span /> Reconnecting… Your table is safe.</div> : null;
@@ -225,14 +305,14 @@ export default function App() {
   if (!state) {
     if (!identityConfirmed) {
       return (<>
-        <main className="shell welcome-screen">
-          <section className="welcome-card">
+        <main className="shell welcome-screen screen">
+          <section className="welcome-card welcome-shell">
             <GameDeskLink className="welcome-game-desk" />
             <div className="brand-lockup">
               <div className="brand-mark" aria-hidden="true"><span>K</span><i>♛</i></div>
               <div><h1>King’s Corner</h1><p className="eyebrow">The classic table game</p></div>
             </div>
-            <label htmlFor="player-name">{inviteRoomCode ? `You’re invited to room ${inviteRoomCode}` : 'Play with your friends and family'}</label>
+            <label htmlFor="player-name">{inviteRoomCode ? `You're invited to room ${inviteRoomCode}` : 'Your name'}</label>
             <div className="identity-entry">
               <input
                 id="player-name"
@@ -248,7 +328,8 @@ export default function App() {
               <button aria-label={inviteRoomCode ? 'Join invited table' : 'Continue'} onClick={confirmIdentity} disabled={!name.trim() || (Boolean(inviteRoomCode) && !connected)}>→</button>
             </div>
             <div className="field-message">Up to 20 characters</div>
-            <button className="welcome-how-to" onClick={() => setShowHelp(true)}><strong>New to King’s Corner?</strong><span>See the rules and an animated example · about 2 minutes</span></button>
+            {error && <div className="field-message is-visible" role="alert">{error}</div>}
+            <button className="welcome-how-to" onClick={() => setShowHelp(true)}><strong>New to King's Corner?</strong><span>See the rules and animated examples. About 2 minutes</span></button>
             <p className="welcome-rule-summary">Clear your hand by building downward in alternating colours. Kings open the four corner piles.</p>
             <div className="welcome-meta"><span>2–4 players</span><span>Private rooms</span><span>No sign-up</span></div>
             {connectionBanner}
@@ -260,26 +341,30 @@ export default function App() {
     }
 
     return (<>
-      <main className="shell menu-screen">
+      <main className="shell menu-screen screen lobby-screen">
         <section className="menu-shell">
-          <header className="menu-header">
+          <header className="menu-header app-header">
             <GameDeskLink />
-            <div className="header-actions"><button className="how-to-button" onClick={() => setShowHelp(true)}>How to play</button><button className="change-name" onClick={() => setIdentityConfirmed(false)}>Change name</button></div>
+            <div className="header-actions">
+              <SoundToggle backgroundMusicOn={backgroundMusicOn} backgroundMusicVolume={backgroundMusicVolume} gameSoundsOn={gameSoundsOn} onBackgroundMusicChange={changeBackgroundMusic} onBackgroundMusicVolumeChange={changeBackgroundMusicVolume} onGameSoundsChange={changeGameSounds} />
+              <button className="how-to-button quiet-button" onClick={() => setShowHelp(true)}>How to play</button>
+              <button className="game-size-button text-size-button menu-text-size-button" onClick={nextComfortSize} aria-label={`Change text size. Current size ${COMFORT_BUTTON_LABELS[comfortSize]}`}>{COMFORT_BUTTON_LABELS[comfortSize]}</button>
+            </div>
           </header>
           <div className="menu-hero">
             <p className="eyebrow game-lobby-label"><b aria-hidden="true">K♛</b> King’s Corner table</p>
             <LobbyGreeting name={name} />
-            <p>Choose one: host a new table, or join using a code someone sent you.</p>
+            <p>Choose one: host a new room, or join using a code someone sent you.</p>
           </div>
           <div className="menu-grid">
-            <button className="action-card create-card" onClick={createRoom} disabled={!connected}>
-              <span className="action-icon">＋</span>
-              <span><strong>Host a new table</strong><small>Choose this to create a fresh invite code</small></span>
-              <b>→</b>
+            <button className="action-card create-card action-card-primary" onClick={createRoom} disabled={!connected}>
+              <span className="action-icon action-card-icon">＋</span>
+              <span className="action-card-copy"><strong>Host a new room</strong><small>Choose this to create a fresh invite code</small></span>
+              <b className="action-card-arrow">→</b>
             </button>
             <section className="action-card join-card">
-              <span className="action-icon">⌁</span>
-              <span><strong>I have an invite code</strong><small>Use the six characters your host sent you</small></span>
+              <span className="action-icon action-card-icon">⌁</span>
+              <span className="action-card-copy"><strong>I have an invite code</strong><small>Use the six characters your host sent you</small></span>
               <div className="code-entry">
                 <input
                   aria-label="Room code"
@@ -290,11 +375,12 @@ export default function App() {
                   onKeyDown={(event) => { if (event.key === 'Enter' && roomCode.length === 6) joinRoom(); }}
                   placeholder="ENTER CODE"
                 />
-                <button onClick={joinRoom} disabled={!connected || roomCode.length !== 6}>Join table</button>
+                <button className="code-submit" onClick={joinRoom} disabled={!connected || roomCode.length !== 6}>Join room</button>
               </div>
             </section>
           </div>
           {error && <p role="alert" className="error">{error}</p>}
+          <footer className="app-footer"><span>Classic rules</span><span>Single hand</span><button onClick={() => setIdentityConfirmed(false)}>Change name</button></footer>
         </section>
       </main>
       <HelpModal open={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={setComfortSize} onReturnToGameDesk={returnToGameDesk} />
@@ -304,16 +390,21 @@ export default function App() {
 
   if (!state.started) {
     const isHost = state.players[0]?.name === name;
+    const connectedPlayerCount = state.players.filter((player) => player.connected).length;
     const inviteLink = `${window.location.origin}${import.meta.env.BASE_URL}r/${state.roomCode}`;
     return (<>
-      <main className="shell waiting-screen">
+      <main className="shell waiting-screen screen">
         <section className="waiting-shell">
-          <header className="menu-header">
+          <header className="menu-header app-header">
             <GameDeskLink onBeforeNavigate={returnToGameDesk} />
-            <div className="header-actions"><button className="how-to-button" onClick={() => setShowHelp(true)}>How to play</button><button className="change-name danger" onClick={returnToLobby}>Leave room</button></div>
+            <div className="waiting-toolbar">
+              <SoundToggle backgroundMusicOn={backgroundMusicOn} backgroundMusicVolume={backgroundMusicVolume} gameSoundsOn={gameSoundsOn} onBackgroundMusicChange={changeBackgroundMusic} onBackgroundMusicVolumeChange={changeBackgroundMusicVolume} onGameSoundsChange={changeGameSounds} />
+              <button className="round-icon-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button>
+              <button className="round-icon-button leave-button" onClick={returnToLobby} aria-label="Leave room">×</button>
+            </div>
           </header>
           <div className="waiting-heading">
-            <div><p className="eyebrow">Private table</p><h1>Waiting for players</h1></div>
+            <div><p className="eyebrow">Private table</p><h2>Waiting for players</h2></div>
             <p>{isHost ? 'Invite your people, then start whenever everyone is ready.' : 'The host will start the game when everyone is ready.'}</p>
           </div>
           <section className="invite-card">
@@ -324,19 +415,23 @@ export default function App() {
             </div>
             <div className="invite-link">{inviteLink}</div>
           </section>
+          <section className="turn-speed-card">
+            <div className="section-heading"><h3>Move timer</h3><span>20 seconds</span></div>
+            <p className="turn-speed-note">After 20 seconds, the table makes one helpful move. You can keep playing until you finish your turn.</p>
+          </section>
           <section className="players-section">
             <div className="section-heading"><h2>Players</h2><span>{state.players.length} / 4</span></div>
             <div className="waiting-players">{state.players.map((player, index) => (
-              <div className="waiting-player" key={player.name}>
-                <span className="waiting-avatar">{player.name.slice(0, 1).toUpperCase()}</span>
-                <div><strong>{player.name}{player.name === name && <small> You</small>}</strong><small>{index === 0 ? 'Host' : player.connected ? 'Ready at the table' : 'Away'}</small></div>
-                {player.isDealer && <span className="waiting-dealer">Dealer</span>}
-                <i className={player.connected ? 'connected' : ''} aria-label={player.connected ? 'Connected' : 'Disconnected'} />
+              <div className={`waiting-player player-item ${player.connected ? 'connected' : 'disconnected'}`} key={player.name}>
+                <span className="waiting-avatar player-avatar">{player.name.slice(0, 1).toUpperCase()}</span>
+                <div className="player-item-copy"><strong>{player.name}{player.name === name && <small> You</small>}</strong><small>{index === 0 ? 'Host' : player.connected ? 'Ready at the table' : 'Away'}</small></div>
+                {player.isDealer && <span className="waiting-dealer dealer-badge">Dealer</span>}
+                <i className={`connection-dot ${player.connected ? 'connected' : ''}`} aria-label={player.connected ? 'Connected' : 'Disconnected'} />
               </div>
             ))}</div>
           </section>
           <div className="waiting-actions">
-            {isHost ? <button className="result-primary" onClick={() => socketRef.current?.emit('start_game')} disabled={state.players.length < 2}>{state.players.length < 2 ? 'Waiting for one more player' : <>Start game <span>→</span></>}</button> : <div className="waiting-pulse"><span /> Waiting for the host</div>}
+            {isHost ? <button className="result-primary primary-button start-button" onClick={() => socketRef.current?.emit('start_game')} disabled={connectedPlayerCount < 2}>{connectedPlayerCount < 2 ? 'Waiting for one more player' : <>Start game <span>→</span></>}</button> : <div className="waiting-pulse"><span /> Waiting for the host</div>}
           </div>
           {error && <p role="alert" className="error">{error}</p>}
         </section>
@@ -351,24 +446,31 @@ export default function App() {
   }
 
   return (<>
-    <main className="game-shell">
-      <header className="game-header">
-        <div className="game-header-identity"><GameDeskLink onBeforeNavigate={returnToGameDesk} /><div><p className="eyebrow">Room {state.roomCode}</p><h2>King’s Corner</h2></div></div>
-        <div className="game-header-actions"><button className="game-help-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button><button className="game-size-button" onClick={nextComfortSize} aria-label={`Change text size. Current size ${COMFORT_BUTTON_LABELS[comfortSize]}`}>{COMFORT_BUTTON_LABELS[comfortSize]}</button><button className="game-help-button game-leave-button" onClick={() => setShowLeaveConfirm(true)} aria-label="Leave room">×</button><div className={`turn-clock ${state.isMyTurn ? 'active' : ''}`}><span>{countdown}</span><div><strong>{state.isMyTurn ? 'Your turn' : state.currentPlayerName}</strong><small>{state.isMyTurn ? 'Auto move in seconds' : 'is playing'}</small></div></div></div>
+    <main className="game-shell game-screen">
+      <header className="game-header game-top-bar">
+        <div className="game-header-identity game-brand"><GameDeskLink onBeforeNavigate={returnToGameDesk} /><div><strong>King's Corner</strong><small>Room {state.roomCode}</small></div></div>
+        <div className={`turn-clock turn-status ${state.isMyTurn ? 'active is-active' : ''}`}><span className="turn-timer">{countdown}s</span><div><strong>{state.isMyTurn ? 'Your turn' : `${state.currentPlayerName} is playing`}</strong></div></div>
+        <div className="game-header-actions game-toolbar">
+          <SoundToggle backgroundMusicOn={backgroundMusicOn} backgroundMusicVolume={backgroundMusicVolume} gameSoundsOn={gameSoundsOn} onBackgroundMusicChange={changeBackgroundMusic} onBackgroundMusicVolumeChange={changeBackgroundMusicVolume} onGameSoundsChange={changeGameSounds} />
+          <button className="game-help-button round-icon-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button>
+          <button className="game-size-button text-size-button" onClick={nextComfortSize} aria-label={`Change text size. Current size ${COMFORT_BUTTON_LABELS[comfortSize]}`}>{COMFORT_BUTTON_LABELS[comfortSize]}</button>
+          <button className="game-help-button game-leave-button round-icon-button leave-button" onClick={() => setShowLeaveConfirm(true)} aria-label="Leave room">×</button>
+        </div>
       </header>
       {state.starterName && <div className="game-starter-note" role="status"><span aria-hidden="true">♛</span>{state.starterName} started this game</div>}
       {automaticAction && <div className="last-action" role="status"><span>✦</span> Automatic move <small>{String(state.lastAction?.playerName || '')}</small></div>}
       <aside className="players-strip">{state.players.map((player) => <div key={player.name} className={player.name === state.currentPlayerName ? 'current' : ''}><span>{player.name.slice(0, 1)}</span><strong>{player.name}</strong><small>{player.cardCount}</small>{player.isDealer && <i>D</i>}</div>)}</aside>
-      <GameBoard state={state} onMovePile={movePile} />
+      <GameBoard state={state} onMovePile={movePile} selectedCardActions={selectedCardActions} selectedTargetPileId={selectedTargetPileId} onSelectCardTarget={setSelectedTargetPileId} />
       <section className="hand-area">
-        <div className="hand-heading"><div><p className="eyebrow">Your hand</p><strong>{state.myHand.length} cards</strong></div>{state.isMyTurn && <button className={`finish-turn ${state.handActions.length === 0 && state.pileActions.length === 0 ? 'ready' : ''}`} onClick={() => socketRef.current?.emit('end_turn')}>{state.handActions.length === 0 && state.pileActions.length === 0 ? 'No moves left · Finish turn' : 'Finish turn'} <span>→</span></button>}</div>
+        <div className="hand-heading"><div><p className="eyebrow">Your hand</p><strong>{state.myHand.length} cards</strong></div>{selectedCard && <button className="play-card-button" disabled={!selectedPlayAction || movePending} onClick={() => selectedPlayAction && playCard(selectedPlayAction)}>{selectedPlayAction ? <>Play <strong>{getRankDisplay(selectedCard.rank)}{SUIT_SYMBOLS[selectedCard.suit]}</strong></> : 'Choose a pile'}</button>}{state.isMyTurn && <button className={`finish-turn ${state.handActions.length === 0 && state.pileActions.length === 0 ? 'ready' : ''}`} onClick={() => socketRef.current?.emit('end_turn')}>{state.handActions.length === 0 && state.pileActions.length === 0 ? 'No moves left. Finish turn' : 'Finish turn'} <span>→</span></button>}</div>
         <div className="hand-cards">{state.myHand.map((card: Card) => {
-          const key = `${card.rank}:${card.suit}`;
-          const action = playableCards.get(key);
+          const key = cardKey(card);
+          const playable = playableCardKeys.has(key);
           const recommended = recommendedCardKey === key;
-          return <span className={`hand-card-wrap ${recommended ? 'recommended' : ''}`} key={`${card.rank}-${card.suit}`}>{recommended && <span className="best-move-arrow" aria-hidden="true">↓</span>}<CardView card={card} className={`${action ? 'playable' : ''} ${recommended ? 'suggested' : ''}`} onClick={action ? () => playCard(action) : undefined} label={action ? `Play ${card.rank} of ${card.suit}` : undefined} /></span>;
+          const selected = selectedCardKey === key;
+          return <span className={`hand-card-wrap ${recommended ? 'recommended' : ''}`} key={`${card.rank}-${card.suit}`}>{recommended && <span className="best-move-arrow" aria-hidden="true">↓</span>}<CardView card={card} className={`${playable ? 'playable' : ''} ${recommended ? 'suggested' : ''} ${selected ? 'is-selected' : ''} ${selected && movePending ? 'is-pending' : ''}`} onClick={playable && !movePending ? () => selectCard(card) : undefined} label={playable ? `${selected ? 'Selected' : 'Select'} ${getRankDisplay(card.rank)} of ${card.suit}` : undefined} /></span>;
         })}</div>
-        {state.isMyTurn && <p className={`action-note ${state.handActions.length === 0 && state.pileActions.length === 0 ? 'ready' : ''}`}>{state.handActions.length === 0 && state.pileActions.length === 0 ? 'You’re done here — finish your turn.' : 'The arrow marks a helpful move. Other playable cards and piles remain tappable.'}</p>}
+        {state.isMyTurn && <p className={`action-note ${state.handActions.length === 0 && state.pileActions.length === 0 ? 'ready' : ''}`}>{selectedCard && !selectedPlayAction ? 'Choose one of the glowing piles, then play the card.' : selectedPlayAction ? 'Your card and target are selected. Tap Play to confirm.' : state.handActions.length === 0 && state.pileActions.length === 0 ? "You're done here. Finish your turn." : 'Playable cards have a gold outline. The arrow marks one helpful move.'}</p>}
       </section>
     </main>
     <HelpModal open={showHelp} onClose={() => setShowHelp(false)} comfortSize={comfortSize} onComfortSizeChange={setComfortSize} onReturnToGameDesk={returnToGameDesk} />

@@ -1,6 +1,12 @@
-const CACHE = 'kings-corner-v2';
+const CACHE = 'kings-corner-v3';
 const APP_ROOT = '/kings-corner/';
-const SHELL = [APP_ROOT, `${APP_ROOT}fonts/Haskoy-Regular.woff2`, `${APP_ROOT}fonts/Haskoy-SemiBold.woff2`];
+const SHELL = [
+  APP_ROOT,
+  `${APP_ROOT}fonts/Haskoy-Regular.woff2`,
+  `${APP_ROOT}fonts/Haskoy-SemiBold.woff2`,
+  `${APP_ROOT}sounds/card-deal.mp3`,
+  `${APP_ROOT}sounds/card-play0.mp3`,
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));

@@ -110,7 +110,7 @@ io.on('connection', (socket) => {
 
   socket.on('start_game', () => {
     const room = currentRoom(socket);
-    if (!room?.start(socket.id)) return socket.emit('error_message', 'Only the host can start with 2–4 players.');
+    if (!room?.start(socket.id)) return socket.emit('error_message', 'Only the host can start when 2 to 4 players are connected.');
     emitState(room);
     scheduleAutoAction(room);
   });

@@ -163,6 +163,15 @@ test('leaving the waiting room removes the player and promotes a new host', () =
   assert.equal(game.players[0].id, 'guest');
 });
 
+test('the host cannot start while a waiting player is disconnected', () => {
+  const game = new KingsCornerGame('TEST03');
+  game.addPlayer('host', 'Host');
+  game.addPlayer('guest', 'Guest');
+  game.disconnectPlayer('guest');
+  assert.equal(game.start('host'), false);
+  assert.equal(game.started, false);
+});
+
 test('leaving an active two-player game awards the remaining player', () => {
   const game = startedGame();
   game.players[0].hand = [card(7, 'clubs')];

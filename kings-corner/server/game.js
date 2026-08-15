@@ -101,7 +101,7 @@ class KingsCornerGame {
   }
 
   start(playerId) {
-    if (this.started || this.players.length < 2 || this.players[0].id !== playerId) return false;
+    if (this.started || this.players.length < 2 || this.players.some((player) => !player.connected) || this.players[0].id !== playerId) return false;
     this.started = true;
     this.stock = this.makeDeck();
     for (let round = 0; round < 7; round += 1) {

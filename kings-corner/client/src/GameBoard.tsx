@@ -1,5 +1,6 @@
 import CardView from './CardView';
-import type { GameState, MovePileAction, PileId } from './types';
+import { getRankDisplay, SUIT_LABELS } from './cards';
+import type { GameState, MovePileAction, PileId, PlayCardAction } from './types';
 
 const pileNames: Record<PileId, string> = {
   north: 'North', east: 'East', south: 'South', west: 'West',
@@ -9,9 +10,15 @@ const pileNames: Record<PileId, string> = {
 const layout: PileId[] = ['northWest', 'north', 'northEast', 'west', 'east', 'southWest', 'south', 'southEast'];
 const cornerIds = new Set<PileId>(['northWest', 'northEast', 'southEast', 'southWest']);
 
-interface Props { state: GameState; onMovePile: (action: MovePileAction) => void }
+interface Props {
+  state: GameState;
+  onMovePile: (action: MovePileAction) => void;
+  selectedCardActions?: PlayCardAction[];
+  selectedTargetPileId?: PileId | null;
+  onSelectCardTarget?: (pileId: PileId) => void;
+}
 
-export default function GameBoard({ state, onMovePile }: Props) {
+export default function GameBoard({ state, onMovePile, selectedCardActions = [], selectedTargetPileId = null, onSelectCardTarget }: Props) {
   const recommendedAction = state.suggestedActions[0];
   const actionFor = (pileId: PileId) => state.pileActions.find(
     (action): action is MovePileAction => action.type === 'move_pile' && action.sourcePileId === pileId,
@@ -32,6 +39,8 @@ export default function GameBoard({ state, onMovePile }: Props) {
         const cards = state.piles[pileId];
         const recommendation = recommendationFor(pileId);
         const action = recommendation || actionFor(pileId);
+        const cardTargetAction = selectedCardActions.find((item) => item.targetPileId === pileId);
+        const selectedCardTarget = selectedTargetPileId === pileId;
         const visibleCards = cards.length <= 1
           ? cards.map((card) => ({ card, position: 'single' }))
           : [
@@ -39,12 +48,18 @@ export default function GameBoard({ state, onMovePile }: Props) {
               { card: cards[cards.length - 1], position: 'top' },
             ];
         return (
-          <div key={pileId} className={`pile pile-${pileId} ${action ? 'pile-playable' : ''} ${recommendation ? 'pile-suggested' : ''} ${recommendedAction?.targetPileId === pileId ? 'pile-recommended-target' : ''}`} data-card-count={cards.length}>
+          <div key={pileId} className={`pile pile-${pileId} ${action ? 'pile-playable' : ''} ${recommendation ? 'pile-suggested' : ''} ${recommendedAction?.targetPileId === pileId ? 'pile-recommended-target' : ''} ${cardTargetAction ? 'pile-card-target' : ''} ${selectedCardTarget ? 'pile-selected-target' : ''}`} data-card-count={cards.length}>
             <button
               className="pile-hitbox"
-              disabled={!action}
-              onClick={() => action && onMovePile(action)}
-              aria-label={action ? `Move ${pileNames[pileId]} pile to ${pileNames[action.targetPileId]}` : pileNames[pileId]}
+              disabled={!action && !cardTargetAction}
+              onClick={() => {
+                if (cardTargetAction && onSelectCardTarget) onSelectCardTarget(pileId);
+                else if (action) onMovePile(action);
+              }}
+              aria-pressed={cardTargetAction ? selectedCardTarget : undefined}
+              aria-label={cardTargetAction
+                ? `Choose ${pileNames[pileId]} for ${getRankDisplay(cardTargetAction.card.rank)} of ${SUIT_LABELS[cardTargetAction.card.suit]}`
+                : action ? `Move ${pileNames[pileId]} pile to ${pileNames[action.targetPileId]}` : pileNames[pileId]}
             >
               {cards.length === 0 ? <span className="empty-slot">{cornerIds.has(pileId) ? 'K' : '+'}</span> : visibleCards.map(({ card, position }) => (
                 <span className={`stacked-card stack-position-${position}`} key={`${card.rank}-${card.suit}-${position}`}>
@@ -54,6 +69,7 @@ export default function GameBoard({ state, onMovePile }: Props) {
               {cards.length > 2 && <span className="hidden-card-count" aria-label={`${cards.length - 2} cards hidden between endpoints`}>+{cards.length - 2}</span>}
             </button>
             {recommendation && <><span className="best-move-arrow pile-arrow" aria-hidden="true">↓</span><span className="move-hint">Helpful move →</span></>}
+            {cardTargetAction && <span className="card-target-hint">{selectedCardTarget ? 'Selected' : 'Play here'}</span>}
           </div>
         );
       })}
