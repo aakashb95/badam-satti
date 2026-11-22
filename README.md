@@ -1,27 +1,62 @@
-# Badam Satti
+# Game Desk — Badam Satti, King’s Corner & Kitchen Clash
 
-This repository hosts a phone-first card-games site with Badam 7 (Badam Satti) and King’s Corner. Each game has a React + TypeScript client and Node/Express + Socket.io server. Badam also uses SQLite persistence for rooms, players, reconnect state, and rate-limit data.
+A phone-first multiplayer games site hosted under one roof, with private room codes, no accounts, and a lightweight static game chooser at `/`.
 
-The public root is a lightweight game chooser. Badam runs at `/badam7/`; King’s Corner runs at `/kings-corner/`; Kitchen Clash runs at `/kitchen-clash/`. See [`deploy/ROUTING.md`](deploy/ROUTING.md) for the reverse-proxy, SPA fallback, Socket.io, PWA, and backward-compatibility design.
+Each game runs as a React + TypeScript + Vite frontend paired with a Node/Express + Socket.io backend. Badam 7 also uses SQLite to persist rooms, players, reconnection state, and rate limits.
 
-## Product principles
+## Games
 
-Read [PRODUCT_PRINCIPLES.md](PRODUCT_PRINCIPLES.md) before changing gameplay, card layout, timers, or connection behavior. It defines the required card visibility, responsive layout, reconnection, and voluntary leave behavior.
+| Game | Path | Players | Notes |
+| --- | --- | --- | --- |
+| **Badam 7** (Badam Satti / Sevens) | `/badam7/` | 3–11 (plus solo practice with 3–10 bots) | 7-round cumulative play, SQLite persistence, scoped PWA. |
+| **King’s Corner** | `/kings-corner/` | 2–4 | Independent client & server under [`kings-corner/`](kings-corner/README.md). |
+| **Kitchen Clash** | `/kitchen-clash/` | 1–6 (solo + real-time multiplayer) | Independent client & server under [`kitchen-clash/`](kitchen-clash/README.md). |
+
+See [`PRODUCT_PRINCIPLES.md`](PRODUCT_PRINCIPLES.md) before changing gameplay, card layout, timers, or connection behavior, and [`deploy/ROUTING.md`](deploy/ROUTING.md) for the reverse-proxy, SPA fallback, Socket.io, PWA, and backward-compatibility design.
+
+## Repository Layout
+
+```text
+.
+├── landing/             # Static Game Desk chooser served at /
+├── client/              # Badam 7 React + TypeScript client (Vite base: /badam7/)
+├── server/              # Badam 7 Express + Socket.io + SQLite server
+├── kings-corner/        # King’s Corner client, server, and e2e tests
+├── kitchen-clash/       # Kitchen Clash client and server
+├── deploy/              # Caddyfile.example and ROUTING.md
+└── scripts/             # VPS deployment script (deploy-vps.sh)
+```
 
 ## Requirements
 
-- Node.js 22. The repo includes `.nvmrc`, so `nvm use` is the easiest path.
-- npm
-- SQLite support through the `sqlite3` npm package
+- **Node.js 22** (pinned in `.nvmrc`; `nvm use` is the easiest path)
+- **npm**
+- **SQLite** (via the `sqlite3` npm package for Badam 7)
+
+Install dependencies for the game(s) you are working on:
 
 ```bash
 nvm install
 nvm use
-npm --prefix client install --include=dev
-npm --prefix server install --omit=dev
+
+# Badam 7
+npm --prefix client install
+npm --prefix server install
+
+# King’s Corner (optional)
+npm --prefix kings-corner install
+npm --prefix kings-corner/client install
+npm --prefix kings-corner/server install
+
+# Kitchen Clash (optional)
+npm --prefix kitchen-clash install
+npm --prefix kitchen-clash/client install
+npm --prefix kitchen-clash/server install
 ```
 
 ## Local Development
+
+### Badam 7
 
 Run the backend and frontend in separate terminals:
 
@@ -33,276 +68,272 @@ npm --prefix server run dev
 npm --prefix client run dev
 ```
 
-Open `http://localhost:5001/badam7/` for Badam. King’s Corner development runs separately with `npm run dev --prefix kings-corner` and opens at `http://localhost:5101/kings-corner/`.
+Open `http://localhost:5001/badam7/`. Vite serves the React app on port `5001` and proxies `/socket.io` to the backend on `http://localhost:3000` (the default `PORT`).
 
-In this mode Vite serves the React app on port `5001` and proxies `/socket.io` to the backend on `http://localhost:3000`. The backend defaults to port `3000` unless `PORT` is set.
-
-## Running the Built App on Port 5001
-
-To test the production shape locally, build the client and run the Express server on port `5001`:
+### King’s Corner
 
 ```bash
+npm --prefix kings-corner run dev
+```
+
+Runs the server on `5100` and Vite on `5101`. Open `http://localhost:5101/kings-corner/`.
+
+### Kitchen Clash
+
+```bash
+npm --prefix kitchen-clash run dev
+```
+
+Runs the server on `5200` and Vite on `5201`. Open `http://localhost:5201/kitchen-clash/`.
+
+### Badam Simulation Route
+
+Badam 7 includes a frontend-only simulation lab at `/badam7/simulation` for inspecting deal flow, turn progression, board placement, and winner behavior without creating a multiplayer room. (When running the Express server, `/simulation` also redirects to `/badam7/simulation`.)
+
+## Running the Built Site Locally
+
+To test the production shape locally, build the clients and start each server:
+
+```bash
+# Landing page + Badam 7 (port 5001)
 npm --prefix client run build
 npm --prefix server run start:v2
 ```
 
-Open `http://localhost:5001` for the landing page or `http://localhost:5001/badam7/` for Badam. This serves `client/dist` from Express and handles Badam Socket.io from the same origin.
+Open `http://localhost:5001` for the landing page or `http://localhost:5001/badam7/` for Badam 7. Express serves `landing/`, `client/dist` at `/badam7/`, Badam Socket.io at `/socket.io`, and proxies `/kings-corner/*` and `/kitchen-clash/*` to their local servers when running.
 
-To run the complete production shape locally, also build and start King’s Corner:
+To run King’s Corner and Kitchen Clash alongside it:
 
 ```bash
+# King’s Corner (port 5100)
 npm --prefix kings-corner/client run build
 HOST=127.0.0.1 PORT=5100 npm --prefix kings-corner/server start
+
+# Kitchen Clash (port 5200)
+npm --prefix kitchen-clash/client run build
+HOST=127.0.0.1 PORT=5200 npm --prefix kitchen-clash/server start
 ```
 
-Health check:
+Health checks:
 
 ```bash
 curl http://127.0.0.1:5001/health
+curl http://127.0.0.1:5100/kings-corner/health
+curl http://127.0.0.1:5200/kitchen-clash/health
 ```
 
 ## LAN Testing
 
-Both dev scripts bind to `0.0.0.0`, so other devices on the same network can connect to your machine.
+Dev and built server scripts bind to `0.0.0.0`, so phones and tablets on the same Wi-Fi can connect directly:
 
-For Vite development:
+- **Vite dev (Badam 7):** `http://YOUR_LAN_IP:5001/badam7/`
+- **Built app (all games via Badam server):** `http://YOUR_LAN_IP:5001` (also printed by the server on startup)
 
-```bash
-npm --prefix server run dev
-npm --prefix client run dev
-```
-
-Then open:
-
-```text
-http://YOUR_LAN_IP:5001
-```
-
-For the built app:
-
-```bash
-npm --prefix client run build
-npm --prefix server run start:v2
-```
-
-Then open the LAN URL printed by the server, usually:
-
-```text
-http://YOUR_LAN_IP:5001
-```
-
-The server allows localhost, the configured production domains, and private IPv4 LAN origins. If you test from a non-private hostname, add it to `ALLOWED_ORIGINS`.
-
-## Simulation Route
-
-The app includes a local simulation lab at:
-
-```text
-/simulation
-```
-
-Use `http://localhost:5001/simulation` in development or production. It runs in the frontend and is useful for inspecting deal flow, turn progression, board placement, and winner behavior without creating a multiplayer room.
+The Badam server allows `localhost`, configured production domains, and private IPv4 LAN origins (`10.x`, `172.16–31.x`, `192.168.x`). Add any non-private test hostnames to `ALLOWED_ORIGINS`.
 
 ## Environment Variables
 
-The backend reads environment variables at process start. Copy the production example when deploying. The deploy script loads `.env.production` and then `.env`; for the simple root VPS setup, `.env` is fine:
+Copy the production example when deploying. `scripts/deploy-vps.sh` loads `.env.production` and then `.env`:
 
 ```bash
 cp .env.production.example .env
 ```
 
+### Badam 7 Server & Shared Settings
+
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `NODE_ENV` | `development` | Set to `production` on the VPS. Enables production security headers. |
-| `HOST` | `0.0.0.0` | Address the Express server binds to. Use `127.0.0.1` when Caddy is the only public entrypoint. |
-| `PORT` | `3000` | Express server port. The production deploy path uses `5001`. |
-| `APP_NAME` | `badam-satti` | pm2 process name used by `scripts/deploy-vps.sh`. |
-| `APP_URL` | `http://127.0.0.1:5001` | URL used by the deploy script health check. |
-| `DB_PATH` | `server/badam-satti.db` | SQLite database location. Use a persistent path such as `/opt/apps/badam-satti/data/badam-satti.db` in production. |
-| `KINGS_APP_NAME` | `kings-corner` | King’s Corner PM2 process name. |
-| `KINGS_APP_URL` | `http://127.0.0.1:5100/kings-corner/health` | King’s Corner deploy health check. |
-| `KINGS_HOST` | `127.0.0.1` | King’s Corner bind address used by the deploy script. |
-| `KINGS_PORT` | `5100` | King’s Corner internal port. |
-| `ALLOWED_ORIGINS` | empty | Comma-separated extra browser origins allowed by Socket.io/CORS. |
-| `IP_HASH_SALT` | random per process | Salt for hashing client IPs in rate-limit records. Set a stable long random value in production. |
-| `ADMIN_KEY` | unset | Required for `GET /health/admin` via the `x-admin-key` header. |
+| `NODE_ENV` | `development` | Set to `production` on the VPS to enable HTTPS redirects and production security headers. |
+| `HOST` | `0.0.0.0` | Bind address for the Badam Express server. Use `127.0.0.1` behind Caddy. |
+| `PORT` | `3000` | Badam Express port (`5001` in `start:v2` and production). |
+| `DB_PATH` | `server/badam-satti.db` | SQLite file path. Use a persistent path such as `/opt/apps/badam-satti/data/badam-satti.db` in production. |
+| `ALLOWED_ORIGINS` | empty | Comma-separated extra browser origins allowed by CORS and Socket.io. |
+| `IP_HASH_SALT` | random per process | Salt for hashing client IPs in rate-limit records. Set a stable random value in production. |
+| `ADMIN_KEY` | unset | Required in the `x-admin-key` header for `GET /health/admin`. |
+| `KINGS_CORNER_ORIGIN` | `http://127.0.0.1:5100` | Upstream target used by the Badam server’s fallback proxy for `/kings-corner/*`. |
+| `KITCHEN_CLASH_ORIGIN` | `http://127.0.0.1:5200` | Upstream target used by the Badam server’s fallback proxy for `/kitchen-clash/*`. |
 
-Generate secrets with:
+### Deploy Script (`scripts/deploy-vps.sh`) Settings
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `APP_NAME` | `badam-satti` | PM2 process name for the Badam 7 / landing server. |
+| `APP_URL` | `http://127.0.0.1:5001` | Loopback base URL checked after deploy. |
+| `KINGS_APP_NAME` | `kings-corner` | PM2 process name for King’s Corner. |
+| `KINGS_HOST` / `KINGS_PORT` | `127.0.0.1` / `5100` | Bind address and port for King’s Corner. |
+| `KINGS_APP_URL` | `http://127.0.0.1:5100/kings-corner/health` | King’s Corner health check URL. |
+| `KITCHEN_APP_NAME` | `kitchen-clash` | PM2 process name for Kitchen Clash. |
+| `KITCHEN_HOST` / `KITCHEN_PORT` | `127.0.0.1` / `5200` | Bind address and port for Kitchen Clash. |
+| `KITCHEN_APP_URL` | `http://127.0.0.1:5200/kitchen-clash/health` | Kitchen Clash health check URL. |
+
+Generate strong secrets with:
 
 ```bash
 openssl rand -hex 32
 ```
 
-Example admin health check:
+Admin health check:
 
 ```bash
 curl -H "x-admin-key: $ADMIN_KEY" http://127.0.0.1:5001/health/admin
 ```
 
-## VPS Deployment with nvm, pm2, and Caddy
+## VPS Deployment (nvm, pm2, and Caddy)
 
 This is the primary production path for a small VPS.
 
-1. Install system dependencies:
+1. **Install system dependencies:**
 
-```bash
-sudo apt update
-sudo apt install -y git curl build-essential caddy
-```
+   ```bash
+   sudo apt update
+   sudo apt install -y git curl build-essential caddy
+   ```
 
-1. Install `nvm` for the deploy user, then reopen the shell:
+2. **Install `nvm` for the deploy user**, then reopen the shell:
 
-```bash
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
-```
+   ```bash
+   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+   ```
 
-1. Clone the repo:
+3. **Clone the repository:**
 
-```bash
-sudo mkdir -p /opt/apps
-sudo chown "$USER:$USER" /opt/apps
-git clone https://github.com/aakashb95/badam-satti.git /opt/apps/badam-satti
-cd /opt/apps/badam-satti
-```
+   ```bash
+   sudo mkdir -p /opt/apps
+   sudo chown "$USER:$USER" /opt/apps
+   git clone https://github.com/aakashb95/badam-satti.git /opt/apps/badam-satti
+   cd /opt/apps/badam-satti
+   ```
 
-1. Configure production environment:
+4. **Configure production environment:**
 
-```bash
-cp .env.production.example .env
-nano .env
-```
+   ```bash
+   cp .env.production.example .env
+   nano .env
+   ```
 
-Use values like:
+   Example `.env`:
 
-```env
-NODE_ENV=production
-HOST=127.0.0.1
-PORT=5001
-APP_NAME=badam-satti
-APP_URL=http://127.0.0.1:5001
-DB_PATH=/opt/apps/badam-satti/data/badam-satti.db
-ALLOWED_ORIGINS=https://games.aakashb.xyz,https://badam7.aakashb.xyz,https://www.badam7.aakashb.xyz
-IP_HASH_SALT=replace-with-a-long-random-string
-ADMIN_KEY=replace-with-a-long-random-string
-```
+   ```env
+   NODE_ENV=production
+   HOST=127.0.0.1
+   PORT=5001
+   APP_NAME=badam-satti
+   APP_URL=http://127.0.0.1:5001
+   DB_PATH=/opt/apps/badam-satti/data/badam-satti.db
+   ALLOWED_ORIGINS=https://games.aakashb.xyz,https://badam7.aakashb.xyz,https://www.badam7.aakashb.xyz
+   IP_HASH_SALT=replace-with-a-long-random-string
+   ADMIN_KEY=replace-with-a-long-random-string
+   ```
 
-1. Deploy:
+5. **Run the deploy script:**
 
-```bash
-chmod +x scripts/deploy-vps.sh
-./scripts/deploy-vps.sh
-```
+   ```bash
+   chmod +x scripts/deploy-vps.sh
+   ./scripts/deploy-vps.sh
+   ```
 
-The script runs `git pull --ff-only`, installs Node from `.nvmrc`, installs dependencies, builds the client, starts or restarts `server/index.js` with pm2, saves the pm2 process list, and checks `/health`.
+   The script pulls `master` (`git pull --ff-only`), activates Node from `.nvmrc`, installs dependencies and builds all three clients, installs production server dependencies, starts or restarts the `badam-satti`, `kings-corner`, and `kitchen-clash` PM2 processes, saves the PM2 process list, and verifies all loopback health endpoints.
 
-1. Configure pm2 startup after the first successful deploy:
+6. **Enable PM2 on reboot** after the first deploy:
 
-```bash
-pm2 startup
-```
+   ```bash
+   pm2 startup
+   # Run the command printed by pm2, then:
+   pm2 save
+   ```
 
-Run the command that pm2 prints, then:
+7. **Configure Caddy:**
 
-```bash
-pm2 save
-```
+   ```bash
+   sudo cp deploy/Caddyfile.example /etc/caddy/Caddyfile
+   sudo nano /etc/caddy/Caddyfile
+   sudo caddy validate --config /etc/caddy/Caddyfile
+   sudo systemctl reload caddy
+   ```
 
-1. Configure Caddy:
+   `deploy/Caddyfile.example` routes each game directly to its own loopback port:
 
-```bash
-sudo cp deploy/Caddyfile.example /etc/caddy/Caddyfile
-sudo nano /etc/caddy/Caddyfile
-sudo systemctl reload caddy
-```
+   ```caddyfile
+   games.aakashb.xyz, badam7.aakashb.xyz {
+     encode zstd gzip
 
-The example routes King’s Corner to `127.0.0.1:5100` and everything else (landing, Badam, and legacy Badam links) to `127.0.0.1:5001`:
+     handle /kings-corner* {
+       reverse_proxy 127.0.0.1:5100
+     }
 
-```caddyfile
-games.aakashb.xyz, badam7.aakashb.xyz {
-  encode zstd gzip
-  handle /kings-corner* {
-    reverse_proxy 127.0.0.1:5100
-  }
-  handle {
-    reverse_proxy 127.0.0.1:5001
-  }
-}
-```
+     handle /kitchen-clash* {
+       reverse_proxy 127.0.0.1:5200
+     }
 
-For future deploys:
+     handle {
+       reverse_proxy 127.0.0.1:5001
+     }
+   }
+   ```
 
-```bash
-cd /opt/apps/badam-satti
-./scripts/deploy-vps.sh
-```
+### GitHub Actions Deployment
 
-## GitHub Actions Deployment
+`.github/workflows/deploy.yml` builds all three clients and runs server and client test suites on every pull request and push to `master`. Pushes to `master` (or manual `workflow_dispatch`) deploy to the VPS only after verification passes.
 
-The repo includes `.github/workflows/deploy.yml`. Pull requests build and test both games without deploying. A push to `master` (or a manual dispatch) deploys only after those checks pass.
+Repository secrets:
 
-Required repository secrets:
+| Secret | Required | Purpose |
+| --- | --- | --- |
+| `VPS_HOST` | Yes | VPS IP address or hostname |
+| `VPS_USER` | Yes | SSH user (e.g. `deploy`) |
+| `VPS_APP_DIR` | Yes | Checkout directory on the VPS (e.g. `/opt/apps/badam-satti`) |
+| `VPS_SSH_KEY` | Yes | Private SSH key authorized for `VPS_USER` |
+| `VPS_PORT` | No | SSH port (defaults to `22`) |
 
-| Secret | Value |
-| --- | --- |
-| `VPS_HOST` | VPS IP or hostname, for example `157.180.81.97` |
-| `VPS_USER` | SSH user, for example `deploy` |
-| `VPS_PORT` | SSH port, usually `22` |
-| `VPS_APP_DIR` | App directory on the VPS, for example `/opt/apps/badam-satti` |
-| `VPS_SSH_KEY` | Private SSH key allowed to log in as `VPS_USER` |
-
-The deploy job SSHes into the VPS and runs:
-
-```bash
-cd "$VPS_APP_DIR"
-git fetch origin
-git reset --hard origin/master
-./scripts/deploy-vps.sh
-```
-
-The VPS script builds both clients and manages the `badam-satti` and `kings-corner` PM2 processes. Useful operations:
+Useful operations on the VPS:
 
 ```bash
 pm2 status
 pm2 logs badam-satti --lines 100
 pm2 logs kings-corner --lines 100
+pm2 logs kitchen-clash --lines 100
 curl http://127.0.0.1:5001/health
 curl http://127.0.0.1:5100/kings-corner/health
+curl http://127.0.0.1:5200/kitchen-clash/health
 ```
 
-## Security and Deployment Notes
+### Security Notes
 
-- Keep `HOST=127.0.0.1` in production when Caddy is reverse proxying to Node. Do not expose the Node port directly unless you mean to.
-- Set stable production values for `IP_HASH_SALT` and `ADMIN_KEY`. Do not rely on the random per-process fallback for production.
-- Keep `ALLOWED_ORIGINS` limited to your real HTTPS domains. Localhost and private LAN origins are allowed separately for development and LAN testing.
-- Persist `DB_PATH` outside transient build directories and back up the SQLite file before destructive server maintenance.
-- Terminate TLS at Caddy and let it manage certificates.
-- The public `/health` endpoint only returns minimal status. Use `/health/admin` with `x-admin-key` for detailed diagnostics.
+- Bind Node processes to `127.0.0.1` in production so Caddy is the sole public entrypoint and TLS terminator.
+- Set stable production values for `IP_HASH_SALT` and `ADMIN_KEY` rather than relying on per-process defaults.
+- Restrict `ALLOWED_ORIGINS` to your real HTTPS domains.
+- Keep `DB_PATH` in a persistent directory outside build artifacts and back up the SQLite file before maintenance.
+- Public `/health` returns minimal status only; use `/health/admin` with `x-admin-key` for diagnostics.
 
 ## Optional Docker Path
 
-Docker is available, but the nvm + pm2 + Caddy flow above is the primary VPS deployment path.
-
-Build and run with Compose:
+`Dockerfile` and `docker-compose.yml` are available for running **Badam 7** (`127.0.0.1:5001`, SQLite mounted at `./data`) and **King’s Corner** (`127.0.0.1:5100`) in containers (Kitchen Clash is not yet wired into Compose):
 
 ```bash
 docker compose up --build -d
-```
-
-The container listens on port `5001` and stores SQLite data in `./data` through the Compose volume.
-
-Check it:
-
-```bash
 curl http://127.0.0.1:5001/health
+curl http://127.0.0.1:5100/kings-corner/health
 docker compose logs -f
 ```
 
-For production Docker use, replace the placeholder `IP_HASH_SALT` and `ADMIN_KEY` values in `docker-compose.yml` or pass them through a deployment-specific environment file.
+Replace the placeholder `IP_HASH_SALT` and `ADMIN_KEY` values in `docker-compose.yml` (or pass them via an environment file) before running in production.
 
-## Checks
+## Checks & Tests
 
 ```bash
+# Badam 7
+npm --prefix server test
+npm --prefix client test
 npm --prefix client run lint
 npm --prefix client run build
-git diff --check
+npm --prefix client run test:e2e
+
+# King’s Corner
+npm --prefix kings-corner test
+npm --prefix kings-corner run build
+npm --prefix kings-corner run test:e2e
+
+# Kitchen Clash
+npm --prefix kitchen-clash test
+npm --prefix kitchen-clash run build
 ```
