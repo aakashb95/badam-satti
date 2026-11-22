@@ -6,6 +6,11 @@ games.aakashb.xyz, badam7.aakashb.xyz {
 		reverse_proxy 127.0.0.1:5100
 	}
 
+	# Kitchen Clash has its own Express + Socket.io process too.
+	handle /kitchen-clash* {
+		reverse_proxy 127.0.0.1:5200
+	}
+
 	# Landing page, Badam 7, legacy /r links, health, and Badam Socket.io.
 	handle {
 		reverse_proxy 127.0.0.1:5001

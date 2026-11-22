@@ -2,7 +2,7 @@
 
 This repository hosts a phone-first card-games site with Badam 7 (Badam Satti) and King’s Corner. Each game has a React + TypeScript client and Node/Express + Socket.io server. Badam also uses SQLite persistence for rooms, players, reconnect state, and rate-limit data.
 
-The public root is a lightweight game chooser. Badam runs at `/badam7/`; King’s Corner runs at `/kings-corner/`. See [`deploy/ROUTING.md`](deploy/ROUTING.md) for the reverse-proxy, SPA fallback, Socket.io, PWA, and backward-compatibility design.
+The public root is a lightweight game chooser. Badam runs at `/badam7/`; King’s Corner runs at `/kings-corner/`; Kitchen Clash runs at `/kitchen-clash/`. See [`deploy/ROUTING.md`](deploy/ROUTING.md) for the reverse-proxy, SPA fallback, Socket.io, PWA, and backward-compatibility design.
 
 ## Product principles
 

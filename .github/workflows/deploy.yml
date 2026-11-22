@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   verify:
-    name: Build and test both games
+    name: Build and test all games
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -29,21 +29,28 @@ jobs:
             server/package-lock.json
             kings-corner/client/package-lock.json
             kings-corner/server/package-lock.json
+            kitchen-clash/client/package-lock.json
+            kitchen-clash/server/package-lock.json
       - name: Install dependencies
         run: |
           npm install --prefix client
           npm install --prefix server
           npm install --prefix kings-corner/client
           npm install --prefix kings-corner/server
+          npm install --prefix kitchen-clash/client
+          npm install --prefix kitchen-clash/server
       - name: Build clients
         run: |
           npm run build --prefix client
           npm run build --prefix kings-corner/client
-      - name: Test servers and King’s Corner UI
+          npm run build --prefix kitchen-clash/client
+      - name: Test servers and game UIs
         run: |
           npm test --prefix server
           npm test --prefix kings-corner/server
           npm test --prefix kings-corner/client
+          npm test --prefix kitchen-clash/server
+          npm test --prefix kitchen-clash/client
 
   deploy:
     name: Deploy to VPS

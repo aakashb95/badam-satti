@@ -4,8 +4,8 @@ Read `PRODUCT_PRINCIPLES.md` before changing gameplay, cards, layout, timers, pl
 
 Multiplayer PWA for the Indian card game Badam Satti (Sevens). Node.js +
 Socket.io backend, React 18 + TypeScript + Vite frontend, SQLite persistence.
-This repo also hosts a small static landing page and a second game,
-King's Corner.
+This repo also hosts a small static landing page and two more games,
+King's Corner and Kitchen Clash.
 
 The main menu keeps private family rooms as the primary mode. Practice mode
 creates one human seat and 3 to 10 server-controlled computer seats, then
@@ -45,6 +45,8 @@ expires.
   `client/src/cards.tsx` and bump `CARD_ASSET_VERSION` there plus the cache
   names in `client/public/sw.js`. Visual check: `/badam7/card-preview.html`.
 - `landing/` — static game chooser served at `/`.
+- `kitchen-clash/` — separate real-time matching game on port 5200, proxied
+  under `/kitchen-clash` like King's Corner (see its README).
 - `kings-corner/` — separate game, proxied under `/kings-corner` (see
   `deploy/ROUTING.md` for production routing and path rules).
 

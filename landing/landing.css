@@ -99,6 +99,7 @@ h1 em { color: #d9c6a2; font-weight: 400; }
   animation: deal-in .65s cubic-bezier(.2,.8,.2,1) both;
 }
 .game-card:nth-child(2) { animation-delay: .09s; }
+.game-card:nth-child(3) { animation-delay: .18s; }
 .game-card::before { position: absolute; inset: 0; z-index: -2; content: ''; }
 .game-card::after { position: absolute; inset: 0; z-index: -1; content: ''; background: linear-gradient(150deg, transparent 28%, rgba(0,0,0,.42)); }
 .badam::before { background: radial-gradient(circle at 82% 16%, rgba(241, 177, 84, .28), transparent 32%), #153f34; }
@@ -115,6 +116,13 @@ h1 em { color: #d9c6a2; font-weight: 400; }
 .seven { right: 3px; top: 13px; color: #a32929; transform: rotate(8deg); }
 .black-king { right: 44px; top: 9px; transform: rotate(-11deg); }
 .red-queen { right: 0; top: 18px; color: #a32929; transform: rotate(9deg); }
+.kitchen { --accent: #ffd27a; }
+.kitchen::before { background: radial-gradient(circle at 80% 14%, rgba(255, 210, 122, .3), transparent 34%), #6e2418; }
+.spot-card { position: absolute; width: 84px; height: 84px; display: grid; grid-template-columns: 1fr 1fr; place-items: center; padding: 14px; border-radius: 50%; background: #fff8ec; border: 4px solid #f3c34a; box-shadow: 0 16px 30px rgba(0,0,0,.3); font-style: normal; }
+.spot-card b { font-size: 1.25rem; line-height: 1; font-weight: 400; }
+.spot-card b:first-child { grid-column: 1 / -1; }
+.spot-back { right: 34px; top: 0; transform: rotate(-14deg); }
+.spot-front { right: 0; top: 22px; border-color: #d9412b; transform: rotate(10deg); }
 
 .game-copy { margin-top: auto; max-width: 78%; display: flex; flex-direction: column; }
 .game-copy strong { margin: 7px 0 8px; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(2rem, 10vw, 3.5rem); font-weight: 400; letter-spacing: -.04em; }
@@ -136,6 +144,7 @@ footer span::before { content: '·'; margin-right: 7px; color: #d9a958; }
   .brand { align-self: start; margin-top: 7px; }
   .intro { padding-top: 48px; }
   .game-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .game-card:nth-child(3) { grid-column: 1 / -1; }
   .game-card { min-height: 390px; padding: 26px; }
   .card-art { top: 34px; right: 34px; transform: scale(1.15); transform-origin: top right; }
 }

@@ -12,11 +12,14 @@
 | `/socket.io/*` | `127.0.0.1:5001` | Badam 7 Socket.io transport (legacy path retained) |
 | `/kings-corner/*` | `127.0.0.1:5100` | King’s Corner React SPA, assets, health check, and Socket.io transport |
 | `/kings-corner/socket.io/*` | `127.0.0.1:5100` | King’s Corner Socket.io transport |
+| `/kitchen-clash/*` | `127.0.0.1:5200` | Kitchen Clash React SPA, health check, and Socket.io transport (`/kitchen-clash/socket.io`) |
 
 The order of the two Caddy `handle` blocks matters: `/kings-corner*` must be selected before the catch-all upstream. `reverse_proxy` supports WebSocket upgrades, so no separate WebSocket directive is required.
 
 The Badam server also proxies `/kings-corner/*` (including Socket.io upgrades)
-to `KINGS_CORNER_ORIGIN`, which defaults to `http://127.0.0.1:5100`. This is a
+to `KINGS_CORNER_ORIGIN`, which defaults to `http://127.0.0.1:5100`, and
+`/kitchen-clash/*` to `KITCHEN_CLASH_ORIGIN`, which defaults to
+`http://127.0.0.1:5200`. This is a
 deployment safety net: King's Corner still works when the live Caddyfile only
 contains the historical catch-all proxy to port 5001. The path-specific Caddy
 rule remains preferred because it removes one internal hop.

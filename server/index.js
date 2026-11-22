@@ -12,6 +12,12 @@ const kingsCornerProxy = httpProxy.createProxyServer({
   ws: true,
   xfwd: true,
 });
+const KITCHEN_CLASH_ORIGIN = process.env.KITCHEN_CLASH_ORIGIN || "http://127.0.0.1:5200";
+const kitchenClashProxy = httpProxy.createProxyServer({
+  target: KITCHEN_CLASH_ORIGIN,
+  ws: true,
+  xfwd: true,
+});
 
 // Security configuration
 const DEFAULT_ALLOWED_ORIGINS = [
@@ -311,13 +317,20 @@ app.use((req, res, next) => {
 // Keep King's Corner reachable behind older catch-all reverse-proxy configs.
 // A path-aware Caddy rule may route these requests directly to port 5100, but
 // forwarding here makes a normal application deploy sufficient on its own.
-app.use((req, res, next) => {
-  if (!req.path.startsWith('/kings-corner')) return next();
+// Kitchen Clash is forwarded the same way, to its own process.
+const GAME_PROXIES = [
+  { prefix: '/kings-corner', name: 'King\'s Corner', proxy: kingsCornerProxy },
+  { prefix: '/kitchen-clash', name: 'Kitchen Clash', proxy: kitchenClashProxy },
+];
 
-  kingsCornerProxy.web(req, res, (error) => {
-    console.error('King\'s Corner proxy error:', sanitizeError(error.message));
+app.use((req, res, next) => {
+  const game = GAME_PROXIES.find(({ prefix }) => req.path.startsWith(prefix));
+  if (!game) return next();
+
+  game.proxy.web(req, res, (error) => {
+    console.error(`${game.name} proxy error:`, sanitizeError(error.message));
     if (!res.headersSent) {
-      res.status(502).type('text/plain').send('King\'s Corner is temporarily unavailable.');
+      res.status(502).type('text/plain').send(`${game.name} is temporarily unavailable.`);
     } else {
       res.end();
     }
@@ -326,10 +339,11 @@ app.use((req, res, next) => {
 
 server.prependListener('upgrade', (req, socket, head) => {
   const pathname = new URL(req.url || '/', 'http://localhost').pathname;
-  if (!pathname.startsWith('/kings-corner/socket.io')) return;
+  const game = GAME_PROXIES.find(({ prefix }) => pathname.startsWith(`${prefix}/socket.io`));
+  if (!game) return;
 
-  kingsCornerProxy.ws(req, socket, head, (error) => {
-    console.error('King\'s Corner WebSocket proxy error:', sanitizeError(error.message));
+  game.proxy.ws(req, socket, head, (error) => {
+    console.error(`${game.name} WebSocket proxy error:`, sanitizeError(error.message));
     socket.destroy();
   });
 });
