@@ -132,7 +132,7 @@ h1 em { font-style: normal; color: var(--tomato); }
 .table {
   height: 100vh; height: 100dvh; overflow: hidden;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 0.85fr) auto minmax(0, 1.15fr);
   grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
   gap: 4px;
@@ -164,7 +164,7 @@ h1 em { font-style: normal; color: var(--tomato); }
 .kitchen-card-wrap { position: relative; --size: min(92vw, calc((100dvh - 190px) / 2), 560px); }
 @supports (width: 1cqh) {
   .card-slot { container-type: size; }
-  .kitchen-card-wrap { --size: min(100cqw - 8px, 100cqh - 26px, 600px); }
+  .kitchen-card-wrap { --size: min(100cqw - 8px, 100cqh - 1.6rem - 6px, 600px); }
 }
 .kitchen-card { width: var(--size); height: var(--size); border-radius: 50%; touch-action: none; }
 .kitchen-card.is-yours { cursor: pointer; }
@@ -225,6 +225,7 @@ h1 em { font-style: normal; color: var(--tomato); }
   .table-header { grid-column: 1 / -1; }
   .table-message { grid-column: 1 / -1; grid-row: 3; }
   .centre-slot { grid-row: 2; grid-column: 1; }
+  .table { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); }
   .your-slot { grid-row: 2; grid-column: 2; }
   .kitchen-card-wrap { --size: min(44vw, calc(100dvh - 150px), 600px); }
 }
@@ -242,3 +243,23 @@ h1 em { font-style: normal; color: var(--tomato); }
 .switch { padding: 4px 12px; border-radius: 999px; background: var(--line); font-size: 0.9rem; }
 .menu-item[aria-pressed='true'] .switch { background: var(--herb); color: #fff; }
 .danger-text { color: var(--tomato-deep); }
+
+/* Which card is which: the middle card lies on a wooden board you look at;
+   your card is bigger, red-rimmed and labelled as the one to tap. */
+.centre-slot { background: linear-gradient(180deg, #ecd3a8, #e2c08d); border-radius: 28px; box-shadow: inset 0 2px 8px rgba(92, 58, 28, 0.25); padding: 6px 0 4px; }
+.centre-slot .slot-label { color: #5b3d1e; }
+.your-label { color: var(--tomato-deep); font-weight: 800; }
+.your-slot .kitchen-card-face { filter: drop-shadow(0 10px 18px rgba(181, 50, 31, 0.28)); }
+.kitchen-card-wrap.nudge { animation: nudge 0.6s ease; }
+@keyframes nudge { 0%, 100% { transform: translateY(0) scale(1); } 30% { transform: translateY(-10px) scale(1.04); } 60% { transform: translateY(0) scale(0.98); } }
+
+/* Solo mode */
+.solo-panel { gap: 8px; }
+.solo-title { margin: 0; font-weight: 700; color: var(--ink-soft); text-align: center; }
+.big-secondary { min-height: 60px; font-size: 1.15rem; }
+.solo .table-header { justify-content: space-between; }
+.solo-timer, .solo-score-chip { min-height: 48px; display: flex; align-items: center; gap: 6px; padding: 4px 16px; border-radius: 999px; background: var(--plate); border: 2px solid var(--line); font-weight: 800; font-size: clamp(18px, 1.1rem, 24px); font-variant-numeric: tabular-nums; }
+.solo-timer.low { background: #fde4df; border-color: var(--tomato); color: #8f2414; animation: pulse 1s ease infinite; }
+@keyframes pulse { 50% { transform: scale(1.06); } }
+.solo-score { margin: 0; text-align: center; font-size: 1.4rem; }
+.solo-score strong { display: block; font-size: 4.5rem; line-height: 1; color: var(--tomato); }

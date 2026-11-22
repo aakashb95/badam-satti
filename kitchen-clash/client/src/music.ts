@@ -2,6 +2,8 @@
 // and needs no download: a light marimba-style tune over a soft bass, looping
 // an 8-bar I–vi–IV–V progression at a gentle volume. Off until a player turns
 // it on; pauses while the tab is hidden.
+import { audioContext } from './sounds';
+
 const MUSIC_KEY = 'kitchen-clash-music';
 const VOLUME = 0.15;
 const BPM = 112;
@@ -69,9 +71,8 @@ function schedule() {
 
 function play() {
   if (timer !== null || document.hidden) return;
-  const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioContextClass) return;
-  context ||= new AudioContextClass();
+  context = audioContext();
+  if (!context) return;
   if (!master) {
     master = context.createGain();
     master.gain.value = VOLUME;
@@ -85,7 +86,9 @@ function play() {
 function pause() {
   if (timer !== null) window.clearInterval(timer);
   timer = null;
-  void context?.suspend();
+  // Sounds share the audio context, so silence only the music.
+  master?.disconnect();
+  master = null;
 }
 
 export function setMusicOn(on: boolean) {

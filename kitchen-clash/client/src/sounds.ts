@@ -6,11 +6,30 @@ let context: AudioContext | null = null;
 export const isSoundOn = () => window.localStorage.getItem(SOUND_KEY) !== 'off';
 export const setSoundOn = (on: boolean) => window.localStorage.setItem(SOUND_KEY, on ? 'on' : 'off');
 
+// One audio context for sounds and music. Phones only let it start inside a
+// real tap, so this runs on every tap until it is running.
+export function audioContext(): AudioContext | null {
+  if (!context) {
+    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return null;
+    // iPhones mute web audio while the ring/silent switch is on silent unless
+    // the page asks for playback audio (Safari 17+).
+    const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
+    if (session) session.type = 'playback';
+    context = new AudioContextClass();
+  }
+  return context;
+}
+
 export function unlockAudio() {
-  const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioContextClass) return;
-  context ||= new AudioContextClass();
-  if (context.state === 'suspended') void context.resume();
+  const ctx = audioContext();
+  if (!ctx || ctx.state === 'running') return;
+  void ctx.resume();
+  // Older iOS also needs a sound started inside the tap; a silent one does.
+  const source = ctx.createBufferSource();
+  source.buffer = ctx.createBuffer(1, 1, 22_050);
+  source.connect(ctx.destination);
+  source.start(0);
 }
 
 function tones(notes: Array<[frequency: number, startS: number, lengthS: number]>, type: OscillatorType, volume: number) {

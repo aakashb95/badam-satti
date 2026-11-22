@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import KitchenCard from './KitchenCard';
+import Solo, { SOLO_SECONDS } from './Solo';
 import { isMusicOn, resumeMusicIfOn, setMusicOn } from './music';
 import { isSoundOn, playFinish, playOtherWin, playWin, playWrong, setSoundOn, unlockAudio } from './sounds';
 import type { ClaimResult, GameState, PlayerState } from './types';
@@ -74,6 +75,8 @@ export default function App() {
   const [message, setMessage] = useState<Message | null>(null);
   const [lockedUntil, setLockedUntil] = useState(0);
   const [shake, setShake] = useState(0);
+  const [nudge, setNudge] = useState(0);
+  const [solo, setSolo] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -97,8 +100,10 @@ export default function App() {
       unlockAudio();
       resumeMusicIfOn();
     };
-    window.addEventListener('pointerdown', unlock);
-    return () => window.removeEventListener('pointerdown', unlock);
+    // iPhones only count the end of a touch as a tap that may start audio.
+    const events = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'];
+    events.forEach((name) => window.addEventListener(name, unlock, { passive: true }));
+    return () => events.forEach((name) => window.removeEventListener(name, unlock));
   }, []);
 
   useEffect(() => {
@@ -208,6 +213,13 @@ export default function App() {
     });
   };
 
+  // A tap on the middle card never counts; point the player at their own card.
+  const tapAside = () => {
+    if (stateRef.current?.phase !== 'playing' || !stateRef.current.you?.topCard) return;
+    say('👇 Tap the matching picture on YOUR card', 'info');
+    setNudge((value) => value + 1);
+  };
+
   const start = (event: FormEvent) => {
     event.preventDefault();
     const trimmed = name.trim();
@@ -220,6 +232,7 @@ export default function App() {
 
   const leave = () => {
     setConfirmLeave(false);
+    if (solo) return setSolo(false);
     const finish = () => {
       window.sessionStorage.removeItem(SESSION_KEY);
       setHasSession(false);
@@ -246,7 +259,15 @@ export default function App() {
     } catch { /* The player closed the share sheet. */ }
   };
 
-  const toggleSound = () => { setSoundOn(!soundOn); setSoundOnState(!soundOn); };
+  const toggleSound = () => {
+    setSoundOn(!soundOn);
+    setSoundOnState(!soundOn);
+    // Let the player hear that sound is now on.
+    if (!soundOn) {
+      unlockAudio();
+      playWin();
+    }
+  };
   const toggleMusic = () => { setMusicOn(!musicOn); setMusicOnState(!musicOn); };
 
   const toolbar = (
@@ -292,7 +313,7 @@ export default function App() {
         <div className="dialog-backdrop" role="presentation" onClick={() => setConfirmLeave(false)}>
           <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="leave-title" onClick={(event) => event.stopPropagation()}>
             <h2 id="leave-title">Leave this game?</h2>
-            <p>{state?.phase === 'playing' || state?.phase === 'countdown' ? 'Your cards will be taken out of the game.' : 'You can join again with the room code.'}</p>
+            <p>{solo ? 'Your solo game will end.' : state?.phase === 'playing' || state?.phase === 'countdown' ? 'Your cards will be taken out of the game.' : 'You can join again with the room code.'}</p>
             <div className="dialog-actions">
               <button type="button" className="secondary" onClick={() => setConfirmLeave(false)}>Stay</button>
               <button type="button" className="danger" onClick={leave}>Leave</button>
@@ -303,6 +324,11 @@ export default function App() {
       {hasSession && !connected && <div className="connection-banner" role="status">Reconnecting… Your seat and cards are kept for 60 seconds.</div>}
     </>
   );
+
+  if (solo) {
+    const menuButton = <button type="button" className="tool-button menu-button" onClick={() => setShowMenu(true)} aria-label="Menu: text size, sound, music, help, leave">☰</button>;
+    return <><Solo menu={menuButton} onExit={() => setSolo(false)} />{dialogs}</>;
+  }
 
   if (!state) {
     if (hasSession && !error) return <main className="screen centred"><p className="loading">Loading your game…</p>{dialogs}</main>;
@@ -323,6 +349,10 @@ export default function App() {
           <button type="submit" className="primary big" disabled={!connected}>{code ? 'Join game' : 'Start a new game'}</button>
           {!connected && <p className="hint">Connecting…</p>}
         </form>
+        <section className="panel solo-panel">
+          <p className="solo-title">Playing alone?</p>
+          <button type="button" className="secondary big-secondary" onClick={() => { setError(''); setSolo(true); }}>⏱ Play solo · {SOLO_SECONDS} seconds</button>
+        </section>
         {dialogs}
       </main>
     );
@@ -435,8 +465,8 @@ export default function App() {
       </header>
 
       <section className="card-slot centre-slot" aria-label="Middle card">
-        {state.centre && <KitchenCard card={state.centre} seed={`centre:${state.roundId}`} label="Middle card" />}
-        <p className="slot-label">Middle card</p>
+        {state.centre && <KitchenCard card={state.centre} seed={`centre:${state.roundId}`} label="Middle card" onTapAside={tapAside} />}
+        <p className="slot-label"><span aria-hidden="true">👀</span> Middle card · look here</p>
       </section>
 
       <p className={`table-message tone-${message?.tone || (roundEnding && !locked ? 'warn' : 'info')}`} role="status" aria-live="polite" key={message?.key}>
@@ -446,7 +476,7 @@ export default function App() {
       <section className="card-slot your-slot" aria-label="Your card">
         {you?.topCard ? (
           <>
-            <KitchenCard card={you.topCard} seed={`you:${you.name}`} label="Your card" onPick={claim} disabled={locked || countdown !== null} shake={shake} />
+            <KitchenCard card={you.topCard} seed={`you:${you.name}`} label="Your card" onPick={claim} disabled={locked || countdown !== null} shake={shake} nudge={nudge} />
             {locked && (
               <div className="lockout" aria-hidden="true">
                 <svg viewBox="0 0 36 36"><circle className="lockout-track" r="16" cx="18" cy="18" /><circle className="lockout-fill" r="16" cx="18" cy="18" style={{ strokeDashoffset: `${100 - (lockRemaining / 1500) * 100}` }} pathLength={100} /></svg>
@@ -457,7 +487,7 @@ export default function App() {
         ) : (
           <div className="finished-card"><span aria-hidden="true">🏅</span><p>{you?.rank ? `You finished ${ordinal(you.rank)}!` : 'Out of cards'}</p></div>
         )}
-        <p className="slot-label">Your card{you?.topCard ? ` · ${you.cardsLeft} left` : ''}</p>
+        <p className="slot-label your-label">{you?.topCard ? <><span aria-hidden="true">👆</span> Tap your card · {you.cardsLeft} left</> : 'Your card'}</p>
       </section>
 
       {countdown !== null && (

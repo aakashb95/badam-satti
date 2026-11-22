@@ -12,13 +12,16 @@ interface Props {
   label: string;
   // Called when the player taps an item. Omit for a card that only turns.
   onPick?: (itemId: number) => void;
+  // Called when someone taps (not drags) a card that takes no picks.
+  onTapAside?: () => void;
+  nudge?: number;
   disabled?: boolean;
   shake?: number;
 }
 
 interface Drag { pointerId: number; startX: number; startY: number; startAngle: number; startRotation: number; moved: boolean }
 
-export default function KitchenCard({ card, seed, label, onPick, disabled = false, shake = 0 }: Props) {
+export default function KitchenCard({ card, seed, label, onPick, onTapAside, disabled = false, shake = 0, nudge = 0 }: Props) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
   const layout = useMemo(() => layoutCard(card.items, `${card.id}:${seed}`), [card.id, card.items, seed]);
@@ -67,6 +70,10 @@ export default function KitchenCard({ card, seed, label, onPick, disabled = fals
     dragRef.current = null;
     setDragging(false);
     if (drag.moved) return;
+    if (!onPick) {
+      onTapAside?.();
+      return;
+    }
     const centre = centreOf();
     const scale = 100 / centre.radius;
     const itemId = itemAt(layout, (event.clientX - centre.x) * scale, (event.clientY - centre.y) * scale, rotation);
@@ -83,7 +90,7 @@ export default function KitchenCard({ card, seed, label, onPick, disabled = fals
   };
 
   return (
-    <div className="kitchen-card-wrap">
+    <div className={`kitchen-card-wrap${nudge ? ' nudge' : ''}`} key={nudge || undefined}>
       <div
         ref={frameRef}
         className={`kitchen-card${onPick ? ' is-yours' : ''}${disabled ? ' is-disabled' : ''}`}

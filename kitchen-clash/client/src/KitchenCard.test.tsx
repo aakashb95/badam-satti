@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import KitchenCard from './KitchenCard';
 import { ITEMS } from './items';
+import { createDeck } from './deck';
 import { initialRotation, itemAt, layoutCard } from './layout';
 
 const card = { id: 8, items: [1, 15, 22, 29, 36, 43, 50, 57 - 1] };
@@ -78,5 +79,33 @@ describe('KitchenCard gestures', () => {
     render(<KitchenCard card={card} seed="gesture" label="Your card" onPick={onPick} disabled />);
     fireEvent.keyDown(screen.getAllByRole('button', { name: ITEMS[card.items[0]].name })[0], { key: 'Enter' });
     expect(onPick).not.toHaveBeenCalled();
+  });
+});
+
+describe('middle card', () => {
+  it('reports a plain tap so the player can be pointed at their own card, and never picks', () => {
+    const onTapAside = vi.fn();
+    render(<KitchenCard card={card} seed="centre" label="Middle card" onTapAside={onTapAside} />);
+    const frame = screen.getByRole('group', { name: 'Middle card' });
+    frame.getBoundingClientRect = () => ({ left: 0, top: 0, width: 200, height: 200, right: 200, bottom: 200, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.pointerDown(frame, { pointerId: 1, button: 0, clientX: 100, clientY: 100 });
+    fireEvent.pointerUp(frame, { pointerId: 1, clientX: 100, clientY: 100 });
+    expect(onTapAside).toHaveBeenCalledTimes(1);
+    expect(screen.queryAllByRole('button', { name: ITEMS[card.items[0]].name })).toHaveLength(0);
+    // A drag turns it without counting as a tap.
+    fireEvent.pointerDown(frame, { pointerId: 2, button: 0, clientX: 190, clientY: 100 });
+    fireEvent.pointerMove(frame, { pointerId: 2, clientX: 100, clientY: 190 });
+    fireEvent.pointerUp(frame, { pointerId: 2, clientX: 100, clientY: 190 });
+    expect(onTapAside).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('solo deck', () => {
+  it('has 57 cards where every pair shares exactly one item', () => {
+    const deck = createDeck();
+    expect(deck).toHaveLength(57);
+    for (let i = 0; i < deck.length; i += 1) {
+      for (let j = i + 1; j < deck.length; j += 1) expect(deck[i].items.filter((item) => deck[j].items.includes(item))).toHaveLength(1);
+    }
   });
 });
