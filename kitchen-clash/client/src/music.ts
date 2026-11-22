@@ -1,15 +1,17 @@
 import { audioContext } from './sounds';
 
 // Background music: the six calm café tracks Badam 7 plays (see
-// public/music/CREDITS.txt), in a loop on every screen at a gentle volume. It is on
+// public/music/CREDITS.txt), in a loop on every screen at a gentle volume.
+// Badam always opens on Shanghai, so Kitchen Clash plays them in its own
+// order: it opens on Morning Routine and leaves Shanghai for last. It is on
 // unless the player turned it off, and starts on the first tap because
 // browsers only allow sound after one. It pauses while the tab is hidden.
 const MUSIC_KEY = 'kitchen-clash-music';
 const VOLUME = 0.2;
-const TRACKS = ['shanghai.mp3', 'slow-melt.mp3', 'zephyr.mp3', 'chamomile.mp3', 'while-coffee-brews.mp3', 'morning-routine.mp3'];
+const TRACKS = ['morning-routine.mp3', 'chamomile.mp3', 'while-coffee-brews.mp3', 'zephyr.mp3', 'slow-melt.mp3', 'shanghai.mp3'];
 
 let player: HTMLAudioElement | null = null;
-let trackIndex = Math.floor(Math.random() * TRACKS.length);
+let trackIndex = 0;
 
 export const isMusicOn = () => window.localStorage.getItem(MUSIC_KEY) !== 'off';
 
