@@ -7,7 +7,7 @@ import { HOW_TO, HowToSteps } from './howto';
 import { ITEMS } from './items';
 import { isMusicOn, resumeMusicIfOn, setMusicOn } from './music';
 import { isSoundOn, playFinish, playOtherWin, playWin, playWrong, setSoundOn, unlockAudio } from './sounds';
-import type { ClaimResult, GameMode, GameState, PlayerState } from './types';
+import type { ClaimResult, GameMode, GameState, PlayerState, RoomSummary } from './types';
 
 const SESSION_KEY = 'kitchen-clash-session';
 const NAME_KEY = 'kitchen-clash-name';
@@ -57,6 +57,51 @@ const GAME_MODES: GameMode[] = ['race', 'tower', 'hot-potato'];
 const SOLO_MODES: SoloMode[] = ['classic', 'time-attack', 'daily'];
 const HOT_POTATO_MAX = 4;
 
+// A list of games to pick from, one big button each. A game that cannot be
+// picked says why instead of its tagline.
+function GameChoices<K extends GameMode | SoloMode>({ modes, selected, label, unavailable, onPick }: { modes: K[]; selected?: K; label: string; unavailable?: (mode: K) => string | null; onPick: (mode: K) => void }) {
+  return (
+    <div className="mode-picker" role="group" aria-label={label}>
+      {modes.map((mode) => {
+        const reason = unavailable?.(mode) ?? null;
+        return (
+          <button key={mode} type="button" className="mode-button" aria-pressed={selected === undefined ? undefined : selected === mode} disabled={Boolean(reason)} onClick={() => onPick(mode)}>
+            <span className="mode-emoji" aria-hidden="true">{HOW_TO[mode].emoji}</span>
+            <span className="mode-text"><strong>{HOW_TO[mode].name}</strong><small>{reason ?? HOW_TO[mode].tagline}</small></span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// The chosen game as one line. The host can open the choices to change it.
+function GameLine({ label, mode, seated = 0, onPick }: { label: string; mode: GameMode; seated?: number; onPick?: (mode: GameMode) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="game-line">
+      <p className="game-line-label">{label}</p>
+      <div className="game-line-row">
+        <p><span aria-hidden="true">{HOW_TO[mode].emoji}</span> <strong>{HOW_TO[mode].name}</strong></p>
+        {onPick && <button type="button" className="link-button" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Close' : 'Change'}</button>}
+      </div>
+      {open && onPick
+        ? <GameChoices modes={GAME_MODES} selected={mode} label={label} unavailable={(item) => (item === 'hot-potato' && seated > HOT_POTATO_MAX ? `Up to ${HOT_POTATO_MAX} players` : null)} onPick={(next) => { onPick(next); setOpen(false); }} />
+        : <p className="game-line-text">{HOW_TO[mode].tagline}</p>}
+    </div>
+  );
+}
+
+// How a pile is counted: a Race pile counts down, a Tower counts up.
+function pileWords(mode: GameMode, count: number) {
+  const cards = `${count} ${count === 1 ? 'card' : 'cards'}`;
+  return mode === 'tower' ? { text: `🥞 ${count}`, label: `Tower of ${cards}` } : { text: `${count} left`, label: `${cards} left` };
+}
+
+type Screen = 'home' | 'friends' | 'alone' | 'create' | 'join';
+const SCREENS: Screen[] = ['home', 'friends', 'alone', 'create', 'join'];
+const historyDepth = () => Number(window.history.state?.depth) || 0;
+
 // How to play: the game being played, or every game when none is.
 function HowToPlay({ mode }: { mode?: GameMode | SoloMode }) {
   const modes = mode ? [mode] : [...GAME_MODES, ...SOLO_MODES];
@@ -84,6 +129,12 @@ export default function App() {
   const [hasSession, setHasSession] = useState(() => Boolean(readSession()));
   const [name, setName] = useState(() => window.localStorage.getItem(NAME_KEY) || '');
   const [code, setCode] = useState(inviteCodeFromPath);
+  const [newMode, setNewMode] = useState<GameMode>('race');
+  const [screen, setScreen] = useState<Screen>(() => (inviteCodeFromPath() ? 'join' : 'home'));
+  // What an invite link or typed code points at: undefined while unknown, null when there is no such room.
+  const [roomInfo, setRoomInfo] = useState<RoomSummary | null | undefined>(undefined);
+  const nameRef = useRef<HTMLInputElement | null>(null);
+  const codeRef = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState<Message | null>(null);
   const [lockedUntil, setLockedUntil] = useState(0);
@@ -101,16 +152,51 @@ export default function App() {
     return TEXT_SIZES.includes(stored) ? stored : 'normal';
   });
 
-  const [joining, setJoining] = useState(() => Boolean(inviteCodeFromPath()));
   const [wrongItem, setWrongItem] = useState<number | null>(null);
   const [arrival, setArrival] = useState<Arrival>('fresh');
 
+  // Focuses a dialog's heading once when it opens, so it opens at the top.
+  const focusOnMount = useCallback((element: HTMLElement | null) => element?.focus(), []);
   const say = useCallback((text: string, tone: Tone, extra: { itemId?: number; who?: string } = {}) => setMessage({ text, tone, key: performance.now(), ...extra }), []);
 
   useEffect(() => {
     document.documentElement.dataset.textSize = textSize;
     window.localStorage.setItem(TEXT_SIZE_KEY, textSize);
   }, [textSize]);
+
+  // Every screen gets its own history entry, so the phone's Back button steps
+  // back through them. In a room, Back asks before leaving it.
+  useEffect(() => {
+    window.history.replaceState({ kc: inviteCodeFromPath() ? 'join' : 'home', depth: 0 }, '');
+    const onPop = (event: PopStateEvent) => {
+      if (stateRef.current) {
+        window.history.pushState({ kc: 'room', depth: historyDepth() + 1 }, '', `/kitchen-clash/r/${stateRef.current.roomCode}`);
+        setConfirmLeave(true);
+        return;
+      }
+      const kc = event.state?.kc;
+      setSolo(null);
+      setError('');
+      setScreen(SCREENS.includes(kc) ? kc : 'home');
+    };
+    // A page the browser kept from before may be stale, so load it afresh.
+    const onShow = (event: PageTransitionEvent) => { if (event.persisted) window.location.reload(); };
+    window.addEventListener('popstate', onPop);
+    window.addEventListener('pageshow', onShow);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('pageshow', onShow);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (screen !== 'join' || code.length !== 6 || !connected) return setRoomInfo(undefined);
+    let current = true;
+    socketRef.current?.timeout(5_000).emit('room_info', { roomCode: code }, (timeout: Error | null, info: RoomSummary | null) => {
+      if (current) setRoomInfo(timeout ? undefined : info);
+    });
+    return () => { current = false; };
+  }, [screen, code, connected]);
 
   useEffect(() => {
     const unlock = () => {
@@ -137,13 +223,17 @@ export default function App() {
       window.sessionStorage.setItem(SESSION_KEY, JSON.stringify({ roomCode: session.roomCode, sessionToken: session.sessionToken }));
       setHasSession(true);
       setError('');
-      if (window.location.pathname !== `/kitchen-clash/r/${session.roomCode}`) window.history.replaceState(null, '', `/kitchen-clash/r/${session.roomCode}`);
+      // The room gets its own history entry, so Back from it asks before leaving.
+      const roomUrl = `/kitchen-clash/r/${session.roomCode}`;
+      if (window.history.state?.kc === 'room') window.history.replaceState(window.history.state, '', roomUrl);
+      else window.history.pushState({ kc: 'room', depth: historyDepth() + 1 }, '', roomUrl);
     });
     socket.on('session_invalid', () => {
       window.sessionStorage.removeItem(SESSION_KEY);
       setHasSession(false);
       setState(null);
       stateRef.current = null;
+      setScreen('home');
       setError('That game has ended or your seat expired. Start or join a new game.');
     });
     socket.on('error_message', (text: string) => setError(text));
@@ -265,28 +355,56 @@ export default function App() {
     setNudge((value) => value + 1);
   };
 
+  const pickMode = (mode: GameMode) => socketRef.current?.emit('set_mode', mode);
+
+  const go = (next: Screen) => {
+    setError('');
+    window.history.pushState({ kc: next, depth: historyDepth() + 1 }, '', window.location.pathname);
+    setScreen(next);
+  };
+  const back = () => {
+    setError('');
+    if (historyDepth() > 0) return window.history.back();
+    // Arrived straight on this screen, such as from an invite link.
+    window.history.replaceState({ kc: 'home', depth: 0 }, '', '/kitchen-clash/');
+    setCode('');
+    setScreen('home');
+  };
+  const startSolo = (mode: SoloMode) => {
+    window.history.pushState({ kc: 'solo', depth: historyDepth() + 1 }, '', window.location.pathname);
+    setSolo(mode);
+  };
+  const exitSolo = () => (window.history.state?.kc === 'solo' ? window.history.back() : setSolo(null));
+
   const start = (event: FormEvent) => {
     event.preventDefault();
     const trimmed = name.trim();
-    if (!trimmed) return setError('Please type your name first.');
-    if (joining && code.length !== 6) return setError('Type the 6 letters of the room code.');
+    const joining = screen === 'join';
+    if (joining && code.length !== 6) {
+      codeRef.current?.focus();
+      return setError('Type the 6 letters of the room code.');
+    }
+    if (!trimmed) {
+      nameRef.current?.focus();
+      return setError('Please type your name first.');
+    }
     window.localStorage.setItem(NAME_KEY, trimmed);
     setError('');
     if (joining) socketRef.current?.emit('join_room', { roomCode: code, name: trimmed });
-    else socketRef.current?.emit('create_room', { name: trimmed });
+    else socketRef.current?.emit('create_room', { name: trimmed, mode: newMode });
   };
 
   const leave = () => {
     setConfirmLeave(false);
-    if (solo) return setSolo(null);
+    if (solo) return exitSolo();
     const finish = () => {
       window.sessionStorage.removeItem(SESSION_KEY);
       setHasSession(false);
       setState(null);
       stateRef.current = null;
       setCode('');
-      setJoining(false);
-      window.history.replaceState(null, '', '/kitchen-clash/');
+      setScreen('home');
+      window.history.replaceState({ kc: 'home', depth: 0 }, '', '/kitchen-clash/');
     };
     const socket = socketRef.current;
     if (socket?.connected) socket.timeout(2_000).emit('leave_room', finish);
@@ -297,7 +415,7 @@ export default function App() {
     if (!state) return;
     const url = `${window.location.origin}/kitchen-clash/r/${state.roomCode}`;
     try {
-      if (navigator.share) await navigator.share({ title: 'Kitchen Clash', text: `Join my Kitchen Clash game. Room code ${state.roomCode}`, url });
+      if (navigator.share) await navigator.share({ title: 'Kitchen Clash', text: `Join my Kitchen Clash game: ${HOW_TO[state.mode].name}. Room code ${state.roomCode}`, url });
       else {
         await navigator.clipboard.writeText(url);
         setCopied(true);
@@ -318,13 +436,6 @@ export default function App() {
   const toggleMusic = () => { setMusicOn(!musicOn); setMusicOnState(!musicOn); };
 
   const inGame = state?.phase === 'playing' || state?.phase === 'countdown';
-  const topBar = (showBrand: boolean) => (
-    <header className="top-bar">
-      {showBrand ? <span className="brand">Kitchen <em>Clash</em></span> : <span />}
-      <button type="button" className="tool-button menu-button" onClick={() => setShowMenu(true)} aria-label="Menu: size, sound, music, how to play">☰<span className="menu-word"> Menu</span></button>
-    </header>
-  );
-
   const dialogs = (
     <>
       {showMenu && (
@@ -350,10 +461,10 @@ export default function App() {
       )}
       {showHelp && (
         <div className="dialog-backdrop" role="presentation" onClick={() => setShowHelp(false)}>
-          <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="help-title" onClick={(event) => event.stopPropagation()}>
-            <h2 id="help-title">How to play</h2>
-            <HowToPlay mode={solo ?? (state && state.phase !== 'lobby' ? state.mode : undefined)} />
-            <button type="button" className="primary" autoFocus onClick={() => setShowHelp(false)}>Got it</button>
+          <div className="dialog help" role="dialog" aria-modal="true" aria-labelledby="help-title" onClick={(event) => event.stopPropagation()}>
+            <h2 id="help-title" tabIndex={-1} ref={focusOnMount}>How to play</h2>
+            <div className="help-body"><HowToPlay mode={solo ?? state?.mode} /></div>
+            <button type="button" className="primary" onClick={() => setShowHelp(false)}>Got it</button>
           </div>
         </div>
       )}
@@ -375,42 +486,99 @@ export default function App() {
 
   if (solo) {
     const menuButton = <button type="button" className="tool-button menu-button" onClick={() => setShowMenu(true)} aria-label="Menu: size, sound, music, help, leave">☰</button>;
-    return <><Solo key={solo} mode={solo} menu={menuButton} onExit={() => setSolo(null)} pictureSize={textSize} />{dialogs}</>;
+    return <><Solo key={solo} mode={solo} menu={menuButton} onExit={exitSolo} pictureSize={textSize} />{dialogs}</>;
   }
+
+  const menuButton = <button type="button" className="tool-button menu-button" onClick={() => setShowMenu(true)} aria-label="Menu: size, sound, music, how to play">☰<span className="menu-word"> Menu</span></button>;
+  const stepBar = (
+    <header className="top-bar">
+      <button type="button" className="tool-button" onClick={back}>‹ Back</button>
+      {menuButton}
+    </header>
+  );
+  const nameField = (
+    <>
+      <label htmlFor="name">Your name</label>
+      <input ref={nameRef} id="name" value={name} maxLength={16} autoComplete="nickname" enterKeyHint="go" onChange={(event) => setName(event.target.value)} placeholder="e.g. Nani" />
+      {error && <p className="error" role="alert">{error}</p>}
+    </>
+  );
 
   if (!state) {
     if (hasSession && !error) return <main className="screen centred"><p className="loading">Loading your game…</p>{dialogs}</main>;
+
+    if (screen === 'friends' || screen === 'alone') {
+      return (
+        <main className="screen home step">
+          {stepBar}
+          <section className="panel">
+            <h1 className="step-title">{screen === 'friends' ? 'Pick a game' : 'Play alone'}</h1>
+            {screen === 'friends'
+              ? <GameChoices modes={GAME_MODES} label="Game" onPick={(mode) => { setNewMode(mode); go('create'); }} />
+              : <GameChoices modes={SOLO_MODES} label="Solo game" onPick={startSolo} />}
+          </section>
+          {dialogs}
+        </main>
+      );
+    }
+
+    if (screen === 'create') {
+      return (
+        <main className="screen home step">
+          {stepBar}
+          <form className="panel home-form" onSubmit={start} noValidate>
+            <GameLine label="New game" mode={newMode} onPick={setNewMode} />
+            {nameField}
+            <button type="submit" className="primary big" disabled={!connected}>Create game</button>
+            {!connected && <p className="hint">Connecting…</p>}
+          </form>
+          {dialogs}
+        </main>
+      );
+    }
+
+    if (screen === 'join') {
+      const found = roomInfo && roomInfo.hostName;
+      return (
+        <main className="screen home step">
+          {stepBar}
+          <form className="panel home-form" onSubmit={start} noValidate>
+            {found ? (
+              <>
+                <h1 className="step-title">Join {roomInfo.hostName}’s game</h1>
+                <p className="join-game"><span aria-hidden="true">{HOW_TO[roomInfo.mode].emoji}</span> <strong>{HOW_TO[roomInfo.mode].name}</strong> · {roomInfo.seats} of {roomInfo.maxPlayers} players</p>
+                {roomInfo.phase !== 'lobby' && <p className="hint left">{roomInfo.phase === 'finished' ? 'They just finished a game.' : 'A game is in progress.'} You will be dealt in to the next one.</p>}
+              </>
+            ) : (
+              <>
+                <h1 className="step-title">Join a game</h1>
+                <label htmlFor="code">Room code</label>
+                <input ref={codeRef} id="code" value={code} maxLength={6} autoCapitalize="characters" autoComplete="off" autoCorrect="off" spellCheck={false} enterKeyHint="next" aria-describedby="code-hint" onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} placeholder="ABC123" />
+                <p className="hint left" id="code-hint">{roomInfo === null ? 'We could not find that room. Check the code.' : '6 letters or numbers. Ask the person who started the game.'}</p>
+              </>
+            )}
+            {nameField}
+            <button type="submit" className="primary big" disabled={!connected || roomInfo === null}>Join game</button>
+            {!connected && <p className="hint">Connecting…</p>}
+          </form>
+          {dialogs}
+        </main>
+      );
+    }
+
     return (
       <main className="screen home">
-        {topBar(false)}
+        <header className="top-bar"><span />{menuButton}</header>
         <div className="home-hero">
           <div className="hero-cards" aria-hidden="true"><span>🍅</span><span>🧀</span><span>🥕</span></div>
           <h1>Kitchen <em>Clash</em></h1>
           <p className="tagline">Spot the matching food faster than everyone else.</p>
         </div>
-        <form className="panel home-form" onSubmit={start} noValidate>
-          <label htmlFor="name">Your name</label>
-          <input id="name" value={name} maxLength={16} autoComplete="nickname" enterKeyHint="go" onChange={(event) => setName(event.target.value)} placeholder="e.g. Nani" />
-          {joining && (
-            <>
-              <label htmlFor="code">Room code</label>
-              <input id="code" value={code} maxLength={6} autoCapitalize="characters" autoComplete="off" autoCorrect="off" spellCheck={false} enterKeyHint="go" aria-describedby="code-hint" onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} placeholder="ABC123" />
-              <p className="hint left" id="code-hint">6 letters or numbers. Ask the person who started the game.</p>
-            </>
-          )}
+        <section className="panel home-actions">
           {error && <p className="error" role="alert">{error}</p>}
-          <button type="submit" className="primary big" disabled={!connected}>{joining ? 'Join game' : 'Start a new game'}</button>
-          <button type="button" className="secondary" onClick={() => { setJoining(!joining); setError(''); }}>{joining ? 'Start a new game instead' : 'Join a game with a code'}</button>
-          {!connected && <p className="hint">Connecting…</p>}
-        </form>
-        <section className="panel solo-panel">
-          <p className="solo-title">Playing alone?</p>
-          {SOLO_MODES.map((mode) => (
-            <button key={mode} type="button" className="secondary mode-button" onClick={() => { setError(''); setSolo(mode); }}>
-              <span className="mode-emoji" aria-hidden="true">{HOW_TO[mode].emoji}</span>
-              <span className="mode-text"><strong>{HOW_TO[mode].name}</strong><small>{HOW_TO[mode].tagline}</small></span>
-            </button>
-          ))}
+          <button type="button" className="primary big" onClick={() => go('friends')}>Play with friends</button>
+          <button type="button" className="secondary" onClick={() => { setCode(''); go('join'); }}>Join with a code</button>
+          <button type="button" className="secondary" onClick={() => go('alone')}>Play alone</button>
         </section>
         {dialogs}
       </main>
@@ -420,96 +588,125 @@ export default function App() {
   const you = state.you;
   const others = state.players.filter((player) => !player.isYou);
   const playerIndex = (player: PlayerState) => state.players.indexOf(player);
+  const seatedNow = state.players.filter((player) => !player.left).length;
+  const needed = Math.max(0, state.minPlayers - seatedNow);
+  const topBar = <header className="top-bar"><span className="brand">Kitchen <em>Clash</em></span>{menuButton}</header>;
+  const inviteButton = (loud: boolean) => <button type="button" className={loud ? 'primary big' : 'secondary'} onClick={share}>{copied ? 'Link copied ✓' : 'Invite people'}</button>;
+  const playerList = (
+    <ul className="player-list">
+      {state.players.filter((player) => !player.left).map((player) => (
+        <li key={player.name} className={player.connected ? '' : 'offline'}>
+          <Avatar player={player} index={playerIndex(player)} />
+          <span className="player-name">{player.name}</span>
+          {player.isYou && <span className="badge you">You</span>}
+          {player.isHost && <span className="badge">Host</span>}
+          {player.waiting && state.phase !== 'lobby' && <span className="badge muted">Next game</span>}
+          {!player.connected && <span className="badge muted">Away</span>}
+        </li>
+      ))}
+    </ul>
+  );
 
   if (state.phase === 'lobby') {
-    const seated = state.players.length;
-    const needed = Math.max(0, state.minPlayers - seated);
     return (
       <main className="screen lobby">
-        {topBar(true)}
+        {topBar}
         <section className="panel">
-          <p className="eyebrow">Room code</p>
-          <p className="room-code" aria-label={`Room code ${state.roomCode.split('').join(' ')}`}>{state.roomCode}</p>
-          <button type="button" className="secondary" onClick={share}>{copied ? 'Link copied ✓' : 'Invite people'}</button>
+          <GameLine label="Game" mode={state.mode} seated={seatedNow} onPick={state.isHost ? pickMode : undefined} />
+          <div className="room-box">
+            <p className="eyebrow">Room code</p>
+            <p className="room-code" aria-label={`Room code ${state.roomCode.split('').join(' ')}`}>{state.roomCode}</p>
+          </div>
+          {inviteButton(needed > 0)}
         </section>
         <section className="panel">
-          <h2 id="mode-title">Game</h2>
-          {state.isHost ? (
-            <div className="mode-picker" role="radiogroup" aria-labelledby="mode-title">
-              {GAME_MODES.map((mode) => {
-                const tooMany = mode === 'hot-potato' && seated > HOT_POTATO_MAX;
-                return (
-                  <button key={mode} type="button" role="radio" aria-checked={state.mode === mode} className="mode-button" disabled={tooMany} onClick={() => socketRef.current?.emit('set_mode', mode)}>
-                    <span className="mode-emoji" aria-hidden="true">{HOW_TO[mode].emoji}</span>
-                    <span className="mode-text"><strong>{HOW_TO[mode].name}</strong><small>{tooMany ? `Up to ${HOT_POTATO_MAX} players` : HOW_TO[mode].tagline}</small></span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="mode-chosen"><span aria-hidden="true">{HOW_TO[state.mode].emoji}</span> <strong>{HOW_TO[state.mode].name}</strong> · {HOW_TO[state.mode].tagline}</p>
-          )}
-        </section>
-        <section className="panel">
-          <h2>Players <span className="count">{seated} of {state.maxPlayers}</span></h2>
-          <ul className="player-list">
-            {state.players.map((player) => (
-              <li key={player.name} className={player.connected ? '' : 'offline'}>
-                <Avatar player={player} index={playerIndex(player)} />
-                <span className="player-name">{player.name}</span>
-                {player.isYou && <span className="badge you">You</span>}
-                {player.isHost && <span className="badge">Host</span>}
-                {!player.connected && <span className="badge muted">Away</span>}
-              </li>
-            ))}
-          </ul>
-          {error && <p className="error" role="alert">{error}</p>}
-          {state.isHost ? (
-            <>
-              <button type="button" className="primary big" disabled={!state.canStart} onClick={() => socketRef.current?.emit('start_game')}>Start game</button>
-              {needed > 0 && <p className="hint">Waiting for {needed} more player{needed === 1 ? '' : 's'}. Share the room code.</p>}
-              {needed === 0 && !state.canStart && <p className="hint">Waiting for everyone to reconnect.</p>}
-            </>
-          ) : <p className="hint big-hint">Waiting for {state.hostName} to start the game…</p>}
+          <h2>Players <span className="count">{seatedNow} of {state.maxPlayers}</span></h2>
+          {playerList}
         </section>
         <section className="panel">
           <h2>How to play {HOW_TO[state.mode].name}</h2>
-          <HowToPlay mode={state.mode} />
+          <HowToSteps mode={state.mode} />
         </section>
+        <div className="action-bar">
+          {error && <p className="error" role="alert">{error}</p>}
+          {!state.isHost
+            ? <p className="hint big-hint">Waiting for {state.hostName} to start…</p>
+            : needed > 0
+              ? <p className="hint big-hint">Waiting for {needed} more player{needed === 1 ? '' : 's'}…</p>
+              : <>
+                  <button type="button" className="primary big" disabled={!state.canStart} onClick={() => socketRef.current?.emit('start_game')}>Start game</button>
+                  {!state.canStart && <p className="hint">Waiting for everyone to reconnect.</p>}
+                </>}
+        </div>
         {dialogs}
       </main>
     );
   }
 
   if (state.phase === 'finished') {
-    const ranked = [...state.players].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
-    const myRank = you?.rank;
+    const result = state.result;
+    const played = result?.mode ?? state.mode;
+    const rows = [...(result?.players ?? [])].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
+    const mine = rows.find((row) => row.name === you?.name);
+    const waitingNames = state.players.filter((player) => player.waiting && !player.left).map((player) => player.name);
     return (
       <main className="screen results">
-        {topBar(true)}
+        {topBar}
         <section className="panel">
-          <p className="eyebrow">{HOW_TO[state.mode].emoji} {HOW_TO[state.mode].name}</p>
-          <h1 className="results-title">{myRank === 1 ? 'You won! 🏆' : myRank ? `You came ${ordinal(myRank)}` : 'Game over'}</h1>
+          <p className="eyebrow">{HOW_TO[played].emoji} {HOW_TO[played].name} · results</p>
+          <h1 className="results-title">{mine?.rank === 1 ? 'You won! 🏆' : mine?.rank ? `You came ${ordinal(mine.rank)}` : 'Game over'}</h1>
           <ol className="standings">
-            {ranked.map((player) => (
-              <li key={player.name} className={player.isYou ? 'is-you' : ''}>
-                <span className="place">{player.left ? '–' : player.rank === 1 ? '🥇' : player.rank === 2 ? '🥈' : player.rank === 3 ? '🥉' : ordinal(player.rank ?? 0)}</span>
-                <span className="player-name">{player.name}{player.isYou && <span className="badge you">You</span>}{player.left && <span className="badge muted">Left</span>}</span>
+            {rows.map((row) => (
+              <li key={row.name} className={row.name === you?.name ? 'is-you' : ''}>
+                <span className="place">{!row.rank ? '–' : row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : ordinal(row.rank)}</span>
+                <span className="player-name">{row.name}{row.name === you?.name && <span className="badge you">You</span>}{row.left && <span className="badge muted">Left</span>}</span>
                 <span className="stats">
-                  {state.mode === 'tower' && <span>🥞 {player.cardsLeft} cards</span>}
-                  {state.mode === 'hot-potato' && <span>😬 {player.losses} lost</span>}
-                  <span>{player.wins} {state.mode === 'hot-potato' ? 'passed' : state.mode === 'tower' ? 'won' : 'matched'}</span>
-                  <span>{player.misses} wrong</span>
-                  {player.averageSpotMs !== null && <span>avg {seconds(player.averageSpotMs)}</span>}
+                  {played === 'tower' && <span>🥞 {row.tower} high</span>}
+                  {played === 'hot-potato' && <span>😬 {row.losses} lost</span>}
+                  <span>{row.wins} {played === 'hot-potato' ? 'passed' : played === 'tower' ? 'won' : 'matched'}</span>
+                  <span>{row.misses} wrong</span>
+                  {row.averageSpotMs !== null && <span>avg {seconds(row.averageSpotMs)}</span>}
                 </span>
               </li>
             ))}
           </ol>
+        </section>
+        <section className="panel">
+          <GameLine label="Next game" mode={state.mode} seated={seatedNow} onPick={state.isHost ? pickMode : undefined} />
+          {waitingNames.length > 0 && <p className="hint left">{waitingNames.join(', ')} will play the next game.</p>}
+          {needed > 0 && (
+            <>
+              <p className="hint left">Everyone else has left. You need {needed} more player{needed === 1 ? '' : 's'} to play again.</p>
+              {inviteButton(true)}
+            </>
+          )}
+        </section>
+        <div className="action-bar">
           {error && <p className="error" role="alert">{error}</p>}
           {state.isHost
-            ? <button type="button" className="primary big" disabled={!state.canStart} onClick={() => socketRef.current?.emit('start_game')}>Play again</button>
-            : <p className="hint big-hint">Waiting for {state.hostName} to start another game…</p>}
-          <button type="button" className="secondary" onClick={leave}>Leave</button>
+            ? needed === 0 && <button type="button" className="primary big" disabled={!state.canStart} onClick={() => socketRef.current?.emit('start_game')}>Play again</button>
+            : <p className="hint big-hint">Waiting for {state.hostName} to start the next game…</p>}
+          <button type="button" className="link-button" onClick={() => setConfirmLeave(true)}>Back to home</button>
+        </div>
+        {dialogs}
+      </main>
+    );
+  }
+
+  // Joined while a game was running: wait here for the next one.
+  if (you?.waiting) {
+    return (
+      <main className="screen lobby">
+        {topBar}
+        <section className="panel">
+          <p className="eyebrow">{HOW_TO[state.mode].emoji} {HOW_TO[state.mode].name}</p>
+          <h1 className="step-title">{state.hostName}’s game is in progress</h1>
+          <p className="hint left">You will be dealt in to the next game. Stay on this screen.</p>
+          {playerList}
+        </section>
+        <section className="panel">
+          <h2>How to play {HOW_TO[state.mode].name}</h2>
+          <HowToSteps mode={state.mode} />
         </section>
         {dialogs}
       </main>
@@ -528,7 +725,8 @@ export default function App() {
     : potato
       ? (you?.topCard ? 'Match a card above. Tap it on yours.' : 'You are safe! Wait for the next deal.')
       : 'Find the picture on both cards. Tap it on yours.';
-  const opponentCards = potato ? others.filter((player) => !player.left) : [];
+  const opponentCards = potato ? others.filter((player) => !player.left && !player.waiting) : [];
+  const yourPile = you && !potato ? pileWords(state.mode, you.cardsLeft) : null;
   const warning = roundEnding && !you?.rank && roundEndsIn !== null ? `No match yet. New middle card in ${Math.max(1, Math.ceil(roundEndsIn / 1000))} s` : '';
   const statusText = message?.text || (locked ? 'Not that one. Wait a moment…' : warning || instruction);
   const statusTone = message?.tone || (locked ? 'bad' : warning ? 'warn' : 'info');
@@ -538,13 +736,13 @@ export default function App() {
       <header className="table-header">
         {/* Hot Potato names everyone under their card instead. */}
         <ul className={`opponents${compact ? ' compact' : ''}`} aria-label="Other players" hidden={potato}>
-          {others.map((player) => (
-            <li key={player.name} className={`opponent${player.connected ? '' : ' offline'}${player.rank ? ' done' : ''}${message?.who === player.name ? ' just-won' : ''}`} aria-label={`${player.name}: ${player.rank ? `finished ${ordinal(player.rank)}` : player.connected ? `${player.cardsLeft} cards` : 'reconnecting'}`}>
+          {others.filter((player) => !player.waiting).map((player) => (
+            <li key={player.name} className={`opponent${player.connected ? '' : ' offline'}${player.rank ? ' done' : ''}${message?.who === player.name ? ' just-won' : ''}`} aria-label={`${player.name}: ${player.rank ? `finished ${ordinal(player.rank)}` : player.connected ? pileWords(state.mode, player.cardsLeft).label : 'reconnecting'}`}>
               <Avatar player={player} index={playerIndex(player)} />
               <span className="opponent-text" aria-hidden="true">
                 <span className="opponent-name">{player.name}</span>
                 <span className="opponent-count">
-                  {player.rank ? (compact ? '🏅' : `🏅 ${ordinal(player.rank)}`) : player.reconnectMs !== null ? (compact ? '⏳' : `⏳ ${Math.max(0, Math.ceil((player.reconnectMs - sinceState) / 1000))}s`) : <>{player.cardsLeft}<span className="unit"> {player.cardsLeft === 1 ? 'card' : 'cards'}</span></>}
+                  {player.rank ? (compact ? '🏅' : `🏅 ${ordinal(player.rank)}`) : player.reconnectMs !== null ? (compact ? '⏳' : `⏳ ${Math.max(0, Math.ceil((player.reconnectMs - sinceState) / 1000))}s`) : compact ? player.cardsLeft : pileWords(state.mode, player.cardsLeft).text}
                 </span>
               </span>
             </li>
@@ -581,7 +779,7 @@ export default function App() {
 
       <section className="card-slot your-slot" aria-label="Your card">
         {you?.topCard ? (
-          countdown === null && <div key={you.topCard.id} className="hand"><KitchenCard card={you.topCard} seed={`you:${you.name}`} label="Your card" onPick={claim} disabled={locked} shake={locked ? shake : 0} nudge={nudge} pile={you.cardsLeft} wrongItemId={locked ? wrongItem : null} lockFraction={locked ? Math.min(1, lockRemaining / 1500) : 0} pictureSize={textSize} /></div>
+          countdown === null && <div key={you.topCard.id} className="hand"><KitchenCard card={you.topCard} seed={`you:${you.name}`} label="Your card" onPick={claim} disabled={locked} shake={locked ? shake : 0} nudge={nudge} pile={you.cardsLeft} pileText={yourPile?.text} pileLabel={yourPile?.label} wrongItemId={locked ? wrongItem : null} lockFraction={locked ? Math.min(1, lockRemaining / 1500) : 0} pictureSize={textSize} /></div>
         ) : (
           countdown === null && (potato && !you?.rank
             ? <div className="finished-card safe"><span aria-hidden="true">😎</span><p>Safe!</p></div>
@@ -594,11 +792,8 @@ export default function App() {
           {potato && state.lastDeal && (
             <p className="deal-result">{state.lastDeal.loser === null ? 'Nobody got stuck.' : state.lastDeal.loser === you?.name ? `😬 You got stuck with ${state.lastDeal.cards} cards!` : `😬 ${state.lastDeal.loser} got stuck with ${state.lastDeal.cards} cards!`}</p>
           )}
-          <p>{potato ? `🥔 Deal ${state.deal + 1} of ${state.totalDeals}` : state.mode === 'tower' ? '🥞 Tower · get ready…' : 'Get ready…'}</p>
+          <p>{potato ? `🥔 Deal ${state.deal + 1} of ${state.totalDeals}` : `${HOW_TO[state.mode].emoji} ${HOW_TO[state.mode].name}`}</p>
           <span key={countdown}>{countdown}</span>
-          <p className="countdown-hint">{potato
-            ? <>Find a picture your card shares with <strong>another player’s</strong> card, then tap it on <strong>your</strong> card.</>
-            : <>Find the one picture that is on both cards, then tap it on <strong>your</strong> card.</>}</p>
         </div>
       )}
       {dialogs}

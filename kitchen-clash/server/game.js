@@ -53,6 +53,8 @@ class KitchenClashGame {
     this.claims = [];
     this.settleDeadline = null;
     this.lastWin = null;
+    // The standings of the last finished game, kept as they ended.
+    this.result = null;
     this.nextRank = 1;
     this.spares = [];
     this.played = [];
@@ -81,7 +83,12 @@ class KitchenClashGame {
   // the Tower everyone always holds their tower; in Hot Potato a player with
   // no cards is safe for the rest of the deal.
   racers() {
-    return this.players.filter((item) => !item.left && item.rank === null && item.pile.length > 0);
+    return this.players.filter((item) => !item.left && !item.waiting && item.rank === null && item.pile.length > 0);
+  }
+
+  // Seated and in this game: not gone, and not waiting for the next one.
+  inGame() {
+    return this.players.filter((item) => !item.left && !item.waiting);
   }
 
   setMode(requesterId, mode) {
@@ -95,13 +102,14 @@ class KitchenClashGame {
     return { mode };
   }
 
+  // Someone who joins after the first start waits for the next game: they
+  // are seated now and dealt in when the host starts again.
   addPlayer(id, name, sessionToken = crypto.randomUUID()) {
-    if (this.phase !== 'lobby') return { error: 'This game has already started.' };
     const seated = this.players.filter((item) => !item.left);
     if (seated.length >= this.maxPlayers()) return { error: `This kitchen is full. Up to ${this.maxPlayers()} players can play this game.` };
     if (seated.some((item) => item.name.toLowerCase() === name.toLowerCase())) return { error: 'Someone in this room already has that name.' };
     const player = {
-      id, name, sessionToken, connected: true, left: false, removeAt: null,
+      id, name, sessionToken, connected: true, left: false, removeAt: null, waiting: this.phase !== 'lobby',
       pile: [], rank: null, wins: 0, misses: 0, spotTotalMs: 0, spotCount: 0, losses: 0,
       lockedUntil: 0, rttSamples: [], roundSentAt: null, sentRoundId: null,
     };
@@ -173,7 +181,7 @@ class KitchenClashGame {
     this.deal = 0;
     this.lastDeal = null;
     this.players.forEach((player) => {
-      Object.assign(player, { pile: [], rank: null, wins: 0, misses: 0, losses: 0, spotTotalMs: 0, spotCount: 0, lockedUntil: 0, sentRoundId: null });
+      Object.assign(player, { waiting: false, pile: [], rank: null, wins: 0, misses: 0, losses: 0, spotTotalMs: 0, spotCount: 0, lockedUntil: 0, sentRoundId: null });
     });
     if (this.mode === 'race') {
       this.centre = deck[0];
@@ -195,6 +203,7 @@ class KitchenClashGame {
     this.claims = [];
     this.settleDeadline = null;
     this.lastWin = null;
+    this.result = null;
     this.nextRank = 1;
     return { countdownMs: COUNTDOWN_MS };
   }
@@ -217,7 +226,7 @@ class KitchenClashGame {
     this.deal += 1;
     this.players.forEach((player) => {
       if (player.pile.length) this.played.push(...player.pile);
-      player.pile = player.left ? [] : [this.drawCard()];
+      player.pile = player.left || player.waiting ? [] : [this.drawCard()];
       player.lockedUntil = 0;
     });
   }
@@ -361,7 +370,7 @@ class KitchenClashGame {
     this.lastDeal = { deal: this.deal, loser: loser ? loser.name : null, cards: loser ? loser.pile.length : 0 };
     this.claims = [];
     this.settleDeadline = null;
-    if (this.deal >= HOT_POTATO_DEALS || this.players.filter((item) => !item.left).length < 2) {
+    if (this.deal >= HOT_POTATO_DEALS || this.inGame().length < 2) {
       this.finishByScore();
       return true;
     }
@@ -373,9 +382,10 @@ class KitchenClashGame {
   // Tower and Hot Potato rank everyone still seated together at the end:
   // tallest tower first, or fewest lost deals first. Equal scores share a place.
   finishByScore() {
-    const seated = this.players.filter((item) => !item.left);
+    const seated = this.inGame();
     const score = (player) => (this.mode === 'tower' ? -player.pile.length : player.losses);
     seated.forEach((player) => { player.rank = 1 + seated.filter((other) => score(other) < score(player)).length; });
+    this.keepResult();
     this.phase = 'finished';
     this.claims = [];
     this.settleDeadline = null;
@@ -426,7 +436,7 @@ class KitchenClashGame {
 
   finishIfDecided(now = 0, byDeparture = false) {
     if (this.mode !== 'race') {
-      if (this.players.filter((item) => !item.left).length < 2) {
+      if (this.inGame().length < 2) {
         this.finishByScore();
         return true;
       }
@@ -435,11 +445,36 @@ class KitchenClashGame {
     const racers = this.racers();
     if (racers.length > 1) return false;
     racers.forEach((player) => { player.rank = this.nextRank++; });
+    this.keepResult();
     this.phase = 'finished';
     this.claims = [];
     this.settleDeadline = null;
     this.countdownEndsAt = null;
     return true;
+  }
+
+  // Keeps the standings as the game ended, so the results screen does not
+  // change when someone leaves or the host picks the next game.
+  keepResult() {
+    this.result = {
+      mode: this.mode,
+      players: this.players.filter((item) => !item.waiting).map((item) => ({
+        name: item.name,
+        rank: item.rank,
+        left: item.left,
+        wins: item.wins,
+        misses: item.misses,
+        losses: item.losses,
+        averageSpotMs: item.spotCount ? Math.round(item.spotTotalMs / item.spotCount) : null,
+        tower: item.pile.length,
+      })),
+    };
+  }
+
+  // What an invite link shows before joining.
+  summary() {
+    const host = this.host();
+    return { roomCode: this.roomCode, hostName: host ? host.name : null, mode: this.mode, phase: this.phase, seats: this.players.filter((item) => !item.left).length, maxPlayers: this.maxPlayers() };
   }
 
   // State for one player. Sending a new round to a player also starts the
@@ -471,11 +506,13 @@ class KitchenClashGame {
       canStart: this.canStart(),
       centre: this.phase === 'lobby' ? null : this.centre,
       lastWin: this.lastWin,
+      result: this.phase === 'finished' ? this.result : null,
       you: me ? {
         name: me.name,
         cardsLeft: me.pile.length,
         topCard: this.phase === 'playing' || this.phase === 'countdown' ? me.pile[0] || null : null,
         rank: me.rank,
+        waiting: me.waiting,
         lockoutMs: Math.max(0, Math.ceil(me.lockedUntil - now)),
       } : null,
       players: seated.map((item) => ({
@@ -484,6 +521,7 @@ class KitchenClashGame {
         connected: item.connected,
         left: item.left,
         rank: item.rank,
+        waiting: item.waiting,
         isYou: item === me,
         isHost: Boolean(host && item.sessionToken === host.sessionToken),
         reconnectMs: !item.connected && item.removeAt ? Math.max(0, Math.ceil(item.removeAt - now)) : null,

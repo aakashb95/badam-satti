@@ -6,7 +6,7 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const { Server } = require('socket.io');
-const { KitchenClashGame } = require('./game');
+const { KitchenClashGame, MODES } = require('./game');
 
 const PORT = Number(process.env.PORT || 5200);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -125,12 +125,23 @@ io.on('connection', (socket) => {
     });
   }, PING_INTERVAL_MS);
 
-  socket.on('create_room', ({ name } = {}) => {
+  // The game is picked before the room exists, so invites already say which one.
+  socket.on('create_room', ({ name, mode = 'race' } = {}) => {
     const playerName = cleanName(name);
     if (!playerName) return socket.emit('error_message', 'Please enter a name of up to 16 letters.');
+    if (!MODES[mode]) return socket.emit('error_message', 'That game does not exist.');
     const room = new KitchenClashGame(newRoomCode(), { roundIdleMs: Number(process.env.ROUND_IDLE_MS) || undefined });
     rooms.set(room.roomCode, room);
-    seat(socket, room, room.addPlayer(socket.id, playerName).player);
+    const { player } = room.addPlayer(socket.id, playerName);
+    room.setMode(socket.id, mode);
+    seat(socket, room, player);
+  });
+
+  // Lets an invite link say whose game it is and which game, before joining.
+  socket.on('room_info', ({ roomCode } = {}, acknowledge) => {
+    if (typeof acknowledge !== 'function') return;
+    const room = rooms.get(typeof roomCode === 'string' ? roomCode.trim().toUpperCase() : '');
+    acknowledge(room ? room.summary() : null);
   });
 
   socket.on('join_room', ({ roomCode, name } = {}) => {

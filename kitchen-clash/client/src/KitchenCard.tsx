@@ -19,6 +19,10 @@ interface Props {
   // Cards in this player's pile, this one included. Shown as card edges
   // stacked under the card and as a number.
   pile?: number;
+  // What the pile badge says and how it is read out, when the plain count
+  // would be unclear (a Tower is counted up, the middle pile is cards to come).
+  pileText?: string;
+  pileLabel?: string;
   disabled?: boolean;
   shake?: number;
   // The item the server judged wrong, marked until the lockout ends. It only
@@ -32,7 +36,7 @@ interface Props {
 
 interface Drag { pointerId: number; startX: number; startY: number; startAngle: number; startRotation: number; moved: boolean }
 
-export default function KitchenCard({ card, seed, label, onPick, onTapAside, disabled = false, shake = 0, nudge = 0, pile, wrongItemId = null, lockFraction = 0, pictureSize = 'normal' }: Props) {
+export default function KitchenCard({ card, seed, label, onPick, onTapAside, pileText, pileLabel, disabled = false, shake = 0, nudge = 0, pile, wrongItemId = null, lockFraction = 0, pictureSize = 'normal' }: Props) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
   const layout = useMemo(() => layoutCard(card.items, `${card.id}:${seed}`, pictureSize), [card.id, card.items, seed, pictureSize]);
@@ -148,7 +152,7 @@ export default function KitchenCard({ card, seed, label, onPick, onTapAside, dis
           </svg>
         )}
       </div>
-      {pile !== undefined && <p className="pile-count" aria-label={`${pile} ${pile === 1 ? 'card' : 'cards'} left`}><span aria-hidden="true">{pile}</span></p>}
+      {pile !== undefined && <p className="pile-count" aria-label={pileLabel ?? `${pile} ${pile === 1 ? 'card' : 'cards'} left`}><span aria-hidden="true">{pileText ?? pile}</span></p>}
       <button type="button" className="turn-button" aria-label={`Turn ${label.toLowerCase()}`} onClick={() => setRotation((value) => value + 45)}>↻</button>
     </div>
   );

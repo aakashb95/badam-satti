@@ -288,3 +288,52 @@ test('Hot Potato shows every top card, and a departure mid-deal ends it with no 
   assert.equal(game.phase, 'countdown');
   assert.equal(game.countdownEndsAt, 2000 + 4000);
 });
+
+test('someone who joins mid-game waits, takes no place, and is dealt in for the next game', () => {
+  const game = modeGame('tower', ['Asha', 'Bilal']);
+  assert.ok(game.addPlayer('Chitra', 'Chitra', 'Chitra').player);
+  assert.equal(game.stateFor('Chitra', 1000).you.waiting, true);
+  assert.equal(game.stateFor('Chitra', 1000).you.topCard, null);
+  assert.equal(game.claim('Chitra', { roundId: 1, itemId: 0, reactionMs: 500 }, 1500).result, 'not_playing');
+  game.removePlayer('Bilal', 2000);
+  // Asha is the only one left in the game; Chitra does not keep it going.
+  assert.equal(game.phase, 'finished');
+  assert.deepEqual(game.result.players.map((item) => item.name), ['Asha', 'Bilal']);
+  assert.equal(game.player('Chitra').rank, null);
+  // A fourth person can join on the results screen too.
+  assert.ok(game.addPlayer('Dev', 'Dev', 'Dev').player);
+  assert.equal(game.start('Asha', 5000).countdownMs, 3000);
+  assert.deepEqual(['Asha', 'Chitra', 'Dev'].map((id) => [game.player(id).waiting, game.player(id).pile.length]), [[false, 1], [false, 1], [false, 1]]);
+});
+
+test('a Hot Potato late joiner is not dealt a card in the next deal of the running game', () => {
+  const game = modeGame('hot-potato', ['Asha', 'Bilal']);
+  game.addPlayer('Chitra', 'Chitra', 'Chitra');
+  game.claim('Asha', { roundId: 1, itemId: potatoMatch(game, 'Asha', 'Bilal'), reactionMs: 500 }, 1600);
+  game.settle(1800);
+  assert.equal(game.phase, 'countdown');
+  game.beginPlay(6000);
+  assert.equal(game.deal, 2);
+  assert.equal(game.player('Chitra').pile.length, 0);
+  assert.deepEqual(['Asha', 'Bilal'].map((id) => game.player(id).pile.length), [1, 1]);
+});
+
+test('the results stay as the game ended when the next game is changed or someone leaves', () => {
+  const game = modeGame('tower', ['Asha', 'Bilal', 'Chitra']);
+  game.claim('Bilal', { roundId: 1, itemId: sharedItem(game.player('Bilal').pile[0], game.centre), reactionMs: 500 }, 1600);
+  game.settle(1800);
+  game.drawPile.length = 0;
+  game.refreshRound(70_000);
+  assert.equal(game.phase, 'finished');
+  const ended = structuredClone(game.result);
+  assert.deepEqual(ended.players.map((item) => [item.name, item.rank, item.tower]), [['Asha', 2, 1], ['Bilal', 1, 2], ['Chitra', 2, 1]]);
+  game.setMode('Asha', 'race');
+  game.removePlayer('Bilal', 71_000);
+  assert.deepEqual(game.stateFor('Asha', 71_000).result, ended);
+  assert.equal(game.stateFor('Asha', 71_000).mode, 'race');
+});
+
+test('an invite link can see whose game it is and which game', () => {
+  const game = modeGame('hot-potato', ['Asha', 'Bilal']);
+  assert.deepEqual(game.summary(), { roomCode: 'MODE01', hostName: 'Asha', mode: 'hot-potato', phase: 'playing', seats: 2, maxPlayers: 4 });
+});

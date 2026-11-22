@@ -23,7 +23,9 @@ and tests.
 
 ## Game modes
 
-The host picks the game in the lobby (`set_mode`). How to play each one is in
+The game is picked before the room is created (`create_room` takes a
+`mode`), and the host can change it in the lobby or on the results screen
+(`set_mode`). How to play each one is in
 `client/src/howto.tsx` and is shown in the lobby, on each solo game's start
 screen and in the menu.
 
@@ -62,6 +64,22 @@ screen shows matched out of 30, missed, total time and average time per match;
 the best run (most matched, then fastest) is kept on the phone.
 
 ## Screens
+
+- Each screen asks for one decision. Home has three buttons: Play with
+  friends, Join with a code, Play alone. Play with friends picks the game,
+  then asks for your name and creates the room; Play alone picks a solo game.
+  Every step is its own history entry, so the phone's Back steps back through
+  them; in a room, Back asks before leaving.
+- An invite link opens "Join Asha's game" with the game and player count
+  (`room_info`), and only asks for a name. Someone who joins while a game is
+  running waits on their own screen and is dealt in to the next game.
+- The lobby shows the game as one line (Change for the host), the room code,
+  the players and that game's rules, with Start pinned to the bottom. Invite
+  is the main button until two players are seated.
+- Results keep the standings as the game ended (`result`), even when someone
+  leaves or the host changes the next game, and name the game played. When
+  everyone else has left, the host sees Invite on the results screen.
+- On the table a Race pile reads "28 left" and a Tower "🥞 2".
 
 - The game table never scrolls. There are no labels on the cards. The middle
   card lies flat on the table in a thin wooden rim; your card is larger,

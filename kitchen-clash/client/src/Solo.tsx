@@ -4,7 +4,7 @@ import type { PictureSize } from './layout';
 import { createDeck, shuffled } from './deck';
 import { ITEMS } from './items';
 import { HOW_TO, HowToSteps } from './howto';
-import { advance, clockFraction, DAILY_CARDS, isBetter, RULES, runTimeLeft, SOLO_CARD_SECONDS, SOLO_CARDS, startRun, tap, todayKey, type SoloMode, type SoloResult, type SoloRun } from './solo';
+import { advance, clockFraction, DAILY_CARDS, isBetter, RULES, runTimeLeft, SOLO_CARDS, startRun, tap, todayKey, type SoloMode, type SoloResult, type SoloRun } from './solo';
 import { playFinish, playWin, playWrong } from './sounds';
 import type { Card } from './types';
 
@@ -117,7 +117,8 @@ export default function Solo({ mode, menu, onExit, pictureSize }: Props) {
       } else if (isBetter(result, best)) {
         window.localStorage.setItem(BEST_KEYS[mode], JSON.stringify(result));
         setBest(result);
-        setNewBest(true);
+        // A first run has nothing to beat, so it is not called a new best.
+        setNewBest(best !== null);
       }
     }
   }, [run, deck, best, mode]);
@@ -249,10 +250,12 @@ export default function Solo({ mode, menu, onExit, pictureSize }: Props) {
           <div className={`card-clock${msLeft <= CLOCK_LOW_MS ? ' low' : ''}`} role="timer" aria-label={mode === 'time-attack' ? `${Math.ceil(msLeft / 1000)} seconds left` : `${Math.ceil(msLeft / 1000)} seconds left for this card`}>
             <span aria-hidden="true">{mode === 'time-attack' ? '⚡' : '⏱'}</span>
             <div className="card-clock-track"><div className="card-clock-fill" style={{ width: `${fraction * 100}%` }} /></div>
-            {mode === 'time-attack' && <span className="clock-seconds" aria-hidden="true">{Number.isFinite(msLeft) ? Math.ceil(msLeft / 1000) : ''}</span>}
+            <span className="clock-seconds" aria-hidden="true">{Number.isFinite(msLeft) ? Math.ceil(msLeft / 1000) : ''}</span>
           </div>
         )}
-        <div className="solo-score-chip" aria-label={`${run?.matched ?? 0} matched`}>✅ {run?.matched ?? 0}</div>
+        {mode === 'classic'
+          ? <div className="solo-score-chip" aria-label={`Card ${run?.card ?? 1} of ${SOLO_CARDS}`}>{run?.card ?? 1}<span className="chip-of">/{SOLO_CARDS}</span></div>
+          : <div className="solo-score-chip" aria-label={`${run?.matched ?? 0} matched`}>✅ {run?.matched ?? 0}</div>}
         {menu}
       </header>
 
@@ -277,7 +280,6 @@ export default function Solo({ mode, menu, onExit, pictureSize }: Props) {
         <div className="countdown" role="status" aria-live="assertive">
           <p>{howTo.emoji} {howTo.name}</p>
           <span key={countdown}>{countdown}</span>
-          <p className="countdown-hint">{mode === 'classic' ? `${SOLO_CARDS} cards · ${SOLO_CARD_SECONDS} seconds each. ` : `${howTo.tagline} `}Tap the matching picture on <strong>your</strong> card.</p>
         </div>
       )}
     </main>
