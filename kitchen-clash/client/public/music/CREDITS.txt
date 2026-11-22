@@ -1,0 +1,10 @@
+Background music by Kevin MacLeod (incompetech.com)
+Licensed under Creative Commons: By Attribution 4.0
+https://creativecommons.org/licenses/by/4.0/
+
+- "Carefree" (carefree.mp3)
+- "Life of Riley" (life-of-riley.mp3)
+- "Monkeys Spinning Monkeys" (monkeys-spinning-monkeys.mp3)
+- "Fluffing a Duck" (fluffing-a-duck.mp3)
+
+Each file was loudness-normalised and re-encoded at 96 kbps for phones.
