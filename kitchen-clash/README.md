@@ -21,6 +21,17 @@ and tests.
   middle card. On the very first card, when neither exists, everyone's top
   card goes to the bottom of their pile instead.
 
+## Screens
+
+- The game table never scrolls. The middle card lies on a wooden board
+  labelled "Look here"; your card is larger, red-rimmed and labelled "Tap
+  here". A tap on the middle card only points the player at their own card.
+- Nothing marks the matching picture before the server's verdict. After a
+  wrong tap that picture gets a ✕ and the card's rim counts down the 1.5 s;
+  after a win the message shows the picture the round was won with.
+- The cards stay hidden behind the 3-2-1 countdown.
+- Menu (☰): text size A / A+ / A++, sounds, music, how to play, leave.
+
 ## Fair timing under lag
 
 The phone measures the reaction time from when the current round was painted

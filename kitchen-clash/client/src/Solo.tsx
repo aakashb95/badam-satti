@@ -27,6 +27,7 @@ export default function Solo({ menu, onExit }: Props) {
   const [misses, setMisses] = useState(0);
   const [lockedUntil, setLockedUntil] = useState(0);
   const [shake, setShake] = useState(0);
+  const [wrongItem, setWrongItem] = useState<number | null>(null);
   const [nudge, setNudge] = useState(0);
   const [message, setMessage] = useState<{ text: string; tone: 'good' | 'bad' | 'info'; key: number } | null>(null);
   const [best, setBest] = useState(() => Number(window.localStorage.getItem(BEST_KEY)) || 0);
@@ -84,6 +85,8 @@ export default function Solo({ menu, onExit }: Props) {
       setMisses((value) => value + 1);
       setLockedUntil(performance.now() + LOCKOUT_MS);
       setShake((value) => value + 1);
+      setWrongItem(itemId);
+      setMessage({ text: 'Not that one. Wait a moment…', tone: 'bad', key: performance.now() });
       playWrong();
       navigator.vibrate?.(80);
     }
@@ -91,7 +94,7 @@ export default function Solo({ menu, onExit }: Props) {
 
   const tapAside = () => {
     if (phase !== 'playing') return;
-    setMessage({ text: '👇 Tap the matching picture on YOUR card', tone: 'info', key: performance.now() });
+    setMessage({ text: 'Not this card. Tap the match on YOUR card.', tone: 'info', key: performance.now() });
     setNudge((value) => value + 1);
   };
 
@@ -112,7 +115,7 @@ export default function Solo({ menu, onExit }: Props) {
       <main className="screen results">
         <section className="panel solo-results">
           <p className="eyebrow">Solo · {SOLO_SECONDS} seconds</p>
-          <p className="results-title">{newBest ? 'New best! 🏆' : 'Time’s up!'}</p>
+          <h1 className="results-title">{newBest ? 'New best! 🏆' : 'Time’s up!'}</h1>
           <p className="solo-score"><strong>{score}</strong> {score === 1 ? 'match' : 'matches'}</p>
           <p className="hint">{misses} wrong · Your best: {best}</p>
           <button type="button" className="primary big" onClick={again}>Play again</button>
@@ -136,23 +139,24 @@ export default function Solo({ menu, onExit }: Props) {
       </header>
 
       <section className="card-slot centre-slot" aria-label="Middle card">
-        <KitchenCard card={centre} seed={`solo-centre:${index}`} label="Middle card" onTapAside={tapAside} />
-        <p className="slot-label"><span aria-hidden="true">👀</span> Middle card · look here</p>
+        <p className="slot-label"><span aria-hidden="true">👀</span> Look here</p>
+        {phase === 'playing' && <div key={index} className="arrive arrive-from-you"><KitchenCard card={centre} seed={`solo-centre:${index}`} label="Middle card" onTapAside={tapAside} /></div>}
       </section>
 
-      <p className={`table-message tone-${locked ? 'bad' : message?.tone || 'info'}`} role="status" aria-live="polite" key={message?.key}>
-        {locked ? `Not that one. Wait ${((lockedUntil - now) / 1000).toFixed(1)} s…` : message?.text || 'Tap the picture that is on both cards.'}
+      <p className={`table-message tone-${message?.tone || 'info'}`} role="status" aria-live="polite" key={message?.key}>
+        <span>{message?.text || 'Find the picture on both cards. Tap it on yours.'}</span>
       </p>
 
       <section className="card-slot your-slot" aria-label="Your card">
-        <KitchenCard card={mine} seed={`solo-you:${index}`} label="Your card" onPick={pick} disabled={locked || phase !== 'playing'} shake={shake} nudge={nudge} />
-        <p className="slot-label your-label"><span aria-hidden="true">👆</span> Tap your card</p>
+        <p className="slot-label"><span aria-hidden="true">👆</span> Tap here</p>
+        {phase === 'playing' && <KitchenCard card={mine} seed={`solo-you:${index}`} label="Your card" onPick={pick} disabled={locked} shake={shake} nudge={nudge} wrongItemId={locked ? wrongItem : null} lockFraction={locked ? Math.min(1, (lockedUntil - now) / LOCKOUT_MS) : 0} />}
       </section>
 
       {phase === 'countdown' && (
         <div className="countdown" role="status" aria-live="assertive">
           <p>Match as many as you can in {SOLO_SECONDS} seconds</p>
           <span key={secondsLeft}>{Math.max(1, secondsLeft)}</span>
+          <p className="countdown-hint">Find the one picture that is on both cards, then tap it on <strong>your</strong> card.</p>
         </div>
       )}
     </main>

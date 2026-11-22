@@ -14,14 +14,20 @@ interface Props {
   onPick?: (itemId: number) => void;
   // Called when someone taps (not drags) a card that takes no picks.
   onTapAside?: () => void;
+  // Changes when the player should be pointed at this card.
   nudge?: number;
   disabled?: boolean;
   shake?: number;
+  // The item the server judged wrong, marked until the lockout ends. It only
+  // ever says "not this one".
+  wrongItemId?: number | null;
+  // Share of the lockout still to run, from 1 down to 0.
+  lockFraction?: number;
 }
 
 interface Drag { pointerId: number; startX: number; startY: number; startAngle: number; startRotation: number; moved: boolean }
 
-export default function KitchenCard({ card, seed, label, onPick, onTapAside, disabled = false, shake = 0, nudge = 0 }: Props) {
+export default function KitchenCard({ card, seed, label, onPick, onTapAside, disabled = false, shake = 0, nudge = 0, wrongItemId = null, lockFraction = 0 }: Props) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
   const layout = useMemo(() => layoutCard(card.items, `${card.id}:${seed}`), [card.id, card.items, seed]);
@@ -125,10 +131,16 @@ export default function KitchenCard({ card, seed, label, onPick, onTapAside, dis
               >
                 {pressed?.itemId === item.itemId && <circle key={pressed.key} className="press-ring" r={item.size * 0.62} />}
                 <text className="card-item" fontSize={item.size} transform={`rotate(${item.rotation})`} textAnchor="middle" dominantBaseline="central">{art.emoji}</text>
+                {wrongItemId === item.itemId && <path className="wrong-mark" data-wrong-mark d="M-9 -9 L9 9 M9 -9 L-9 9" />}
               </g>
             );
           })}
         </svg>
+        {lockFraction > 0 && (
+          <svg className="lock-ring" viewBox="-100 -100 200 200" aria-hidden="true">
+            <circle r="97" pathLength={100} strokeDasharray="100" strokeDashoffset={100 - lockFraction * 100} />
+          </svg>
+        )}
       </div>
       <button type="button" className="turn-button" aria-label={`Turn ${label.toLowerCase()}`} onClick={() => setRotation((value) => value + 45)}>↻</button>
     </div>

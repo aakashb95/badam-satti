@@ -80,6 +80,15 @@ describe('KitchenCard gestures', () => {
     fireEvent.keyDown(screen.getAllByRole('button', { name: ITEMS[card.items[0]].name })[0], { key: 'Enter' });
     expect(onPick).not.toHaveBeenCalled();
   });
+
+  it('marks only the item the server judged wrong, and nothing before a verdict', () => {
+    const { container, rerender } = render(<KitchenCard card={card} seed="gesture" label="Your card" onPick={vi.fn()} />);
+    expect(container.querySelectorAll('[data-wrong-mark]')).toHaveLength(0);
+    rerender(<KitchenCard card={card} seed="gesture" label="Your card" onPick={vi.fn()} disabled wrongItemId={card.items[2]} lockFraction={0.5} />);
+    const marks = container.querySelectorAll('[data-wrong-mark]');
+    expect(marks).toHaveLength(1);
+    expect(marks[0].closest('g')).toHaveAttribute('data-item-id', String(card.items[2]));
+  });
 });
 
 describe('middle card', () => {

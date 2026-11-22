@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEve
 import { io, type Socket } from 'socket.io-client';
 import KitchenCard from './KitchenCard';
 import Solo, { SOLO_SECONDS } from './Solo';
+import { ITEMS } from './items';
 import { isMusicOn, resumeMusicIfOn, setMusicOn } from './music';
 import { isSoundOn, playFinish, playOtherWin, playWin, playWrong, setSoundOn, unlockAudio } from './sounds';
 import type { ClaimResult, GameState, PlayerState } from './types';
@@ -14,10 +15,12 @@ type TextSize = typeof TEXT_SIZES[number];
 const TEXT_SIZE_LABELS: Record<TextSize, string> = { normal: 'A', large: 'A+', larger: 'A++' };
 // Show the no-match countdown only near the end of a stuck round.
 const ROUND_WARNING_MS = 15_000;
-const AVATAR_COLOURS = ['#d9412b', '#2f8f5b', '#e0a100', '#2f6fb3', '#9b4fb0', '#c46a1b'];
+const AVATAR_COLOURS = ['#c93a22', '#1d7a4a', '#a66200', '#2563a8', '#8a3fa0', '#0f6f78'];
 
 type Tone = 'info' | 'good' | 'bad';
-interface Message { text: string; tone: Tone; key: number }
+// `itemId` is the picture a finished round was won with; `who` is its winner.
+interface Message { text: string; tone: Tone; key: number; itemId?: number; who?: string }
+type Arrival = 'from-you' | 'from-other' | 'fresh';
 
 const ordinal = (rank: number) => `${rank}${rank % 10 === 1 && rank !== 11 ? 'st' : rank % 10 === 2 && rank !== 12 ? 'nd' : rank % 10 === 3 && rank !== 13 ? 'rd' : 'th'}`;
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
@@ -88,7 +91,11 @@ export default function App() {
     return TEXT_SIZES.includes(stored) ? stored : 'normal';
   });
 
-  const say = useCallback((text: string, tone: Tone) => setMessage({ text, tone, key: performance.now() }), []);
+  const [joining, setJoining] = useState(() => Boolean(inviteCodeFromPath()));
+  const [wrongItem, setWrongItem] = useState<number | null>(null);
+  const [arrival, setArrival] = useState<Arrival>('fresh');
+
+  const say = useCallback((text: string, tone: Tone, extra: { itemId?: number; who?: string } = {}) => setMessage({ text, tone, key: performance.now(), ...extra }), []);
 
   useEffect(() => {
     document.documentElement.dataset.textSize = textSize;
@@ -136,16 +143,20 @@ export default function App() {
       if (next.lastWin && next.lastWin.roundId !== previous?.lastWin?.roundId && previous?.phase === 'playing') {
         const mine = next.lastWin.name === next.you?.name;
         if (mine) {
-          say('You got it! 🎉', 'good');
+          say('You got it!', 'good', { itemId: next.lastWin.itemId });
+          setArrival('from-you');
           playWin();
+          navigator.vibrate?.(30);
         } else {
-          say(pendingRoundRef.current === next.lastWin.roundId ? `So close! ${next.lastWin.name} was faster.` : `${next.lastWin.name} got it.`, 'info');
+          say(pendingRoundRef.current === next.lastWin.roundId ? `So close! ${next.lastWin.name} was faster.` : `${next.lastWin.name} got it.`, 'info', { itemId: next.lastWin.itemId, who: next.lastWin.name });
+          setArrival('from-other');
           playOtherWin();
         }
         pendingRoundRef.current = null;
       }
       if (next.refreshedRoundId !== null && next.refreshedRoundId !== previous?.refreshedRoundId && previous?.phase === 'playing') {
         say('Nobody found it. Here is a new middle card!', 'info');
+        setArrival('fresh');
         pendingRoundRef.current = null;
       }
       if (next.phase === 'countdown' && previous?.phase !== 'countdown') {
@@ -177,6 +188,19 @@ export default function App() {
   const roundEnding = roundEndsIn !== null && roundEndsIn <= ROUND_WARNING_MS;
   useTick(anyoneReconnecting || state?.phase === 'playing', 500);
 
+  const dialogOpen = showMenu || showHelp || confirmLeave;
+  useEffect(() => {
+    if (!dialogOpen) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setShowMenu(false);
+      setShowHelp(false);
+      setConfirmLeave(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [dialogOpen]);
+
   useEffect(() => {
     if (!message) return undefined;
     const timer = window.setTimeout(() => setMessage(null), 1_800);
@@ -201,6 +225,7 @@ export default function App() {
         setLockedUntil(performance.now() + reply.lockoutMs);
         if (reply.result === 'wrong') {
           setShake((value) => value + 1);
+          setWrongItem(itemId);
           say('Not that one. Wait a moment…', 'bad');
           playWrong();
           navigator.vibrate?.(80);
@@ -216,7 +241,7 @@ export default function App() {
   // A tap on the middle card never counts; point the player at their own card.
   const tapAside = () => {
     if (stateRef.current?.phase !== 'playing' || !stateRef.current.you?.topCard) return;
-    say('👇 Tap the matching picture on YOUR card', 'info');
+    say('Not this card. Tap the match on YOUR card.', 'info');
     setNudge((value) => value + 1);
   };
 
@@ -224,9 +249,10 @@ export default function App() {
     event.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return setError('Please type your name first.');
+    if (joining && code.length !== 6) return setError('Type the 6 letters of the room code.');
     window.localStorage.setItem(NAME_KEY, trimmed);
     setError('');
-    if (code.trim()) socketRef.current?.emit('join_room', { roomCode: code.trim(), name: trimmed });
+    if (joining) socketRef.current?.emit('join_room', { roomCode: code, name: trimmed });
     else socketRef.current?.emit('create_room', { name: trimmed });
   };
 
@@ -239,6 +265,7 @@ export default function App() {
       setState(null);
       stateRef.current = null;
       setCode('');
+      setJoining(false);
       window.history.replaceState(null, '', '/kitchen-clash/');
     };
     const socket = socketRef.current;
@@ -270,33 +297,33 @@ export default function App() {
   };
   const toggleMusic = () => { setMusicOn(!musicOn); setMusicOnState(!musicOn); };
 
-  const toolbar = (
-    <div className="toolbar">
-      <button type="button" className="tool-button" onClick={() => setTextSize(TEXT_SIZES[(TEXT_SIZES.indexOf(textSize) + 1) % TEXT_SIZES.length])} aria-label={`Text size ${textSize}. Tap to change.`}>{TEXT_SIZE_LABELS[textSize]}</button>
-      <button type="button" className="tool-button" onClick={toggleSound} aria-label={soundOn ? 'Sound on. Tap to mute.' : 'Sound off. Tap to turn on.'}>{soundOn ? '🔊' : '🔇'}</button>
-      <button type="button" className={`tool-button${musicOn ? '' : ' is-off'}`} onClick={toggleMusic} aria-label={musicOn ? 'Music on. Tap to stop.' : 'Music off. Tap to play.'}>🎵</button>
-      <button type="button" className="tool-button" onClick={() => setShowHelp(true)} aria-label="How to play">?</button>
-      {state && <button type="button" className="tool-button leave" onClick={() => setConfirmLeave(true)} aria-label="Leave game">✕</button>}
-    </div>
+  const inGame = state?.phase === 'playing' || state?.phase === 'countdown';
+  const topBar = (showBrand: boolean) => (
+    <header className="top-bar">
+      {showBrand ? <span className="brand">Kitchen <em>Clash</em></span> : <span />}
+      <button type="button" className="tool-button menu-button" onClick={() => setShowMenu(true)} aria-label="Menu: text size, sound, music, how to play">☰<span className="menu-word"> Menu</span></button>
+    </header>
   );
 
   const dialogs = (
     <>
       {showMenu && (
         <div className="dialog-backdrop" role="presentation" onClick={() => setShowMenu(false)}>
-          <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="menu-title" onClick={(event) => event.stopPropagation()}>
-            <h2 id="menu-title">Menu</h2>
+          <div className="dialog menu" role="dialog" aria-modal="true" aria-labelledby="menu-title" onClick={(event) => event.stopPropagation()}>
+            <div className="dialog-head">
+              <h2 id="menu-title">Menu</h2>
+              <button type="button" className="close-button" autoFocus onClick={() => setShowMenu(false)} aria-label="Close menu">✕</button>
+            </div>
             <div className="menu-row">
-              <span>Text size</span>
-              <div className="segmented" role="group" aria-label="Text size">
-                {TEXT_SIZES.map((size) => <button key={size} type="button" aria-pressed={textSize === size} onClick={() => setTextSize(size)}>{TEXT_SIZE_LABELS[size]}</button>)}
+              <span id="text-size-label">Text size</span>
+              <div className="segmented" role="group" aria-labelledby="text-size-label">
+                {TEXT_SIZES.map((size) => <button key={size} type="button" aria-pressed={textSize === size} aria-label={`${size === 'normal' ? 'Normal' : size === 'large' ? 'Large' : 'Largest'} text`} onClick={() => setTextSize(size)}>{TEXT_SIZE_LABELS[size]}</button>)}
               </div>
             </div>
-            <button type="button" className="menu-item" aria-pressed={soundOn} onClick={toggleSound}><span>{soundOn ? '🔊' : '🔇'} Sounds</span><span className="switch">{soundOn ? 'On' : 'Off'}</span></button>
-            <button type="button" className="menu-item" aria-pressed={musicOn} onClick={toggleMusic}><span>🎵 Music</span><span className="switch">{musicOn ? 'On' : 'Off'}</span></button>
-            <button type="button" className="menu-item" onClick={() => { setShowMenu(false); setShowHelp(true); }}><span>❓ How to play</span></button>
-            <button type="button" className="menu-item danger-text" onClick={() => { setShowMenu(false); setConfirmLeave(true); }}><span>🚪 Leave game</span></button>
-            <button type="button" className="primary" onClick={() => setShowMenu(false)}>Back to the game</button>
+            <button type="button" className="menu-item" role="switch" aria-checked={soundOn} onClick={toggleSound}><span>{soundOn ? '🔊' : '🔇'} Sounds</span><span className="switch">{soundOn ? 'On' : 'Off'}</span></button>
+            <button type="button" className="menu-item" role="switch" aria-checked={musicOn} onClick={toggleMusic}><span>🎵 Music</span><span className="switch">{musicOn ? 'On' : 'Off'}</span></button>
+            <button type="button" className="menu-item" onClick={() => { setShowMenu(false); setShowHelp(true); }}><span>❓ How to play</span><span aria-hidden="true">›</span></button>
+            {(state || solo) && <button type="button" className="menu-item danger-text" onClick={() => { setShowMenu(false); setConfirmLeave(true); }}><span>🚪 Leave game</span><span aria-hidden="true">›</span></button>}
           </div>
         </div>
       )}
@@ -305,7 +332,7 @@ export default function App() {
           <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="help-title" onClick={(event) => event.stopPropagation()}>
             <h2 id="help-title">How to play</h2>
             <HowToPlay />
-            <button type="button" className="primary" onClick={() => setShowHelp(false)}>Got it</button>
+            <button type="button" className="primary" autoFocus onClick={() => setShowHelp(false)}>Got it</button>
           </div>
         </div>
       )}
@@ -313,9 +340,9 @@ export default function App() {
         <div className="dialog-backdrop" role="presentation" onClick={() => setConfirmLeave(false)}>
           <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="leave-title" onClick={(event) => event.stopPropagation()}>
             <h2 id="leave-title">Leave this game?</h2>
-            <p>{solo ? 'Your solo game will end.' : state?.phase === 'playing' || state?.phase === 'countdown' ? 'Your cards will be taken out of the game.' : 'You can join again with the room code.'}</p>
+            <p>{solo ? 'Your solo game will end.' : inGame ? 'Your cards will be taken out of the game.' : 'You can join again with the room code.'}</p>
             <div className="dialog-actions">
-              <button type="button" className="secondary" onClick={() => setConfirmLeave(false)}>Stay</button>
+              <button type="button" className="secondary" autoFocus onClick={() => setConfirmLeave(false)}>Stay</button>
               <button type="button" className="danger" onClick={leave}>Leave</button>
             </div>
           </div>
@@ -334,24 +361,30 @@ export default function App() {
     if (hasSession && !error) return <main className="screen centred"><p className="loading">Loading your game…</p>{dialogs}</main>;
     return (
       <main className="screen home">
-        {toolbar}
+        {topBar(false)}
         <div className="home-hero">
           <div className="hero-cards" aria-hidden="true"><span>🍅</span><span>🧀</span><span>🥕</span></div>
           <h1>Kitchen <em>Clash</em></h1>
           <p className="tagline">Spot the matching food faster than everyone else.</p>
         </div>
-        <form className="panel home-form" onSubmit={start}>
+        <form className="panel home-form" onSubmit={start} noValidate>
           <label htmlFor="name">Your name</label>
-          <input id="name" value={name} maxLength={16} autoComplete="nickname" onChange={(event) => setName(event.target.value)} placeholder="e.g. Nani" />
-          <label htmlFor="code">Room code <span className="optional">(only if you are joining)</span></label>
-          <input id="code" value={code} maxLength={6} autoCapitalize="characters" autoComplete="off" onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} placeholder="ABC123" />
+          <input id="name" value={name} maxLength={16} autoComplete="nickname" enterKeyHint="go" onChange={(event) => setName(event.target.value)} placeholder="e.g. Nani" />
+          {joining && (
+            <>
+              <label htmlFor="code">Room code</label>
+              <input id="code" value={code} maxLength={6} autoCapitalize="characters" autoComplete="off" autoCorrect="off" spellCheck={false} enterKeyHint="go" aria-describedby="code-hint" onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} placeholder="ABC123" />
+              <p className="hint left" id="code-hint">6 letters or numbers. Ask the person who started the game.</p>
+            </>
+          )}
           {error && <p className="error" role="alert">{error}</p>}
-          <button type="submit" className="primary big" disabled={!connected}>{code ? 'Join game' : 'Start a new game'}</button>
+          <button type="submit" className="primary big" disabled={!connected}>{joining ? 'Join game' : 'Start a new game'}</button>
+          <button type="button" className="secondary" onClick={() => { setJoining(!joining); setError(''); }}>{joining ? 'Start a new game instead' : 'Join a game with a code'}</button>
           {!connected && <p className="hint">Connecting…</p>}
         </form>
         <section className="panel solo-panel">
           <p className="solo-title">Playing alone?</p>
-          <button type="button" className="secondary big-secondary" onClick={() => { setError(''); setSolo(true); }}>⏱ Play solo · {SOLO_SECONDS} seconds</button>
+          <button type="button" className="secondary" onClick={() => { setError(''); setSolo(true); }}>⏱ Play solo · {SOLO_SECONDS} seconds</button>
         </section>
         {dialogs}
       </main>
@@ -367,7 +400,7 @@ export default function App() {
     const needed = Math.max(0, state.minPlayers - seated);
     return (
       <main className="screen lobby">
-        {toolbar}
+        {topBar(true)}
         <section className="panel">
           <p className="eyebrow">Room code</p>
           <p className="room-code" aria-label={`Room code ${state.roomCode.split('').join(' ')}`}>{state.roomCode}</p>
@@ -408,9 +441,9 @@ export default function App() {
     const myRank = you?.rank;
     return (
       <main className="screen results">
-        {toolbar}
+        {topBar(true)}
         <section className="panel">
-          <p className="results-title">{myRank === 1 ? 'You won! 🏆' : myRank ? `You came ${ordinal(myRank)}` : 'Game over'}</p>
+          <h1 className="results-title">{myRank === 1 ? 'You won! 🏆' : myRank ? `You came ${ordinal(myRank)}` : 'Game over'}</h1>
           <ol className="standings">
             {ranked.map((player) => (
               <li key={player.name} className={player.isYou ? 'is-you' : ''}>
@@ -443,14 +476,17 @@ export default function App() {
   const locked = lockRemaining > 0;
   const instruction = you?.rank
     ? `You finished ${ordinal(you.rank)}! Watching the others…`
-    : 'Tap the picture that is on both cards.';
+    : 'Find the picture on both cards. Tap it on yours.';
+  const warning = roundEnding && !you?.rank && roundEndsIn !== null ? `No match yet. New middle card in ${Math.max(1, Math.ceil(roundEndsIn / 1000))} s` : '';
+  const statusText = message?.text || (locked ? 'Not that one. Wait a moment…' : warning || instruction);
+  const statusTone = message?.tone || (locked ? 'bad' : warning ? 'warn' : 'info');
 
   return (
     <main className="screen table">
       <header className="table-header">
         <ul className={`opponents${compact ? ' compact' : ''}`} aria-label="Other players">
           {others.map((player) => (
-            <li key={player.name} className={`opponent${player.connected ? '' : ' offline'}${player.rank ? ' done' : ''}`} aria-label={`${player.name}: ${player.rank ? `finished ${ordinal(player.rank)}` : player.connected ? `${player.cardsLeft} cards` : 'reconnecting'}`}>
+            <li key={player.name} className={`opponent${player.connected ? '' : ' offline'}${player.rank ? ' done' : ''}${message?.who === player.name ? ' just-won' : ''}`} aria-label={`${player.name}: ${player.rank ? `finished ${ordinal(player.rank)}` : player.connected ? `${player.cardsLeft} cards` : 'reconnecting'}`}>
               <Avatar player={player} index={playerIndex(player)} />
               <span className="opponent-text" aria-hidden="true">
                 <span className="opponent-name">{player.name}</span>
@@ -465,35 +501,31 @@ export default function App() {
       </header>
 
       <section className="card-slot centre-slot" aria-label="Middle card">
-        {state.centre && <KitchenCard card={state.centre} seed={`centre:${state.roundId}`} label="Middle card" onTapAside={tapAside} />}
-        <p className="slot-label"><span aria-hidden="true">👀</span> Middle card · look here</p>
+        <p className="slot-label"><span aria-hidden="true">👀</span> Look here</p>
+        {/* The arrival only plays after the server settled the round. */}
+        {state.centre && countdown === null && <div key={state.roundId} className={`arrive arrive-${arrival}`}><KitchenCard card={state.centre} seed={`centre:${state.roundId}`} label="Middle card" onTapAside={tapAside} /></div>}
       </section>
 
-      <p className={`table-message tone-${message?.tone || (roundEnding && !locked ? 'warn' : 'info')}`} role="status" aria-live="polite" key={message?.key}>
-        {locked ? `Not that one. Wait ${seconds(lockRemaining)}…` : message?.text || (roundEnding && !you?.rank ? `No match yet. New middle card in ${Math.max(1, Math.ceil(roundEndsIn / 1000))} s` : instruction)}
+      <p className={`table-message tone-${statusTone}`} role="status" aria-live="polite" key={message?.key}>
+        {message?.itemId !== undefined && <span className="message-item" role="img" aria-label={ITEMS[message.itemId].name}>{ITEMS[message.itemId].emoji}</span>}
+        <span>{statusText}</span>
       </p>
 
       <section className="card-slot your-slot" aria-label="Your card">
+        <p className="slot-label"><span aria-hidden="true">👆</span> {you?.topCard ? 'Tap here' : 'Your card'}</p>
         {you?.topCard ? (
-          <>
-            <KitchenCard card={you.topCard} seed={`you:${you.name}`} label="Your card" onPick={claim} disabled={locked || countdown !== null} shake={shake} nudge={nudge} />
-            {locked && (
-              <div className="lockout" aria-hidden="true">
-                <svg viewBox="0 0 36 36"><circle className="lockout-track" r="16" cx="18" cy="18" /><circle className="lockout-fill" r="16" cx="18" cy="18" style={{ strokeDashoffset: `${100 - (lockRemaining / 1500) * 100}` }} pathLength={100} /></svg>
-                <span>⏳</span>
-              </div>
-            )}
-          </>
+          countdown === null && <KitchenCard card={you.topCard} seed={`you:${you.name}`} label="Your card" onPick={claim} disabled={locked} shake={shake} nudge={nudge} wrongItemId={locked ? wrongItem : null} lockFraction={locked ? Math.min(1, lockRemaining / 1500) : 0} />
         ) : (
           <div className="finished-card"><span aria-hidden="true">🏅</span><p>{you?.rank ? `You finished ${ordinal(you.rank)}!` : 'Out of cards'}</p></div>
         )}
-        <p className="slot-label your-label">{you?.topCard ? <><span aria-hidden="true">👆</span> Tap your card · {you.cardsLeft} left</> : 'Your card'}</p>
+        {you?.topCard && <p className="pile-count" aria-label={`${you.cardsLeft} cards left`}><span aria-hidden="true">{you.cardsLeft} left</span></p>}
       </section>
 
       {countdown !== null && (
         <div className="countdown" role="status" aria-live="assertive">
           <p>Get ready…</p>
           <span key={countdown}>{countdown}</span>
+          <p className="countdown-hint">Find the one picture that is on both cards, then tap it on <strong>your</strong> card.</p>
         </div>
       )}
       {dialogs}
