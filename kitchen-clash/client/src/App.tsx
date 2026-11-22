@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import KitchenCard from './KitchenCard';
+import { useCornerLabel } from './useCornerLabel';
 import Solo, { SOLO_SECONDS } from './Solo';
 import { ITEMS } from './items';
 import { isMusicOn, resumeMusicIfOn, setMusicOn } from './music';
@@ -65,6 +66,7 @@ function HowToPlay() {
 
 export default function App() {
   const socketRef = useRef<Socket | null>(null);
+  const centreSlot = useCornerLabel();
   const stateRef = useRef<GameState | null>(null);
   const shownAtRef = useRef(0);
   const pendingRoundRef = useRef<number | null>(null);
@@ -500,8 +502,8 @@ export default function App() {
         <button type="button" className="tool-button menu-button" onClick={() => setShowMenu(true)} aria-label="Menu: text size, sound, music, help, leave">☰</button>
       </header>
 
-      <section className="card-slot centre-slot" aria-label="Middle card">
-        <p className="slot-label"><span aria-hidden="true">👀</span> Look here</p>
+      <section ref={centreSlot.slotRef} className="card-slot centre-slot" aria-label="Middle card">
+        <p className={centreSlot.labelClass} aria-label="Look here"><span aria-hidden="true">👀</span><span className="label-text" aria-hidden="true"> Look here</span></p>
         {/* The arrival only plays after the server settled the round. */}
         {state.centre && countdown === null && <div key={state.roundId} className={`arrive arrive-${arrival}`}><KitchenCard card={state.centre} seed={`centre:${state.roundId}`} label="Middle card" onTapAside={tapAside} /></div>}
       </section>

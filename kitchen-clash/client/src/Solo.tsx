@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import KitchenCard from './KitchenCard';
+import { useCornerLabel } from './useCornerLabel';
 import { createDeck, shuffled } from './deck';
 import { playFinish, playWin, playWrong } from './sounds';
 import type { Card } from './types';
@@ -20,6 +21,7 @@ interface Props {
 
 export default function Solo({ menu, onExit }: Props) {
   const [deck, setDeck] = useState<Card[]>(() => shuffled(createDeck()));
+  const centreSlot = useCornerLabel();
   const [index, setIndex] = useState(1);
   const [phase, setPhase] = useState<Phase>('countdown');
   const [phaseEndsAt, setPhaseEndsAt] = useState(() => performance.now() + COUNTDOWN_MS);
@@ -138,8 +140,8 @@ export default function Solo({ menu, onExit }: Props) {
         {menu}
       </header>
 
-      <section className="card-slot centre-slot" aria-label="Middle card">
-        <p className="slot-label"><span aria-hidden="true">👀</span> Look here</p>
+      <section ref={centreSlot.slotRef} className="card-slot centre-slot" aria-label="Middle card">
+        <p className={centreSlot.labelClass} aria-label="Look here"><span aria-hidden="true">👀</span><span className="label-text" aria-hidden="true"> Look here</span></p>
         {phase === 'playing' && <div key={index} className="arrive arrive-from-you"><KitchenCard card={centre} seed={`solo-centre:${index}`} label="Middle card" onTapAside={tapAside} /></div>}
       </section>
 

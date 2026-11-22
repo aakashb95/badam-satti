@@ -167,8 +167,6 @@ h1 { font-size: clamp(34px, 11vw, 60px); letter-spacing: -0.02em; font-weight: 9
    at; your card is bigger, red-rimmed and labelled as the one to tap. */
 .centre-slot { background: linear-gradient(180deg, #ecd3a8, #e0bd88); border-radius: 26px; box-shadow: inset 0 2px 8px rgba(92, 58, 28, 0.25); padding: 4px; }
 .centre-slot .slot-label { top: 6px; left: 8px; }
-/* On a narrow board the plate moves aside so the label stays off it. */
-@media (orientation: portrait) { .centre-slot { justify-items: end; padding-right: 8px; } }
 .your-slot .kitchen-card-face { filter: drop-shadow(0 8px 14px rgba(168, 44, 24, 0.3)); }
 .kitchen-card-wrap.nudge { animation: nudge 0.6s ease; }
 @keyframes nudge { 0%, 100% { transform: translateY(0) scale(1); } 30% { transform: translateY(-10px) scale(1.04); } 60% { transform: translateY(0) scale(0.98); } }
@@ -291,3 +289,6 @@ h1 { font-size: clamp(34px, 11vw, 60px); letter-spacing: -0.02em; font-weight: 9
 @keyframes pulse { 50% { transform: scale(1.06); } }
 .solo-score { margin: 0; text-align: center; font-size: 1.4rem; }
 .solo-score strong { display: block; font-size: 4.5rem; line-height: 1; color: var(--tomato); }
+
+/* Set by useCornerLabel when the full label would touch the round card. */
+.slot-label.icon-only .label-text { display: none; }
