@@ -16,9 +16,20 @@ describe('sample items', () => {
 });
 
 describe('card layout', () => {
-  it('places every item inside the card without overlapping its neighbours, for many seeds', () => {
+  it('draws bigger pictures at each larger size setting', () => {
+    const average = (size: 'normal' | 'large' | 'larger') => {
+      let total = 0;
+      for (let seed = 0; seed < 50; seed += 1) for (const item of layoutCard(card.items, `s${seed}`, size)) total += item.size;
+      return total;
+    };
+    expect(average('large')).toBeGreaterThan(average('normal') * 1.05);
+    expect(average('larger')).toBeGreaterThan(average('large') * 1.05);
+  });
+
+  it('places every item inside the card without overlapping its neighbours, for many seeds and every size', () => {
+    for (const pictureSize of ['normal', 'large', 'larger'] as const)
     for (let seed = 0; seed < 300; seed += 1) {
-      const layout = layoutCard(card.items, `seed-${seed}`);
+      const layout = layoutCard(card.items, `seed-${seed}`, pictureSize);
       expect(layout.map((item) => item.itemId).sort((a, b) => a - b)).toEqual([...card.items].sort((a, b) => a - b));
       for (const item of layout) expect(Math.hypot(item.x, item.y) + item.size / 2).toBeLessThan(91);
       for (let i = 0; i < layout.length; i += 1) {

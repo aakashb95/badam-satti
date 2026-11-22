@@ -302,7 +302,7 @@ export default function App() {
   const topBar = (showBrand: boolean) => (
     <header className="top-bar">
       {showBrand ? <span className="brand">Kitchen <em>Clash</em></span> : <span />}
-      <button type="button" className="tool-button menu-button" onClick={() => setShowMenu(true)} aria-label="Menu: text size, sound, music, how to play">☰<span className="menu-word"> Menu</span></button>
+      <button type="button" className="tool-button menu-button" onClick={() => setShowMenu(true)} aria-label="Menu: size, sound, music, how to play">☰<span className="menu-word"> Menu</span></button>
     </header>
   );
 
@@ -316,14 +316,14 @@ export default function App() {
               <button type="button" className="close-button" autoFocus onClick={() => setShowMenu(false)} aria-label="Close menu">✕</button>
             </div>
             <div className="menu-row">
-              <span id="text-size-label">Text size</span>
+              <span id="text-size-label">Size</span>
               <div className="segmented" role="group" aria-labelledby="text-size-label">
-                {TEXT_SIZES.map((size) => <button key={size} type="button" aria-pressed={textSize === size} aria-label={`${size === 'normal' ? 'Normal' : size === 'large' ? 'Large' : 'Largest'} text`} onClick={() => setTextSize(size)}>{TEXT_SIZE_LABELS[size]}</button>)}
+                {TEXT_SIZES.map((size) => <button key={size} type="button" aria-pressed={textSize === size} aria-label={`${size === 'normal' ? 'Normal' : size === 'large' ? 'Large' : 'Largest'} cards and text`} onClick={() => setTextSize(size)}>{TEXT_SIZE_LABELS[size]}</button>)}
               </div>
             </div>
             <button type="button" className="menu-item" role="switch" aria-checked={soundOn} onClick={toggleSound}><span>{soundOn ? '🔊' : '🔇'} Sounds</span><span className="switch">{soundOn ? 'On' : 'Off'}</span></button>
             <button type="button" className="menu-item" role="switch" aria-checked={musicOn} onClick={toggleMusic}><span>🎵 Music</span><span className="switch">{musicOn ? 'On' : 'Off'}</span></button>
-            <p className="credit">Music by Kevin MacLeod (incompetech.com), CC BY 4.0</p>
+            <p className="credit">Music by Les Trouble, Swayroom, Toby Tech, Beau Vallon, longwayfromhome and Majken</p>
             <button type="button" className="menu-item" onClick={() => { setShowMenu(false); setShowHelp(true); }}><span>❓ How to play</span><span aria-hidden="true">›</span></button>
             {(state || solo) && <button type="button" className="menu-item danger-text" onClick={() => { setShowMenu(false); setConfirmLeave(true); }}><span>🚪 Leave game</span><span aria-hidden="true">›</span></button>}
           </div>
@@ -355,8 +355,8 @@ export default function App() {
   );
 
   if (solo) {
-    const menuButton = <button type="button" className="tool-button menu-button" onClick={() => setShowMenu(true)} aria-label="Menu: text size, sound, music, help, leave">☰</button>;
-    return <><Solo menu={menuButton} onExit={() => setSolo(false)} />{dialogs}</>;
+    const menuButton = <button type="button" className="tool-button menu-button" onClick={() => setShowMenu(true)} aria-label="Menu: size, sound, music, help, leave">☰</button>;
+    return <><Solo menu={menuButton} onExit={() => setSolo(false)} pictureSize={textSize} />{dialogs}</>;
   }
 
   if (!state) {
@@ -500,13 +500,12 @@ export default function App() {
             </li>
           ))}
         </ul>
-        <button type="button" className="tool-button menu-button" onClick={() => setShowMenu(true)} aria-label="Menu: text size, sound, music, help, leave">☰</button>
+        <button type="button" className="tool-button menu-button" onClick={() => setShowMenu(true)} aria-label="Menu: size, sound, music, help, leave">☰</button>
       </header>
 
       <section className="card-slot centre-slot" aria-label="Middle card">
-        <div className="board" aria-hidden="true" />
         {/* The arrival only plays after the server settled the round. */}
-        {state.centre && countdown === null && <div key={state.roundId} className={`arrive arrive-${arrival}`}><KitchenCard card={state.centre} seed={`centre:${state.roundId}`} label="Middle card" onTapAside={tapAside} /></div>}
+        {state.centre && countdown === null && <div key={state.roundId} className={`arrive arrive-${arrival}`}><KitchenCard card={state.centre} seed={`centre:${state.roundId}`} label="Middle card" onTapAside={tapAside} pictureSize={textSize} /></div>}
       </section>
 
       <p className={`table-message tone-${statusTone}`} role="status" aria-live="polite" key={message?.key}>
@@ -516,7 +515,7 @@ export default function App() {
 
       <section className="card-slot your-slot" aria-label="Your card">
         {you?.topCard ? (
-          countdown === null && <div key={you.topCard.id} className="hand"><KitchenCard card={you.topCard} seed={`you:${you.name}`} label="Your card" onPick={claim} disabled={locked} shake={locked ? shake : 0} nudge={nudge} pile={you.cardsLeft} wrongItemId={locked ? wrongItem : null} lockFraction={locked ? Math.min(1, lockRemaining / 1500) : 0} /></div>
+          countdown === null && <div key={you.topCard.id} className="hand"><KitchenCard card={you.topCard} seed={`you:${you.name}`} label="Your card" onPick={claim} disabled={locked} shake={locked ? shake : 0} nudge={nudge} pile={you.cardsLeft} wrongItemId={locked ? wrongItem : null} lockFraction={locked ? Math.min(1, lockRemaining / 1500) : 0} pictureSize={textSize} /></div>
         ) : (
           <div className="finished-card"><span aria-hidden="true">🏅</span><p>{you?.rank ? `You finished ${ordinal(you.rank)}!` : 'Out of cards'}</p></div>
         )}

@@ -34,17 +34,17 @@ the best run (most matched, then fastest) is kept on the phone.
 ## Screens
 
 - The game table never scrolls. There are no labels on the cards. The middle
-  card lies flat on a wooden board, tilted away from you; your card is
-  upright, larger and red-rimmed, with the rest of your pile stacked under it
-  and the number of cards left beside it. A tap on the middle card makes your
-  card jump. Only the middle card is tilted, so taps on your card are still
-  hit-tested on a flat circle.
+  card lies flat on the table in a thin wooden rim; your card is larger,
+  red-rimmed and lifted, with the rest of your pile stacked under it and the
+  number of cards left beside it. A tap on the middle card makes your card
+  jump. Neither card is tilted, so pictures keep their full size.
 - Nothing marks the matching picture before the server's verdict. After a
   wrong tap that picture gets a ✕ and the card's rim counts down the 1.5 s;
   after a win the message shows the picture the round was won with.
 - The cards stay hidden behind the 3-2-1 countdown.
-- Menu (☰): text size A / A+ / A++, sounds, music, how to play, leave. Larger
-  text sizes grow with the screen width, so A++ still fits a 320 px phone.
+- Menu (☰): size A / A+ / A++, sounds, music, how to play, leave. Larger sizes
+  grow the pictures on the cards as well as the text, and text grows with the
+  screen width, so A++ still fits a 320 px phone.
 
 ## Fair timing under lag
 

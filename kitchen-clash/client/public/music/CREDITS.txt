@@ -1,10 +1,9 @@
-Background music by Kevin MacLeod (incompetech.com)
-Licensed under Creative Commons: By Attribution 4.0
-https://creativecommons.org/licenses/by/4.0/
+Background music: the same six tracks Badam 7 plays (client/public/music),
+re-encoded at 96 kbps for phones.
 
-- "Carefree" (carefree.mp3)
-- "Life of Riley" (life-of-riley.mp3)
-- "Monkeys Spinning Monkeys" (monkeys-spinning-monkeys.mp3)
-- "Fluffing a Duck" (fluffing-a-duck.mp3)
-
-Each file was loudness-normalised and re-encoded at 96 kbps for phones.
+- "Shanghai" by Les Trouble (shanghai.mp3)
+- "Slow Melt" by Swayroom (slow-melt.mp3)
+- "Zephyr" by Toby Tech (zephyr.mp3)
+- "Chamomile" by Beau Vallon (chamomile.mp3)
+- "While Coffee Brews" by longwayfromhome (while-coffee-brews.mp3)
+- "Morning Routine" by Majken (morning-routine.mp3)

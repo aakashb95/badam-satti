@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { ITEMS } from './items';
-import { initialRotation, itemAt, layoutCard } from './layout';
+import { initialRotation, itemAt, layoutCard, type PictureSize } from './layout';
 import type { Card } from './types';
 
 // A touch that moves further than this turns the card instead of tapping.
@@ -26,14 +26,16 @@ interface Props {
   wrongItemId?: number | null;
   // Share of the lockout still to run, from 1 down to 0.
   lockFraction?: number;
+  // The player's size setting, which also grows the pictures.
+  pictureSize?: PictureSize;
 }
 
 interface Drag { pointerId: number; startX: number; startY: number; startAngle: number; startRotation: number; moved: boolean }
 
-export default function KitchenCard({ card, seed, label, onPick, onTapAside, disabled = false, shake = 0, nudge = 0, pile, wrongItemId = null, lockFraction = 0 }: Props) {
+export default function KitchenCard({ card, seed, label, onPick, onTapAside, disabled = false, shake = 0, nudge = 0, pile, wrongItemId = null, lockFraction = 0, pictureSize = 'normal' }: Props) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
-  const layout = useMemo(() => layoutCard(card.items, `${card.id}:${seed}`), [card.id, card.items, seed]);
+  const layout = useMemo(() => layoutCard(card.items, `${card.id}:${seed}`, pictureSize), [card.id, card.items, seed, pictureSize]);
   const [rotation, setRotation] = useState(() => initialRotation(`${card.id}:${seed}`));
   const [dragging, setDragging] = useState(false);
   const [pressed, setPressed] = useState<{ itemId: number; key: number } | null>(null);

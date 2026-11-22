@@ -147,7 +147,7 @@ h1 { font-size: clamp(34px, 11vw, 60px); letter-spacing: -0.02em; font-weight: 9
 .table-header { width: 100%; display: flex; align-items: center; gap: 8px; }
 .table .menu-button { flex: 0 0 auto; font-size: 24px; width: 48px; height: 48px; padding: 0; }
 .opponents { flex: 1; min-width: 0; margin: 0; padding: 2px; list-style: none; display: flex; flex-wrap: nowrap; gap: 6px; overflow: hidden; }
-.opponent { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 3px 12px 3px 3px; border-radius: 999px; background: var(--plate); border: 2px solid var(--line); font-size: clamp(14px, 0.85rem, 17px); transition: background 0.2s, border-color 0.2s; }
+.opponent { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 3px 12px 3px 3px; border-radius: 999px; background: var(--plate); border: 2px solid var(--line); font-size: clamp(14px, min(0.85rem, 4.4vw), 17px); transition: background 0.2s, border-color 0.2s; }
 .opponent .avatar { width: 36px; height: 36px; font-size: 17px; }
 .opponent-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.1; }
 .opponent-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -164,25 +164,18 @@ h1 { font-size: clamp(34px, 11vw, 60px); letter-spacing: -0.02em; font-weight: 9
 .opponents.compact .opponent.just-won .avatar { box-shadow: 0 0 0 3px var(--plate), 0 0 0 6px var(--herb); }
 
 .card-slot { position: relative; min-height: 0; display: grid; place-items: center; }
-/* Which card is which, without words: the middle card lies flat on a wooden
-   board on the table, tilted away from you; your card is held up towards you,
-   upright, with the rest of your pile stacked under it. Only the middle card
-   is tilted: taps on your card are hit-tested on a flat circle. */
+/* Which card is which, without words or tilt: the middle card lies flat on
+   the table in a thin wooden rim; your card is lifted towards you, red-rimmed,
+   with the rest of your pile stacked under it. Both stay flat, so pictures
+   keep their full size and taps are hit-tested on a plain circle. */
 .card-slot > * { grid-area: 1 / 1; }
 .card-slot { --size: min(88vw, calc((100dvh - 190px) / 2), 600px); }
 .your-slot { padding-bottom: 18px; }
 @supports (width: 1cqh) {
   .table .card-slot { container-type: size; --size: min(100cqw - 16px, 100cqh - 8px, 600px); }
-  /* The tilted board is 1.1 cards wide and shows its front edge. */
-  .table .centre-slot { --size: min(100cqw - 36px, 86cqh - 12px, 540px); }
+  .table .centre-slot { --size: min(100cqw - 24px, 100cqh - 14px, 600px); }
 }
-.board, .centre-slot .kitchen-card-wrap { transform: translateY(-5px) perspective(700px) rotateX(27deg); }
-.board {
-  width: calc(var(--size) * 1.1); aspect-ratio: 1; border-radius: 50%;
-  background: repeating-linear-gradient(92deg, transparent 0 14px, rgba(120, 78, 36, 0.09) 14px 16px), radial-gradient(circle at 40% 30%, #f0d8ad, #dcb783);
-  box-shadow: 0 7px 0 #b88a52, 0 16px 18px rgba(60, 35, 10, 0.28);
-}
-.centre-slot .kitchen-card { box-shadow: 0 3px 0 #d8c6a8, 0 5px 5px rgba(60, 35, 10, 0.45); }
+.centre-slot .kitchen-card { box-shadow: 0 0 0 5px #e3c38f, 0 0 0 7px #b88a52, 0 4px 6px 6px rgba(60, 35, 10, 0.22); }
 .kitchen-card-wrap { position: relative; }
 .kitchen-card-wrap.nudge { animation: nudge 0.6s ease; }
 @keyframes nudge { 0%, 100% { transform: translateY(0) scale(1); } 30% { transform: translateY(-12px) scale(1.05); } 60% { transform: translateY(0) scale(0.98); } }
@@ -276,6 +269,22 @@ h1 { font-size: clamp(34px, 11vw, 60px); letter-spacing: -0.02em; font-weight: 9
 .switch { padding: 3px 12px; border-radius: 999px; background: var(--line); font-size: 0.9em; }
 .menu-item[aria-checked='true'] .switch { background: var(--herb); color: #fff; }
 .danger-text { color: var(--tomato-deep); }
+
+/* A+ and A++ grow the cards too, not just the text: on a portrait phone the
+   two cards share the height evenly and reach almost to the screen edges. */
+@media (max-aspect-ratio: 4/3) {
+  html:is([data-text-size='large'], [data-text-size='larger']) .table {
+    grid-template-rows: auto minmax(0, 0.9fr) auto minmax(0, 1.1fr);
+    padding-left: max(6px, env(safe-area-inset-left));
+    padding-right: max(6px, env(safe-area-inset-right));
+    gap: 4px;
+  }
+  @supports (width: 1cqh) {
+    html:is([data-text-size='large'], [data-text-size='larger']) .table .card-slot { --size: min(100cqw - 6px, 100cqh - 6px, 600px); }
+    html:is([data-text-size='large'], [data-text-size='larger']) .table .centre-slot { --size: min(100cqw - 16px, 100cqh - 12px, 600px); }
+  }
+  html:is([data-text-size='large'], [data-text-size='larger']) .your-slot { padding-bottom: 12px; }
+}
 
 /* Landscape phones and tablets: cards side by side. */
 @media (orientation: landscape) and (min-aspect-ratio: 4/3) {

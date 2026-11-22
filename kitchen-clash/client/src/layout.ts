@@ -4,10 +4,15 @@
 // the same item rarely looks the same on two cards.
 export interface PlacedItem { itemId: number; x: number; y: number; size: number; rotation: number }
 
-const RING_RADIUS = 65;
-const MAX_SIZE = 44;
-const MIN_SCALE = 0.66;
-const JITTER = 3;
+// The size setting (A, A+, A++) grows the pictures, not only the text. Larger
+// pictures sit on a slightly tighter ring with less jitter, so every picture
+// still fits inside the plate's rim without touching its neighbours.
+export type PictureSize = 'normal' | 'large' | 'larger';
+const GEOMETRY: Record<PictureSize, { ringRadius: number; maxSize: number; minScale: number; jitter: number }> = {
+  normal: { ringRadius: 65, maxSize: 44, minScale: 0.66, jitter: 3 },
+  large: { ringRadius: 64, maxSize: 48, minScale: 0.7, jitter: 2 },
+  larger: { ringRadius: 63, maxSize: 51, minScale: 0.74, jitter: 1 },
+};
 
 function seededRandom(seed: string) {
   let hash = 2166136261;
@@ -20,7 +25,8 @@ function seededRandom(seed: string) {
   };
 }
 
-export function layoutCard(items: number[], seed: string): PlacedItem[] {
+export function layoutCard(items: number[], seed: string, pictureSize: PictureSize = 'normal'): PlacedItem[] {
+  const { ringRadius, maxSize, minScale, jitter } = GEOMETRY[pictureSize];
   const random = seededRandom(seed);
   const order = [...items];
   for (let index = order.length - 1; index > 0; index -= 1) {
@@ -31,12 +37,12 @@ export function layoutCard(items: number[], seed: string): PlacedItem[] {
   const ringCount = order.length - 1;
   return order.map((itemId, index) => {
     const angle = ringTurn + ((index - 1) / ringCount) * Math.PI * 2;
-    const radius = index === 0 ? 0 : RING_RADIUS;
+    const radius = index === 0 ? 0 : ringRadius;
     return {
       itemId,
-      x: Math.cos(angle) * radius + (random() - 0.5) * 2 * JITTER,
-      y: Math.sin(angle) * radius + (random() - 0.5) * 2 * JITTER,
-      size: MAX_SIZE * (MIN_SCALE + random() * (1 - MIN_SCALE)),
+      x: Math.cos(angle) * radius + (random() - 0.5) * 2 * jitter,
+      y: Math.sin(angle) * radius + (random() - 0.5) * 2 * jitter,
+      size: maxSize * (minScale + random() * (1 - minScale)),
       rotation: random() * 360,
     };
   });

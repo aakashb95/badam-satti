@@ -1,12 +1,12 @@
 import { audioContext } from './sounds';
 
-// Background music: four light tracks by Kevin MacLeod (incompetech.com),
-// CC BY 4.0, played in a loop on every screen at a gentle volume. It is on
+// Background music: the six calm café tracks Badam 7 plays (see
+// public/music/CREDITS.txt), in a loop on every screen at a gentle volume. It is on
 // unless the player turned it off, and starts on the first tap because
 // browsers only allow sound after one. It pauses while the tab is hidden.
 const MUSIC_KEY = 'kitchen-clash-music';
-const VOLUME = 0.28;
-const TRACKS = ['carefree.mp3', 'life-of-riley.mp3', 'monkeys-spinning-monkeys.mp3', 'fluffing-a-duck.mp3'];
+const VOLUME = 0.2;
+const TRACKS = ['shanghai.mp3', 'slow-melt.mp3', 'zephyr.mp3', 'chamomile.mp3', 'while-coffee-brews.mp3', 'morning-routine.mp3'];
 
 let player: HTMLAudioElement | null = null;
 let trackIndex = Math.floor(Math.random() * TRACKS.length);

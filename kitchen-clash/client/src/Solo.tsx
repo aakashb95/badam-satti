@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import KitchenCard from './KitchenCard';
+import type { PictureSize } from './layout';
 import { createDeck, shuffled } from './deck';
 import { ITEMS } from './items';
 import { advance, clockFraction, isBetter, LOCKOUT_MS, SOLO_CARD_SECONDS, SOLO_CARDS, startRun, tap, type SoloResult, type SoloRun } from './solo';
@@ -14,6 +15,8 @@ const CLOCK_LOW = 5 / SOLO_CARD_SECONDS;
 
 interface Props {
   menu: React.ReactNode;
+  // The size setting, which also grows the pictures.
+  pictureSize: PictureSize;
   onExit: () => void;
 }
 
@@ -30,7 +33,7 @@ function readBest(): SoloResult | null {
 
 const clock = (ms: number) => `${Math.floor(ms / 60_000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
 
-export default function Solo({ menu, onExit }: Props) {
+export default function Solo({ menu, onExit, pictureSize }: Props) {
   const [deck, setDeck] = useState<Card[]>(() => shuffled(createDeck()));
   const [startsAt, setStartsAt] = useState(() => performance.now() + COUNTDOWN_MS);
   const [run, setRun] = useState<SoloRun | null>(null);
@@ -149,8 +152,7 @@ export default function Solo({ menu, onExit }: Props) {
       </header>
 
       <section className="card-slot centre-slot" aria-label="Middle card">
-        <div className="board" aria-hidden="true" />
-        {run && <div key={run.centre} className={`arrive arrive-${run.centre ? 'from-you' : 'fresh'}`}><KitchenCard card={deck[run.centre]} seed={`solo-centre:${run.centre}`} label="Middle card" onTapAside={tapAside} /></div>}
+        {run && <div key={run.centre} className={`arrive arrive-${run.centre ? 'from-you' : 'fresh'}`}><KitchenCard card={deck[run.centre]} seed={`solo-centre:${run.centre}`} label="Middle card" onTapAside={tapAside} pictureSize={pictureSize} /></div>}
       </section>
 
       <p className={`table-message tone-${message?.tone || 'info'}`} role="status" aria-live="polite" key={message?.key}>
@@ -161,7 +163,7 @@ export default function Solo({ menu, onExit }: Props) {
       <section className="card-slot your-slot" aria-label="Your card">
         {run && (
           <div key={run.card} className={`hand${missed ? ' is-missed' : ''}`}>
-            <KitchenCard card={deck[run.card]} seed={`solo-you:${run.card}`} label="Your card" onPick={pick} disabled={locked || missed} shake={locked ? shake : 0} nudge={nudge} pile={SOLO_CARDS - run.card + 1} wrongItemId={locked ? wrongItem : null} lockFraction={locked ? Math.min(1, (run.lockedUntil - now) / LOCKOUT_MS) : 0} />
+            <KitchenCard card={deck[run.card]} seed={`solo-you:${run.card}`} label="Your card" onPick={pick} disabled={locked || missed} shake={locked ? shake : 0} nudge={nudge} pile={SOLO_CARDS - run.card + 1} wrongItemId={locked ? wrongItem : null} lockFraction={locked ? Math.min(1, (run.lockedUntil - now) / LOCKOUT_MS) : 0} pictureSize={pictureSize} />
           </div>
         )}
       </section>
