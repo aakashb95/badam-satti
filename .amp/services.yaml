@@ -1,0 +1,11 @@
+services:
+  badam:
+    # Builds the client and serves it from the Express server at /badam7/.
+    # Port 3000 is the server default that the Vite dev proxy targets.
+    command: npm --prefix ../client run build && ALLOWED_ORIGINS="$(printf '%s' "$PUBLIC_URL" | sed 's#/$##')" HOST=0.0.0.0 node index.js
+    cwd: server
+    port: 3000
+    health: /health
+    portal:
+      url: /badam7/
+      title: Badam Satti

@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Prepares an Amp orb: Node 22 (from .nvmrc), npm dependencies for every
+# package, and the Playwright Chromium used by the e2e suites.
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+step() {
+  local label="$1"; shift
+  local start=$SECONDS
+  echo "==> $label"
+  "$@"
+  echo "<== $label ($((SECONDS - start))s)"
+}
+
+node_major="$(tr -d '[:space:]v' < .nvmrc)"
+node_dir="/opt/node-v$node_major"
+
+install_node() {
+  if [[ "$("$node_dir/bin/node" -v 2>/dev/null)" == "v$node_major."* ]]; then
+    echo "Node $("$node_dir/bin/node" -v) already installed"
+    return
+  fi
+  local base="https://nodejs.org/dist/latest-v$node_major.x"
+  local tarball
+  tarball="$(curl -fsSL "$base/SHASUMS256.txt" | awk '/linux-x64\.tar\.xz$/ { print $2 }')"
+  local tmp
+  tmp="$(mktemp -d)"
+  curl -fsSL "$base/$tarball" -o "$tmp/$tarball"
+  (cd "$tmp" && curl -fsSL "$base/SHASUMS256.txt" | grep " $tarball\$" | sha256sum -c -)
+  sudo rm -rf "$node_dir"
+  sudo mkdir -p "$node_dir"
+  sudo tar -xJf "$tmp/$tarball" -C "$node_dir" --strip-components=1
+  rm -rf "$tmp"
+}
+
+persist_node_path() {
+  local marker="# badam-satti: Node $node_major from .nvmrc"
+  if ! grep -Fqx "$marker" "$HOME/.bash_profile" 2>/dev/null; then
+    cat >> "$HOME/.bash_profile" <<EOF
+
+$marker
+case ":\$PATH:" in
+  *":$node_dir/bin:"*) ;;
+  *) export PATH="$node_dir/bin:\$PATH" ;;
+esac
+EOF
+  fi
+}
+
+step "Install Node $node_major" install_node
+step "Put Node $node_major on login PATH" persist_node_path
+export PATH="$node_dir/bin:$PATH"
+
+# --no-save: install from the committed lockfiles without letting this npm
+# version rewrite them, so setup leaves the working tree clean.
+for dir in client server kings-corner kings-corner/client kings-corner/server; do
+  step "npm install ($dir)" npm install --prefix "$dir" --no-audit --no-fund --no-save
+done
+
+# Both Playwright suites resolve the same version, so one browser install covers them.
+step "Playwright Chromium" bash -c 'cd client && npx playwright install chromium'
