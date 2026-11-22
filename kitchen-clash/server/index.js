@@ -95,6 +95,8 @@ function startCountdown(room, countdownMs) {
 function afterDeparture(room) {
   if (room.isEmpty()) return deleteRoom(room);
   if (room.phase === 'finished') clearRoomTimer(room.roomCode);
+  // A departure can end a Hot Potato deal, which starts the break before the next one.
+  if (room.phase === 'countdown') return startCountdown(room, Math.max(0, room.countdownEndsAt - now()));
   syncIdleTimer(room);
   emitState(room);
 }
@@ -150,6 +152,14 @@ io.on('connection', (socket) => {
     seat(socket, room, player);
   });
 
+  socket.on('set_mode', (mode) => {
+    const room = currentRoom(socket);
+    if (!room) return;
+    const { error } = room.setMode(socket.id, mode);
+    if (error) return socket.emit('error_message', error);
+    emitState(room);
+  });
+
   socket.on('start_game', () => {
     const room = currentRoom(socket);
     if (!room) return;
@@ -168,7 +178,10 @@ io.on('connection', (socket) => {
       clearRoomTimer(room.roomCode);
       roomTimers.set(room.roomCode, setTimeout(() => {
         roomTimers.delete(room.roomCode);
-        if (room.settle(now())) emitState(room);
+        if (!room.settle(now())) return syncIdleTimer(room);
+        // A settled Hot Potato pass can end the deal and start the break.
+        if (room.phase === 'countdown') return startCountdown(room, Math.max(0, room.countdownEndsAt - now()));
+        emitState(room);
         syncIdleTimer(room);
       }, outcome.settleMs));
     }

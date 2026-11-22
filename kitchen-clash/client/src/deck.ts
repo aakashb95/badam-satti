@@ -1,3 +1,4 @@
+import { seededRandom } from './layout';
 import type { Card } from './types';
 
 // The same order-7 deck the server builds (server/deck.js): 57 cards of 8
@@ -12,10 +13,13 @@ export function createDeck(n = 7): Card[] {
   return cards.map((items, id) => ({ id, items }));
 }
 
-export function shuffled<T>(values: T[]): T[] {
+// With a seed, everyone who uses the same seed gets the same order: Daily
+// Kitchen seeds it with the date.
+export function shuffled<T>(values: T[], seed?: string): T[] {
+  const random = seed === undefined ? Math.random : seededRandom(seed);
   const result = [...values];
   for (let index = result.length - 1; index > 0; index -= 1) {
-    const swap = Math.floor(Math.random() * (index + 1));
+    const swap = Math.floor(random() * (index + 1));
     [result[index], result[swap]] = [result[swap], result[index]];
   }
   return result;

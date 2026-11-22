@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { advance, CARD_MS, clockFraction, isBetter, LOCKOUT_MS, MISSED_SHOW_MS, SOLO_CARDS, startRun, tap } from './solo';
+import { advance, CARD_MS, clockFraction, DAILY_CARDS, isBetter, LOCKOUT_MS, MISSED_SHOW_MS, runTimeLeft, SOLO_CARDS, startRun, tap, todayKey } from './solo';
+import { createDeck, shuffled } from './deck';
 
 describe('solo run', () => {
   it('times a card out after 30 s, shows it as missed, then deals the next card with a fresh clock', () => {
@@ -58,5 +59,46 @@ describe('solo run', () => {
     expect(isBetter({ matched: 20, totalMs: 99_000 }, { matched: 20, totalMs: 100_000 })).toBe(true);
     expect(isBetter({ matched: 20, totalMs: 100_000 }, { matched: 20, totalMs: 100_000 })).toBe(false);
     expect(isBetter({ matched: 19, totalMs: 10_000 }, { matched: 20, totalMs: 100_000 })).toBe(false);
+  });
+});
+
+describe('time attack', () => {
+  it('ends when 60 s run out, and each wrong tap takes 3 s off the clock', () => {
+    let run = startRun(0, 'time-attack');
+    run = tap(run, true, 2_000);
+    run = tap(run, false, 3_000);
+    expect(run.penaltyMs).toBe(3_000);
+    expect(runTimeLeft(run, 10_000)).toBe(47_000);
+    // The wrong-tap pause is short: a correct tap 0.6 s later counts.
+    run = tap(run, true, 3_600);
+    expect(run.matched).toBe(2);
+    // No card ever times out on its own clock.
+    expect(advance(run, 3_600 + CARD_MS + 1).phase).toBe('playing');
+    expect(advance(run, 56_999).phase).toBe('playing');
+    run = advance(run, 57_000);
+    expect(run).toMatchObject({ phase: 'finished', matched: 2, wrong: 1 });
+    expect(tap(run, true, 57_100)).toBe(run);
+  });
+
+  it('keeps dealing past the 30-card mark', () => {
+    let run = startRun(0, 'time-attack');
+    for (let card = 1; card <= 40; card += 1) run = tap(run, true, card * 100);
+    expect(run).toMatchObject({ phase: 'playing', matched: 40, card: 41 });
+  });
+});
+
+describe('daily kitchen', () => {
+  it('ends after 20 matches with no clock per card', () => {
+    let run = startRun(0, 'daily');
+    expect(advance(run, CARD_MS * 3).phase).toBe('playing');
+    for (let card = 1; card <= DAILY_CARDS; card += 1) run = tap(run, true, 100_000 + card * 1_000);
+    expect(run).toMatchObject({ phase: 'finished', matched: DAILY_CARDS, missed: 0 });
+  });
+
+  it('deals the same cards to everyone on the same day and different cards the next day', () => {
+    const ids = (seed: string) => shuffled(createDeck(), seed).map((card) => card.id);
+    expect(ids('daily:2026-11-22')).toEqual(ids('daily:2026-11-22'));
+    expect(ids('daily:2026-11-22')).not.toEqual(ids('daily:2026-11-23'));
+    expect(todayKey(new Date(2026, 0, 5))).toBe('2026-01-05');
   });
 });

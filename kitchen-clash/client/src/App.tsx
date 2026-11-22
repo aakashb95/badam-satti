@@ -2,11 +2,12 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEve
 import { io, type Socket } from 'socket.io-client';
 import KitchenCard from './KitchenCard';
 import Solo from './Solo';
-import { SOLO_CARD_SECONDS, SOLO_CARDS } from './solo';
+import type { SoloMode } from './solo';
+import { HOW_TO, HowToSteps } from './howto';
 import { ITEMS } from './items';
 import { isMusicOn, resumeMusicIfOn, setMusicOn } from './music';
 import { isSoundOn, playFinish, playOtherWin, playWin, playWrong, setSoundOn, unlockAudio } from './sounds';
-import type { ClaimResult, GameState, PlayerState } from './types';
+import type { ClaimResult, GameMode, GameState, PlayerState } from './types';
 
 const SESSION_KEY = 'kitchen-clash-session';
 const NAME_KEY = 'kitchen-clash-name';
@@ -52,16 +53,23 @@ function Avatar({ player, index }: { player: PlayerState; index: number }) {
   return <span className="avatar" style={{ background: AVATAR_COLOURS[index % AVATAR_COLOURS.length] }} aria-hidden="true">{player.name.slice(0, 1).toUpperCase()}</span>;
 }
 
-function HowToPlay() {
+const GAME_MODES: GameMode[] = ['race', 'tower', 'hot-potato'];
+const SOLO_MODES: SoloMode[] = ['classic', 'time-attack', 'daily'];
+const HOT_POTATO_MAX = 4;
+
+// How to play: the game being played, or every game when none is.
+function HowToPlay({ mode }: { mode?: GameMode | SoloMode }) {
+  const modes = mode ? [mode] : [...GAME_MODES, ...SOLO_MODES];
   return (
-    <ol className="how-to">
-      <li><span aria-hidden="true">👀</span><div><strong>Look at both cards.</strong> Exactly one picture is on your card and on the middle card.</div></li>
-      <li><span aria-hidden="true">👆</span><div><strong>Tap that picture on your card.</strong> Be first and your card goes to the middle.</div></li>
-      <li><span aria-hidden="true">⏳</span><div><strong>Wrong picture?</strong> You wait 1.5 seconds before you can tap again.</div></li>
-      <li><span aria-hidden="true">🔄</span><div><strong>Turn your card</strong> by sliding a finger around it, or press ↻.</div></li>
-      <li><span aria-hidden="true">🏆</span><div><strong>Run out of cards first</strong> to win. Everyone else plays on for the next places.</div></li>
-      <li><span aria-hidden="true">⏱</span><div><strong>Solo · {SOLO_CARDS} cards.</strong> Playing alone, you get {SOLO_CARD_SECONDS} seconds for each card before the next one comes up.</div></li>
-    </ol>
+    <div className="how-to-all">
+      {modes.map((item) => (
+        <section key={item}>
+          {!mode && <h3>{HOW_TO[item].emoji} {HOW_TO[item].name}</h3>}
+          <HowToSteps mode={item} />
+        </section>
+      ))}
+      <p className="how-to-tip"><span aria-hidden="true">🔄</span> Turn your card by sliding a finger around it, or press ↻.</p>
+    </div>
   );
 }
 
@@ -81,7 +89,7 @@ export default function App() {
   const [lockedUntil, setLockedUntil] = useState(0);
   const [shake, setShake] = useState(0);
   const [nudge, setNudge] = useState(0);
-  const [solo, setSolo] = useState(false);
+  const [solo, setSolo] = useState<SoloMode | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -144,8 +152,18 @@ export default function App() {
       receivedAtRef.current = performance.now();
       if (next.lastWin && next.lastWin.roundId !== previous?.lastWin?.roundId && previous?.phase === 'playing') {
         const mine = next.lastWin.name === next.you?.name;
-        if (mine) {
-          say('You got it!', 'good', { itemId: next.lastWin.itemId });
+        const to = next.lastWin.to;
+        if (to) {
+          // Hot Potato: a pass from one player to another.
+          const me = next.you?.name;
+          if (mine) say(`Passed to ${to}!`, 'good', { itemId: next.lastWin.itemId });
+          else if (to === me) say(`${next.lastWin.name} passed to you!`, 'bad', { itemId: next.lastWin.itemId, who: next.lastWin.name });
+          else say(`${next.lastWin.name} passed to ${to}.`, 'info', { itemId: next.lastWin.itemId, who: next.lastWin.name });
+          if (mine) playWin(); else playOtherWin();
+          if (mine) navigator.vibrate?.(30);
+          setArrival('fresh');
+        } else if (mine) {
+          say(next.mode === 'tower' ? 'You won the card!' : 'You got it!', 'good', { itemId: next.lastWin.itemId });
           setArrival('from-you');
           playWin();
           navigator.vibrate?.(30);
@@ -162,6 +180,7 @@ export default function App() {
         pendingRoundRef.current = null;
       }
       if (next.phase === 'countdown' && previous?.phase !== 'countdown') {
+        if (previous?.phase === 'playing' && next.lastDeal) playFinish();
         setMessage(null);
         setLockedUntil(0);
       }
@@ -259,7 +278,7 @@ export default function App() {
 
   const leave = () => {
     setConfirmLeave(false);
-    if (solo) return setSolo(false);
+    if (solo) return setSolo(null);
     const finish = () => {
       window.sessionStorage.removeItem(SESSION_KEY);
       setHasSession(false);
@@ -333,7 +352,7 @@ export default function App() {
         <div className="dialog-backdrop" role="presentation" onClick={() => setShowHelp(false)}>
           <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="help-title" onClick={(event) => event.stopPropagation()}>
             <h2 id="help-title">How to play</h2>
-            <HowToPlay />
+            <HowToPlay mode={solo ?? (state && state.phase !== 'lobby' ? state.mode : undefined)} />
             <button type="button" className="primary" autoFocus onClick={() => setShowHelp(false)}>Got it</button>
           </div>
         </div>
@@ -356,7 +375,7 @@ export default function App() {
 
   if (solo) {
     const menuButton = <button type="button" className="tool-button menu-button" onClick={() => setShowMenu(true)} aria-label="Menu: size, sound, music, help, leave">☰</button>;
-    return <><Solo menu={menuButton} onExit={() => setSolo(false)} pictureSize={textSize} />{dialogs}</>;
+    return <><Solo key={solo} mode={solo} menu={menuButton} onExit={() => setSolo(null)} pictureSize={textSize} />{dialogs}</>;
   }
 
   if (!state) {
@@ -386,7 +405,12 @@ export default function App() {
         </form>
         <section className="panel solo-panel">
           <p className="solo-title">Playing alone?</p>
-          <button type="button" className="secondary" onClick={() => { setError(''); setSolo(true); }}>⏱ Solo · {SOLO_CARDS} cards</button>
+          {SOLO_MODES.map((mode) => (
+            <button key={mode} type="button" className="secondary mode-button" onClick={() => { setError(''); setSolo(mode); }}>
+              <span className="mode-emoji" aria-hidden="true">{HOW_TO[mode].emoji}</span>
+              <span className="mode-text"><strong>{HOW_TO[mode].name}</strong><small>{HOW_TO[mode].tagline}</small></span>
+            </button>
+          ))}
         </section>
         {dialogs}
       </main>
@@ -407,6 +431,24 @@ export default function App() {
           <p className="eyebrow">Room code</p>
           <p className="room-code" aria-label={`Room code ${state.roomCode.split('').join(' ')}`}>{state.roomCode}</p>
           <button type="button" className="secondary" onClick={share}>{copied ? 'Link copied ✓' : 'Invite people'}</button>
+        </section>
+        <section className="panel">
+          <h2 id="mode-title">Game</h2>
+          {state.isHost ? (
+            <div className="mode-picker" role="radiogroup" aria-labelledby="mode-title">
+              {GAME_MODES.map((mode) => {
+                const tooMany = mode === 'hot-potato' && seated > HOT_POTATO_MAX;
+                return (
+                  <button key={mode} type="button" role="radio" aria-checked={state.mode === mode} className="mode-button" disabled={tooMany} onClick={() => socketRef.current?.emit('set_mode', mode)}>
+                    <span className="mode-emoji" aria-hidden="true">{HOW_TO[mode].emoji}</span>
+                    <span className="mode-text"><strong>{HOW_TO[mode].name}</strong><small>{tooMany ? `Up to ${HOT_POTATO_MAX} players` : HOW_TO[mode].tagline}</small></span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mode-chosen"><span aria-hidden="true">{HOW_TO[state.mode].emoji}</span> <strong>{HOW_TO[state.mode].name}</strong> · {HOW_TO[state.mode].tagline}</p>
+          )}
         </section>
         <section className="panel">
           <h2>Players <span className="count">{seated} of {state.maxPlayers}</span></h2>
@@ -431,8 +473,8 @@ export default function App() {
           ) : <p className="hint big-hint">Waiting for {state.hostName} to start the game…</p>}
         </section>
         <section className="panel">
-          <h2>How to play</h2>
-          <HowToPlay />
+          <h2>How to play {HOW_TO[state.mode].name}</h2>
+          <HowToPlay mode={state.mode} />
         </section>
         {dialogs}
       </main>
@@ -446,6 +488,7 @@ export default function App() {
       <main className="screen results">
         {topBar(true)}
         <section className="panel">
+          <p className="eyebrow">{HOW_TO[state.mode].emoji} {HOW_TO[state.mode].name}</p>
           <h1 className="results-title">{myRank === 1 ? 'You won! 🏆' : myRank ? `You came ${ordinal(myRank)}` : 'Game over'}</h1>
           <ol className="standings">
             {ranked.map((player) => (
@@ -453,7 +496,9 @@ export default function App() {
                 <span className="place">{player.left ? '–' : player.rank === 1 ? '🥇' : player.rank === 2 ? '🥈' : player.rank === 3 ? '🥉' : ordinal(player.rank ?? 0)}</span>
                 <span className="player-name">{player.name}{player.isYou && <span className="badge you">You</span>}{player.left && <span className="badge muted">Left</span>}</span>
                 <span className="stats">
-                  <span>{player.wins} matched</span>
+                  {state.mode === 'tower' && <span>🥞 {player.cardsLeft} cards</span>}
+                  {state.mode === 'hot-potato' && <span>😬 {player.losses} lost</span>}
+                  <span>{player.wins} {state.mode === 'hot-potato' ? 'passed' : state.mode === 'tower' ? 'won' : 'matched'}</span>
                   <span>{player.misses} wrong</span>
                   {player.averageSpotMs !== null && <span>avg {seconds(player.averageSpotMs)}</span>}
                 </span>
@@ -477,36 +522,57 @@ export default function App() {
   const compact = others.length > 3;
   const countdown = state.phase === 'countdown' && state.countdownMs !== null ? Math.max(1, Math.ceil((state.countdownMs - sinceState) / 1000)) : null;
   const locked = lockRemaining > 0;
+  const potato = state.mode === 'hot-potato';
   const instruction = you?.rank
     ? `You finished ${ordinal(you.rank)}! Watching the others…`
-    : 'Find the picture on both cards. Tap it on yours.';
+    : potato
+      ? (you?.topCard ? 'Match a card above. Tap it on yours.' : 'You are safe! Wait for the next deal.')
+      : 'Find the picture on both cards. Tap it on yours.';
+  const opponentCards = potato ? others.filter((player) => !player.left) : [];
   const warning = roundEnding && !you?.rank && roundEndsIn !== null ? `No match yet. New middle card in ${Math.max(1, Math.ceil(roundEndsIn / 1000))} s` : '';
   const statusText = message?.text || (locked ? 'Not that one. Wait a moment…' : warning || instruction);
   const statusTone = message?.tone || (locked ? 'bad' : warning ? 'warn' : 'info');
 
   return (
-    <main className="screen table">
+    <main className={`screen table${potato ? ' potato' : ''}`}>
       <header className="table-header">
-        <ul className={`opponents${compact ? ' compact' : ''}`} aria-label="Other players">
+        {/* Hot Potato names everyone under their card instead. */}
+        <ul className={`opponents${compact ? ' compact' : ''}`} aria-label="Other players" hidden={potato}>
           {others.map((player) => (
             <li key={player.name} className={`opponent${player.connected ? '' : ' offline'}${player.rank ? ' done' : ''}${message?.who === player.name ? ' just-won' : ''}`} aria-label={`${player.name}: ${player.rank ? `finished ${ordinal(player.rank)}` : player.connected ? `${player.cardsLeft} cards` : 'reconnecting'}`}>
               <Avatar player={player} index={playerIndex(player)} />
               <span className="opponent-text" aria-hidden="true">
                 <span className="opponent-name">{player.name}</span>
                 <span className="opponent-count">
-                  {player.rank ? (compact ? '🏅' : `🏅 ${ordinal(player.rank)}`) : player.reconnectMs !== null ? (compact ? '⏳' : `⏳ ${Math.max(0, Math.ceil((player.reconnectMs - sinceState) / 1000))}s`) : <>{player.cardsLeft}<span className="unit"> cards</span></>}
+                  {player.rank ? (compact ? '🏅' : `🏅 ${ordinal(player.rank)}`) : player.reconnectMs !== null ? (compact ? '⏳' : `⏳ ${Math.max(0, Math.ceil((player.reconnectMs - sinceState) / 1000))}s`) : <>{player.cardsLeft}<span className="unit"> {player.cardsLeft === 1 ? 'card' : 'cards'}</span></>}
                 </span>
               </span>
             </li>
           ))}
         </ul>
+        {state.mode === 'tower' && state.deckLeft !== null && <div className="mode-chip" aria-label={`${state.deckLeft} cards left in the deck`}><span aria-hidden="true">🃏</span> {state.deckLeft}{compact ? "" : " left"}</div>}
+        {potato && state.deal > 0 && <div className="mode-chip" aria-label={`Deal ${state.deal} of ${state.totalDeals}`}><span aria-hidden="true">🥔</span> Deal {state.deal}/{state.totalDeals}</div>}
         <button type="button" className="tool-button menu-button" onClick={() => setShowMenu(true)} aria-label="Menu: size, sound, music, help, leave">☰</button>
       </header>
 
+      {potato ? (
+        // Hot Potato has no middle card: everyone else's card is on the table.
+        <section className={`card-slot centre-slot potato-cards count-${opponentCards.length}`} aria-label="Other players' cards">
+          {countdown === null && opponentCards.map((player) => (
+            <div key={player.name} className={`potato-card${player.topCard ? '' : ' safe'}${player.connected ? '' : ' offline'}`}>
+              {player.topCard
+                ? <div key={player.topCard.id} className="arrive arrive-fresh"><KitchenCard card={player.topCard} seed={`opp:${player.name}:${player.topCard.id}`} label={`${player.name}'s card`} onTapAside={tapAside} pictureSize={textSize} /></div>
+                : <div className="safe-plate" aria-label={`${player.name} is safe`}><span aria-hidden="true">😎</span></div>}
+              <p className="potato-name" aria-hidden="true"><Avatar player={player} index={playerIndex(player)} /><span>{player.name}</span>{player.cardsLeft > 1 && <span className="potato-count">{player.cardsLeft}</span>}</p>
+            </div>
+          ))}
+        </section>
+      ) : (
       <section className="card-slot centre-slot" aria-label="Middle card">
         {/* The arrival only plays after the server settled the round. */}
         {state.centre && countdown === null && <div key={state.roundId} className={`arrive arrive-${arrival}`}><KitchenCard card={state.centre} seed={`centre:${state.roundId}`} label="Middle card" onTapAside={tapAside} pictureSize={textSize} /></div>}
       </section>
+      )}
 
       <p className={`table-message tone-${statusTone}`} role="status" aria-live="polite" key={message?.key}>
         {message?.itemId !== undefined && <span className="message-item" role="img" aria-label={ITEMS[message.itemId].name}>{ITEMS[message.itemId].emoji}</span>}
@@ -517,15 +583,22 @@ export default function App() {
         {you?.topCard ? (
           countdown === null && <div key={you.topCard.id} className="hand"><KitchenCard card={you.topCard} seed={`you:${you.name}`} label="Your card" onPick={claim} disabled={locked} shake={locked ? shake : 0} nudge={nudge} pile={you.cardsLeft} wrongItemId={locked ? wrongItem : null} lockFraction={locked ? Math.min(1, lockRemaining / 1500) : 0} pictureSize={textSize} /></div>
         ) : (
-          <div className="finished-card"><span aria-hidden="true">🏅</span><p>{you?.rank ? `You finished ${ordinal(you.rank)}!` : 'Out of cards'}</p></div>
+          countdown === null && (potato && !you?.rank
+            ? <div className="finished-card safe"><span aria-hidden="true">😎</span><p>Safe!</p></div>
+            : <div className="finished-card"><span aria-hidden="true">🏅</span><p>{you?.rank ? `You finished ${ordinal(you.rank)}!` : 'Out of cards'}</p></div>)
         )}
       </section>
 
       {countdown !== null && (
         <div className="countdown" role="status" aria-live="assertive">
-          <p>Get ready…</p>
+          {potato && state.lastDeal && (
+            <p className="deal-result">{state.lastDeal.loser === null ? 'Nobody got stuck.' : state.lastDeal.loser === you?.name ? `😬 You got stuck with ${state.lastDeal.cards} cards!` : `😬 ${state.lastDeal.loser} got stuck with ${state.lastDeal.cards} cards!`}</p>
+          )}
+          <p>{potato ? `🥔 Deal ${state.deal + 1} of ${state.totalDeals}` : state.mode === 'tower' ? '🥞 Tower · get ready…' : 'Get ready…'}</p>
           <span key={countdown}>{countdown}</span>
-          <p className="countdown-hint">Find the one picture that is on both cards, then tap it on <strong>your</strong> card.</p>
+          <p className="countdown-hint">{potato
+            ? <>Find a picture your card shares with <strong>another player’s</strong> card, then tap it on <strong>your</strong> card.</>
+            : <>Find the one picture that is on both cards, then tap it on <strong>your</strong> card.</>}</p>
         </div>
       )}
       {dialogs}

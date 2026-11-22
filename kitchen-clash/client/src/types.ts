@@ -1,6 +1,7 @@
 export interface Card { id: number; items: number[] }
 
 export type Phase = 'lobby' | 'countdown' | 'playing' | 'finished';
+export type GameMode = 'race' | 'tower' | 'hot-potato';
 
 export interface PlayerState {
   name: string;
@@ -14,11 +15,21 @@ export interface PlayerState {
   wins: number;
   misses: number;
   averageSpotMs: number | null;
+  // Hot Potato: deals lost so far, and this player's top card while playing.
+  losses: number;
+  topCard: Card | null;
 }
 
 export interface GameState {
   roomCode: string;
   phase: Phase;
+  mode: GameMode;
+  // Hot Potato: the current deal, how many there are, and how the last one ended.
+  deal: number;
+  totalDeals: number;
+  lastDeal: { deal: number; loser: string | null; cards: number } | null;
+  // Tower: cards left to win.
+  deckLeft: number | null;
   roundId: number;
   countdownMs: number | null;
   roundEndsInMs: number | null;
@@ -29,7 +40,8 @@ export interface GameState {
   hostName: string | null;
   canStart: boolean;
   centre: Card | null;
-  lastWin: { name: string; itemId: number; roundId: number; reactionMs: number } | null;
+  // `to` is who a Hot Potato pass went to.
+  lastWin: { name: string; to?: string; itemId: number; roundId: number; reactionMs: number } | null;
   you: { name: string; cardsLeft: number; topCard: Card | null; rank: number | null; lockoutMs: number } | null;
   players: PlayerState[];
 }

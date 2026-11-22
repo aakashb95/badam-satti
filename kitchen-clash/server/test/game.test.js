@@ -182,3 +182,109 @@ test('with no spare or earlier middle card, a stuck round turns everyone to thei
     assert.equal(game.player(id).pile.at(-1), tops[index]);
   });
 });
+
+// Starts a Tower or Hot Potato game with an unshuffled deck.
+function modeGame(mode, names) {
+  const game = new KitchenClashGame('MODE01', { makeDeck: () => createDeck() });
+  names.forEach((name) => game.addPlayer(name, name, name));
+  assert.deepEqual(game.setMode(names[0], mode), { mode });
+  game.start(names[0], 0);
+  game.beginPlay(1000);
+  names.forEach((name) => game.stateFor(name, 1000));
+  return game;
+}
+
+test('only the host picks the game, and Hot Potato takes at most 4 players', () => {
+  const game = new KitchenClashGame('MODE02');
+  ['A', 'B', 'C', 'D', 'E'].forEach((name) => game.addPlayer(name, name));
+  assert.match(game.setMode('B', 'tower').error, /host/);
+  assert.match(game.setMode('A', 'hot-potato').error, /up to 4/);
+  game.removePlayer(game.player('E').sessionToken);
+  assert.deepEqual(game.setMode('A', 'hot-potato'), { mode: 'hot-potato' });
+  assert.match(game.addPlayer('F', 'F').error, /full/);
+  assert.equal(game.stateFor('A', 0).maxPlayers, 4);
+});
+
+test('in the Tower the winner takes the middle card as their new card, and the tallest tower wins when the deck runs out', () => {
+  const game = modeGame('tower', ['Asha', 'Bilal', 'Chen']);
+  ['Asha', 'Bilal', 'Chen'].forEach((name) => assert.equal(game.player(name).pile.length, 1));
+  assert.equal(game.stateFor('Asha', 1000).deckLeft, 57 - 1 - 3);
+  let now = 1000;
+  // Asha wins every round but the last, which Bilal wins.
+  while (game.phase === 'playing') {
+    const name = game.stateFor('Asha', now).deckLeft === 0 ? 'Bilal' : 'Asha';
+    const centre = game.centre;
+    game.stateFor(name, now);
+    assert.equal(game.claim(name, { roundId: game.roundId, itemId: matchFor(game, name), reactionMs: 600 }, now + 700).result, 'accepted');
+    game.settle(now + 1000);
+    assert.equal(game.player(name).pile[0], centre, 'the won middle card becomes your card');
+    now += 2000;
+  }
+  assert.equal(game.player('Asha').pile.length, 1 + 53);
+  assert.equal(game.player('Bilal').pile.length, 2);
+  assert.deepEqual(['Asha', 'Bilal', 'Chen'].map((name) => game.player(name).rank), [1, 2, 3]);
+});
+
+test('a wrong tap in the Tower still locks the player out', () => {
+  const game = modeGame('tower', ['Asha', 'Bilal']);
+  assert.deepEqual(game.claim('Asha', { roundId: 1, itemId: wrongItemFor(game, 'Asha') }, 1500), { result: 'wrong', lockoutMs: LOCKOUT_MS });
+  assert.equal(game.player('Asha').pile.length, 1);
+});
+
+const potatoMatch = (game, from, to) => sharedItem(game.player(from).pile[0], game.player(to).pile[0]);
+
+test('in Hot Potato a tap on your own card passes your whole stack to the player whose card shares it', () => {
+  const game = modeGame('hot-potato', ['Asha', 'Bilal', 'Chen']);
+  assert.equal(game.centre, null);
+  const ashaCard = game.player('Asha').pile[0];
+  // Bilal sits next after Asha, so a picture on both their cards goes to Bilal.
+  const item = potatoMatch(game, 'Asha', 'Bilal');
+  assert.equal(game.claim('Asha', { roundId: 1, itemId: item, reactionMs: 500 }, 1600).result, 'accepted');
+  game.settle(1900);
+  assert.deepEqual(game.player('Asha').pile, []);
+  assert.equal(game.player('Bilal').pile.length, 2);
+  assert.equal(game.player('Bilal').pile[0], ashaCard, 'Bilal now plays the card Asha passed');
+  assert.equal(game.lastWin.to, 'Bilal');
+  // Asha is safe for the rest of the deal and cannot tap.
+  assert.equal(game.claim('Asha', { roundId: 2, itemId: item }, 2000).result, 'not_playing');
+  // A picture on your card that no other top card has is a wrong tap.
+  const lonely = game.player('Chen').pile[0].items.find((id) => !game.player('Bilal').pile[0].items.includes(id));
+  assert.equal(game.claim('Chen', { roundId: 2, itemId: lonely }, 2100).result, 'wrong');
+});
+
+test('the player left holding every card loses the deal; after 5 deals the fewest losses wins', () => {
+  const game = modeGame('hot-potato', ['Asha', 'Bilal']);
+  let now = 1000;
+  for (let deal = 1; deal <= 5; deal += 1) {
+    assert.equal(game.deal, deal);
+    // Bilal loses deals 1 to 4 and Asha deal 5.
+    const [from, to] = deal < 5 ? ['Asha', 'Bilal'] : ['Bilal', 'Asha'];
+    game.stateFor(from, now);
+    assert.equal(game.claim(from, { roundId: game.roundId, itemId: potatoMatch(game, from, to), reactionMs: 500 }, now + 600).result, 'accepted');
+    game.settle(now + 900);
+    assert.deepEqual(game.lastDeal, { deal, loser: to, cards: 2 });
+    if (deal < 5) {
+      assert.equal(game.phase, 'countdown');
+      now = game.countdownEndsAt;
+      game.beginPlay(now);
+      ['Asha', 'Bilal'].forEach((name) => assert.equal(game.player(name).pile.length, 1));
+    }
+  }
+  assert.equal(game.phase, 'finished');
+  assert.deepEqual([game.player('Asha').losses, game.player('Bilal').losses], [1, 4]);
+  assert.deepEqual([game.player('Asha').rank, game.player('Bilal').rank], [1, 2]);
+});
+
+test('Hot Potato shows every top card, and a departure mid-deal ends it with no loser', () => {
+  const game = modeGame('hot-potato', ['Asha', 'Bilal', 'Chen']);
+  const state = game.stateFor('Asha', 1000);
+  assert.deepEqual(state.players.map((player) => player.topCard.id), ['Asha', 'Bilal', 'Chen'].map((name) => game.player(name).pile[0].id));
+  // Asha passes to Bilal, then Bilal leaves: only Chen holds a card, but nobody loses the deal.
+  game.claim('Asha', { roundId: 1, itemId: potatoMatch(game, 'Asha', 'Bilal'), reactionMs: 500 }, 1600);
+  game.settle(1900);
+  game.removePlayer(game.player('Bilal').sessionToken, 2000);
+  assert.deepEqual(game.lastDeal, { deal: 1, loser: null, cards: 0 });
+  assert.equal(game.player('Chen').losses, 0);
+  assert.equal(game.phase, 'countdown');
+  assert.equal(game.countdownEndsAt, 2000 + 4000);
+});

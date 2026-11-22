@@ -21,10 +21,40 @@ and tests.
   middle card. On the very first card, when neither exists, everyone's top
   card goes to the bottom of their pile instead.
 
+## Game modes
+
+The host picks the game in the lobby (`set_mode`). How to play each one is in
+`client/src/howto.tsx` and is shown in the lobby, on each solo game's start
+screen and in the menu.
+
+- **Race** (default): the rules above.
+- **Tower** (2–6 players): everyone starts with one card and the rest of the
+  deck feeds the middle. The fastest correct tap wins the middle card, which
+  goes on that player's tower and becomes their card to play. When the deck
+  runs out the tallest tower wins; equal towers share a place. A stuck middle
+  card goes under the deck.
+- **Hot Potato** (2–4 players): no middle card. Each deal, everyone holds one
+  card and sees everyone's card. Tap the picture your card shares with another
+  player's card: your whole stack goes on top of theirs and you are safe for
+  that deal. If the picture is on several cards it goes to the next player
+  round the table. A player who is away cannot be passed to. The one left
+  holding every card loses the deal; after 5 deals (4 s apart) the fewest
+  losses wins. A departure that ends a deal ends it with no loser.
+
+Claims, the fair-timing checks and the 1.5 s lockout are the same in every
+mode.
+
 ## Solo
 
 One player, on the phone only, with no server round trips (`client/src/solo.ts`).
-A run is 30 cards and each card has its own 30-second clock, shown as a bar
+Three games, each with its own start screen and its own best on the phone:
+
+- **Time Attack**: one 60-second clock; match as many as you can. A wrong tap
+  takes 3 seconds off the clock (with a 0.5 s pause to show the ✕).
+- **Daily Kitchen**: the same 20 cards for everyone on the same date (the
+  deck is shuffled with the date as the seed), against a stopwatch. One try a
+  day on that phone, then a Share button copies the time.
+- **Solo · 30 cards**: a run is 30 cards and each card has its own 30-second clock, shown as a bar
 that empties. A match brings the next card. A card whose clock runs out counts
 as missed and is shown as missed for a moment without revealing its match. A
 wrong tap locks the card for 1.5 s while its clock keeps running. The end

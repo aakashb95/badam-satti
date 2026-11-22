@@ -1,8 +1,26 @@
 const crypto = require('crypto');
+const { performance } = require('perf_hooks');
 const { createDeck, shuffle } = require('./deck');
 
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 6;
+// Game modes the host picks in the lobby.
+//  - race: everyone gets a pile; win the round and your card goes to the
+//    middle; empty your pile first.
+//  - tower: everyone starts with one card; win the round and you take the
+//    middle card onto your tower; when the deck runs out the tallest wins.
+//  - hot-potato: no middle card. Each deal everyone holds one card. Match
+//    your top card with another player's top card and your whole stack goes
+//    onto theirs. The one left holding every card loses the deal. After
+//    HOT_POTATO_DEALS deals, the fewest losses wins.
+const MODES = {
+  race: { maxPlayers: MAX_PLAYERS },
+  tower: { maxPlayers: MAX_PLAYERS },
+  'hot-potato': { maxPlayers: 4 },
+};
+const HOT_POTATO_DEALS = 5;
+// Pause between Hot Potato deals, so everyone sees who got stuck.
+const DEAL_BREAK_MS = 4_000;
 const COUNTDOWN_MS = 3_000;
 const LOCKOUT_MS = 1_500;
 // No one spots a match on a freshly shown card faster than this.
@@ -39,6 +57,10 @@ class KitchenClashGame {
     this.spares = [];
     this.played = [];
     this.refreshedRoundId = null;
+    this.mode = 'race';
+    this.drawPile = [];
+    this.deal = 0;
+    this.lastDeal = null;
     this.roundIdleMs = options.roundIdleMs ?? ROUND_IDLE_MS;
     this.makeDeck = options.makeDeck || (() => shuffle(createDeck()));
   }
@@ -51,19 +73,36 @@ class KitchenClashGame {
     return this.players.find((item) => item.sessionToken === this.hostToken) || null;
   }
 
-  // Players still racing: seated, holding cards, not yet ranked.
+  maxPlayers() {
+    return MODES[this.mode].maxPlayers;
+  }
+
+  // Players who can still claim: seated, holding cards, not yet ranked. In
+  // the Tower everyone always holds their tower; in Hot Potato a player with
+  // no cards is safe for the rest of the deal.
   racers() {
     return this.players.filter((item) => !item.left && item.rank === null && item.pile.length > 0);
+  }
+
+  setMode(requesterId, mode) {
+    const requester = this.player(requesterId);
+    if (!requester || requester.sessionToken !== this.hostToken) return { error: 'Only the host can pick the game.' };
+    if (this.phase !== 'lobby' && this.phase !== 'finished') return { error: 'Pick the game before it starts.' };
+    if (!MODES[mode]) return { error: 'That game does not exist.' };
+    const seated = this.players.filter((item) => !item.left).length;
+    if (seated > MODES[mode].maxPlayers) return { error: `That game is for up to ${MODES[mode].maxPlayers} players. ${seated} are here.` };
+    this.mode = mode;
+    return { mode };
   }
 
   addPlayer(id, name, sessionToken = crypto.randomUUID()) {
     if (this.phase !== 'lobby') return { error: 'This game has already started.' };
     const seated = this.players.filter((item) => !item.left);
-    if (seated.length >= MAX_PLAYERS) return { error: `This kitchen is full. Up to ${MAX_PLAYERS} players can play.` };
+    if (seated.length >= this.maxPlayers()) return { error: `This kitchen is full. Up to ${this.maxPlayers()} players can play this game.` };
     if (seated.some((item) => item.name.toLowerCase() === name.toLowerCase())) return { error: 'Someone in this room already has that name.' };
     const player = {
       id, name, sessionToken, connected: true, left: false, removeAt: null,
-      pile: [], rank: null, wins: 0, misses: 0, spotTotalMs: 0, spotCount: 0,
+      pile: [], rank: null, wins: 0, misses: 0, spotTotalMs: 0, spotCount: 0, losses: 0,
       lockedUntil: 0, rttSamples: [], roundSentAt: null, sentRoundId: null,
     };
     this.players.push(player);
@@ -93,7 +132,7 @@ class KitchenClashGame {
   }
 
   // Permanent departure: an explicit Leave, or the return window ran out.
-  removePlayer(sessionToken) {
+  removePlayer(sessionToken, now = performance.now()) {
     const index = this.players.findIndex((item) => item.sessionToken === sessionToken && !item.left);
     if (index < 0) return null;
     const player = this.players[index];
@@ -108,7 +147,7 @@ class KitchenClashGame {
       const next = this.players.find((item) => !item.left && item.connected) || this.players.find((item) => !item.left);
       this.hostToken = next ? next.sessionToken : null;
     }
-    if (this.phase === 'countdown' || this.phase === 'playing') this.finishIfDecided();
+    if (this.phase === 'countdown' || this.phase === 'playing') this.finishIfDecided(now, true);
     return player;
   }
 
@@ -118,7 +157,7 @@ class KitchenClashGame {
 
   canStart() {
     const seated = this.players.filter((item) => !item.left);
-    return seated.length >= MIN_PLAYERS && seated.every((item) => item.connected);
+    return seated.length >= MIN_PLAYERS && seated.length <= this.maxPlayers() && seated.every((item) => item.connected);
   }
 
   start(requesterId, now) {
@@ -126,20 +165,30 @@ class KitchenClashGame {
     if (!requester || requester.sessionToken !== this.hostToken) return { error: 'Only the host can start the game.' };
     if (this.phase !== 'lobby' && this.phase !== 'finished') return { error: 'The game is already running.' };
     if (this.phase === 'finished') this.players = this.players.filter((item) => !item.left);
-    if (!this.canStart()) return { error: `You need ${MIN_PLAYERS} to ${MAX_PLAYERS} players, all connected, to start.` };
+    if (!this.canStart()) return { error: `You need ${MIN_PLAYERS} to ${this.maxPlayers()} players, all connected, to start.` };
 
     const deck = this.makeDeck();
-    this.centre = deck[0];
-    const perPlayer = Math.floor((deck.length - 1) / this.players.length);
-    this.spares = deck.slice(1 + perPlayer * this.players.length);
     this.played = [];
     this.refreshedRoundId = null;
-    this.players.forEach((player, index) => {
-      Object.assign(player, {
-        pile: deck.slice(1 + index * perPlayer, 1 + (index + 1) * perPlayer),
-        rank: null, wins: 0, misses: 0, spotTotalMs: 0, spotCount: 0, lockedUntil: 0, sentRoundId: null,
-      });
+    this.deal = 0;
+    this.lastDeal = null;
+    this.players.forEach((player) => {
+      Object.assign(player, { pile: [], rank: null, wins: 0, misses: 0, losses: 0, spotTotalMs: 0, spotCount: 0, lockedUntil: 0, sentRoundId: null });
     });
+    if (this.mode === 'race') {
+      this.centre = deck[0];
+      const perPlayer = Math.floor((deck.length - 1) / this.players.length);
+      this.spares = deck.slice(1 + perPlayer * this.players.length);
+      this.players.forEach((player, index) => { player.pile = deck.slice(1 + index * perPlayer, 1 + (index + 1) * perPlayer); });
+    } else if (this.mode === 'tower') {
+      this.centre = deck[0];
+      this.players.forEach((player, index) => { player.pile = [deck[1 + index]]; });
+      this.drawPile = deck.slice(1 + this.players.length);
+    } else {
+      // Hot Potato deals one card each when each deal begins.
+      this.centre = null;
+      this.drawPile = deck;
+    }
     this.phase = 'countdown';
     this.countdownEndsAt = now + COUNTDOWN_MS;
     this.roundId = 0;
@@ -154,8 +203,38 @@ class KitchenClashGame {
     if (this.phase !== 'countdown') return false;
     this.phase = 'playing';
     this.countdownEndsAt = null;
+    if (this.mode === 'hot-potato') this.startDeal();
     this.openRound(now);
     return true;
+  }
+
+  drawCard() {
+    if (this.drawPile.length === 0) this.drawPile = shuffle(this.played.splice(0));
+    return this.drawPile.shift();
+  }
+
+  startDeal() {
+    this.deal += 1;
+    this.players.forEach((player) => {
+      if (player.pile.length) this.played.push(...player.pile);
+      player.pile = player.left ? [] : [this.drawCard()];
+      player.lockedUntil = 0;
+    });
+  }
+
+  // Hot Potato: the other player this tap passes to. Your top card shares
+  // exactly one picture with each other player's top card; when the tapped
+  // picture is on several of their cards, it goes to the next one round the
+  // table after you.
+  potatoTarget(player, itemId) {
+    if (!player.pile[0].items.includes(itemId)) return null;
+    const start = this.players.indexOf(player);
+    for (let step = 1; step < this.players.length; step += 1) {
+      const other = this.players[(start + step) % this.players.length];
+      // A player who is away cannot be passed to, so nobody loses a deal while offline.
+      if (!other.left && other.connected && other.pile.length && other.pile[0].items.includes(itemId)) return other;
+    }
+    return null;
   }
 
   openRound(now) {
@@ -201,13 +280,15 @@ class KitchenClashGame {
     if (player.lockedUntil > now) return { result: 'locked', lockoutMs: Math.ceil(player.lockedUntil - now) };
     if (this.claims.some((claim) => claim.playerId === id)) return { result: 'pending' };
     const topCard = player.pile[0];
-    if (!topCard.items.includes(itemId) || !this.centre.items.includes(itemId)) {
+    const target = this.mode === 'hot-potato' ? this.potatoTarget(player, itemId) : null;
+    const correct = this.mode === 'hot-potato' ? Boolean(target) : topCard.items.includes(itemId) && this.centre.items.includes(itemId);
+    if (!correct) {
       player.misses += 1;
       player.lockedUntil = now + LOCKOUT_MS;
       return { result: 'wrong', lockoutMs: LOCKOUT_MS };
     }
     const checkedMs = this.checkedReaction(player, Number(reactionMs), now);
-    this.claims.push({ playerId: id, reactionMs: checkedMs, arrivedAt: now });
+    this.claims.push({ playerId: id, reactionMs: checkedMs, arrivedAt: now, itemId, targetId: target?.id });
     player.spotTotalMs += checkedMs;
     player.spotCount += 1;
     if (this.claims.length === 1) {
@@ -227,6 +308,8 @@ class KitchenClashGame {
       .filter((claim) => claim.reactionMs - fastest < TIE_MS)
       .sort((a, b) => a.arrivedAt - b.arrivedAt);
     const winner = this.player(winningClaim.playerId);
+    if (this.mode === 'tower') return this.settleTower(winner, winningClaim, now);
+    if (this.mode === 'hot-potato') return this.settleHotPotato(winner, winningClaim, now);
     const card = winner.pile.shift();
     const itemId = card.items.find((item) => this.centre.items.includes(item));
     this.played.push(this.centre);
@@ -234,8 +317,69 @@ class KitchenClashGame {
     winner.wins += 1;
     if (winner.pile.length === 0) winner.rank = this.nextRank++;
     this.lastWin = { name: winner.name, itemId, roundId: this.roundId, reactionMs: Math.round(winningClaim.reactionMs) };
-    if (!this.finishIfDecided()) this.openRound(now);
+    if (!this.finishIfDecided(now)) this.openRound(now);
     return { winnerId: winner.id };
+  }
+
+  // The Tower: the winner takes the middle card onto their tower, where it
+  // becomes their card to play, and the next card comes off the deck.
+  settleTower(winner, claim, now) {
+    const won = this.centre;
+    winner.pile.unshift(won);
+    winner.wins += 1;
+    this.lastWin = { name: winner.name, itemId: claim.itemId, roundId: this.roundId, reactionMs: Math.round(claim.reactionMs) };
+    if (this.drawPile.length === 0) this.finishByScore();
+    else {
+      this.centre = this.drawPile.shift();
+      this.openRound(now);
+    }
+    return { winnerId: winner.id };
+  }
+
+  // Hot Potato: the winner's whole stack goes on top of the target's, so the
+  // target now plays the winner's card and the winner is safe for this deal.
+  settleHotPotato(winner, claim, now) {
+    const target = this.player(claim.targetId);
+    target.pile = [...winner.pile, ...target.pile];
+    winner.pile = [];
+    winner.wins += 1;
+    this.lastWin = { name: winner.name, to: target.name, itemId: claim.itemId, roundId: this.roundId, reactionMs: Math.round(claim.reactionMs) };
+    this.endDealIfDecided(now);
+    if (this.phase === 'playing') this.openRound(now);
+    return { winnerId: winner.id };
+  }
+
+  // A Hot Potato deal ends when one player holds every card: they lose it.
+  // When a departure leaves fewer than two holders, the deal ends with no
+  // loser. Returns true when the deal ended.
+  endDealIfDecided(now, byDeparture = false) {
+    if (this.mode !== 'hot-potato' || this.phase !== 'playing') return false;
+    const holders = this.players.filter((item) => !item.left && item.pile.length > 0);
+    if (holders.length > 1) return false;
+    const loser = byDeparture ? null : holders[0];
+    if (loser) loser.losses += 1;
+    this.lastDeal = { deal: this.deal, loser: loser ? loser.name : null, cards: loser ? loser.pile.length : 0 };
+    this.claims = [];
+    this.settleDeadline = null;
+    if (this.deal >= HOT_POTATO_DEALS || this.players.filter((item) => !item.left).length < 2) {
+      this.finishByScore();
+      return true;
+    }
+    this.phase = 'countdown';
+    this.countdownEndsAt = now + DEAL_BREAK_MS;
+    return true;
+  }
+
+  // Tower and Hot Potato rank everyone still seated together at the end:
+  // tallest tower first, or fewest lost deals first. Equal scores share a place.
+  finishByScore() {
+    const seated = this.players.filter((item) => !item.left);
+    const score = (player) => (this.mode === 'tower' ? -player.pile.length : player.losses);
+    seated.forEach((player) => { player.rank = 1 + seated.filter((other) => score(other) < score(player)).length; });
+    this.phase = 'finished';
+    this.claims = [];
+    this.settleDeadline = null;
+    this.countdownEndsAt = null;
   }
 
   // Nobody found a match in time. Every pair of cards shares an item, so any
@@ -245,6 +389,28 @@ class KitchenClashGame {
   // gains or loses cards either way.
   refreshRound(now) {
     if (this.phase !== 'playing' || this.claims.length > 0) return false;
+    if (this.mode === 'tower') {
+      // The stuck card goes under the deck. With no deck left, the game ends.
+      if (this.drawPile.length === 0) {
+        this.finishByScore();
+        return true;
+      }
+      this.drawPile.push(this.centre);
+      this.centre = this.drawPile.shift();
+      this.refreshedRoundId = this.roundId;
+      this.openRound(now);
+      return true;
+    }
+    if (this.mode === 'hot-potato') {
+      // Every holder gets a fresh top card in place of the stuck one.
+      this.racers().forEach((player) => {
+        this.played.push(player.pile[0]);
+        player.pile[0] = this.drawCard();
+      });
+      this.refreshedRoundId = this.roundId;
+      this.openRound(now);
+      return true;
+    }
     const pool = this.spares.length ? this.spares : this.played;
     if (pool.length) {
       const [next] = pool.splice(Math.floor(Math.random() * pool.length), 1);
@@ -258,7 +424,14 @@ class KitchenClashGame {
     return true;
   }
 
-  finishIfDecided() {
+  finishIfDecided(now = 0, byDeparture = false) {
+    if (this.mode !== 'race') {
+      if (this.players.filter((item) => !item.left).length < 2) {
+        this.finishByScore();
+        return true;
+      }
+      return this.endDealIfDecided(now, byDeparture);
+    }
     const racers = this.racers();
     if (racers.length > 1) return false;
     racers.forEach((player) => { player.rank = this.nextRank++; });
@@ -282,12 +455,17 @@ class KitchenClashGame {
     return {
       roomCode: this.roomCode,
       phase: this.phase,
+      mode: this.mode,
+      deal: this.deal,
+      totalDeals: HOT_POTATO_DEALS,
+      lastDeal: this.lastDeal,
+      deckLeft: this.mode === 'tower' ? this.drawPile.length : null,
       roundId: this.roundId,
       countdownMs: this.countdownEndsAt ? Math.max(0, Math.ceil(this.countdownEndsAt - now)) : null,
       roundEndsInMs: this.phase === 'playing' ? Math.max(0, Math.ceil(this.roundEndsAt - now)) : null,
       refreshedRoundId: this.refreshedRoundId,
       minPlayers: MIN_PLAYERS,
-      maxPlayers: MAX_PLAYERS,
+      maxPlayers: this.maxPlayers(),
       isHost: Boolean(me && host && me.sessionToken === host.sessionToken),
       hostName: host ? host.name : null,
       canStart: this.canStart(),
@@ -312,9 +490,12 @@ class KitchenClashGame {
         wins: item.wins,
         misses: item.misses,
         averageSpotMs: item.spotCount ? Math.round(item.spotTotalMs / item.spotCount) : null,
+        losses: item.losses,
+        // Hot Potato shows everyone's top card, because you match against theirs.
+        topCard: this.mode === 'hot-potato' && this.phase === 'playing' ? item.pile[0] || null : null,
       })),
     };
   }
 }
 
-module.exports = { KitchenClashGame, MIN_PLAYERS, MAX_PLAYERS, LOCKOUT_MS, MIN_REACTION_MS, COUNTDOWN_MS, ROUND_IDLE_MS };
+module.exports = { KitchenClashGame, MODES, HOT_POTATO_DEALS, DEAL_BREAK_MS, MIN_PLAYERS, MAX_PLAYERS, LOCKOUT_MS, MIN_REACTION_MS, COUNTDOWN_MS, ROUND_IDLE_MS };

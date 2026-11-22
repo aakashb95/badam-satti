@@ -14,7 +14,7 @@ const GEOMETRY: Record<PictureSize, { ringRadius: number; maxSize: number; minSc
   larger: { ringRadius: 63, maxSize: 51, minScale: 0.74, jitter: 1 },
 };
 
-function seededRandom(seed: string) {
+export function seededRandom(seed: string) {
   let hash = 2166136261;
   for (let index = 0; index < seed.length; index += 1) hash = Math.imul(hash ^ seed.charCodeAt(index), 16777619);
   return () => {
