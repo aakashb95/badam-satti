@@ -21,16 +21,30 @@ and tests.
   middle card. On the very first card, when neither exists, everyone's top
   card goes to the bottom of their pile instead.
 
+## Solo
+
+One player, on the phone only, with no server round trips (`client/src/solo.ts`).
+A run is 30 cards and each card has its own 30-second clock, shown as a bar
+that empties. A match brings the next card. A card whose clock runs out counts
+as missed and is shown as missed for a moment without revealing its match. A
+wrong tap locks the card for 1.5 s while its clock keeps running. The end
+screen shows matched out of 30, missed, total time and average time per match;
+the best run (most matched, then fastest) is kept on the phone.
+
 ## Screens
 
-- The game table never scrolls. The middle card lies on a wooden board
-  labelled "Look here"; your card is larger, red-rimmed and labelled "Tap
-  here". A tap on the middle card only points the player at their own card.
+- The game table never scrolls. There are no labels on the cards. The middle
+  card lies flat on a wooden board, tilted away from you; your card is
+  upright, larger and red-rimmed, with the rest of your pile stacked under it
+  and the number of cards left beside it. A tap on the middle card makes your
+  card jump. Only the middle card is tilted, so taps on your card are still
+  hit-tested on a flat circle.
 - Nothing marks the matching picture before the server's verdict. After a
   wrong tap that picture gets a ✕ and the card's rim counts down the 1.5 s;
   after a win the message shows the picture the round was won with.
 - The cards stay hidden behind the 3-2-1 countdown.
-- Menu (☰): text size A / A+ / A++, sounds, music, how to play, leave.
+- Menu (☰): text size A / A+ / A++, sounds, music, how to play, leave. Larger
+  text sizes grow with the screen width, so A++ still fits a 320 px phone.
 
 ## Fair timing under lag
 

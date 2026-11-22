@@ -16,6 +16,9 @@ interface Props {
   onTapAside?: () => void;
   // Changes when the player should be pointed at this card.
   nudge?: number;
+  // Cards in this player's pile, this one included. Shown as card edges
+  // stacked under the card and as a number.
+  pile?: number;
   disabled?: boolean;
   shake?: number;
   // The item the server judged wrong, marked until the lockout ends. It only
@@ -27,7 +30,7 @@ interface Props {
 
 interface Drag { pointerId: number; startX: number; startY: number; startAngle: number; startRotation: number; moved: boolean }
 
-export default function KitchenCard({ card, seed, label, onPick, onTapAside, disabled = false, shake = 0, nudge = 0, wrongItemId = null, lockFraction = 0 }: Props) {
+export default function KitchenCard({ card, seed, label, onPick, onTapAside, disabled = false, shake = 0, nudge = 0, pile, wrongItemId = null, lockFraction = 0 }: Props) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
   const layout = useMemo(() => layoutCard(card.items, `${card.id}:${seed}`), [card.id, card.items, seed]);
@@ -103,6 +106,7 @@ export default function KitchenCard({ card, seed, label, onPick, onTapAside, dis
         role="group"
         aria-label={label}
         data-card-id={card.id}
+        data-stack={pile === undefined ? undefined : Math.min(4, Math.ceil((pile - 1) / 4))}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -131,7 +135,7 @@ export default function KitchenCard({ card, seed, label, onPick, onTapAside, dis
               >
                 {pressed?.itemId === item.itemId && <circle key={pressed.key} className="press-ring" r={item.size * 0.62} />}
                 <text className="card-item" fontSize={item.size} transform={`rotate(${item.rotation})`} textAnchor="middle" dominantBaseline="central">{art.emoji}</text>
-                {wrongItemId === item.itemId && <path className="wrong-mark" data-wrong-mark d="M-9 -9 L9 9 M9 -9 L-9 9" />}
+                {wrongItemId === item.itemId && <path className="wrong-mark" data-wrong-mark transform={`rotate(${-rotation})`} d="M-9 -9 L9 9 M9 -9 L-9 9" />}
               </g>
             );
           })}
@@ -142,6 +146,7 @@ export default function KitchenCard({ card, seed, label, onPick, onTapAside, dis
           </svg>
         )}
       </div>
+      {pile !== undefined && <p className="pile-count" aria-label={`${pile} ${pile === 1 ? 'card' : 'cards'} left`}><span aria-hidden="true">{pile}</span></p>}
       <button type="button" className="turn-button" aria-label={`Turn ${label.toLowerCase()}`} onClick={() => setRotation((value) => value + 45)}>↻</button>
     </div>
   );

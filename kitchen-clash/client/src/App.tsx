@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import KitchenCard from './KitchenCard';
-import { useCornerLabel } from './useCornerLabel';
-import Solo, { SOLO_SECONDS } from './Solo';
+import Solo from './Solo';
+import { SOLO_CARD_SECONDS, SOLO_CARDS } from './solo';
 import { ITEMS } from './items';
 import { isMusicOn, resumeMusicIfOn, setMusicOn } from './music';
 import { isSoundOn, playFinish, playOtherWin, playWin, playWrong, setSoundOn, unlockAudio } from './sounds';
@@ -60,13 +60,13 @@ function HowToPlay() {
       <li><span aria-hidden="true">⏳</span><div><strong>Wrong picture?</strong> You wait 1.5 seconds before you can tap again.</div></li>
       <li><span aria-hidden="true">🔄</span><div><strong>Turn your card</strong> by sliding a finger around it, or press ↻.</div></li>
       <li><span aria-hidden="true">🏆</span><div><strong>Run out of cards first</strong> to win. Everyone else plays on for the next places.</div></li>
+      <li><span aria-hidden="true">⏱</span><div><strong>Solo · {SOLO_CARDS} cards.</strong> Playing alone, you get {SOLO_CARD_SECONDS} seconds for each card before the next one comes up.</div></li>
     </ol>
   );
 }
 
 export default function App() {
   const socketRef = useRef<Socket | null>(null);
-  const centreSlot = useCornerLabel();
   const stateRef = useRef<GameState | null>(null);
   const shownAtRef = useRef(0);
   const pendingRoundRef = useRef<number | null>(null);
@@ -240,10 +240,9 @@ export default function App() {
     });
   };
 
-  // A tap on the middle card never counts; point the player at their own card.
+  // A tap on the middle card never counts; the player's own card answers with a nudge.
   const tapAside = () => {
     if (stateRef.current?.phase !== 'playing' || !stateRef.current.you?.topCard) return;
-    say('Not this card. Tap the match on YOUR card.', 'info');
     setNudge((value) => value + 1);
   };
 
@@ -324,6 +323,7 @@ export default function App() {
             </div>
             <button type="button" className="menu-item" role="switch" aria-checked={soundOn} onClick={toggleSound}><span>{soundOn ? '🔊' : '🔇'} Sounds</span><span className="switch">{soundOn ? 'On' : 'Off'}</span></button>
             <button type="button" className="menu-item" role="switch" aria-checked={musicOn} onClick={toggleMusic}><span>🎵 Music</span><span className="switch">{musicOn ? 'On' : 'Off'}</span></button>
+            <p className="credit">Music by Kevin MacLeod (incompetech.com), CC BY 4.0</p>
             <button type="button" className="menu-item" onClick={() => { setShowMenu(false); setShowHelp(true); }}><span>❓ How to play</span><span aria-hidden="true">›</span></button>
             {(state || solo) && <button type="button" className="menu-item danger-text" onClick={() => { setShowMenu(false); setConfirmLeave(true); }}><span>🚪 Leave game</span><span aria-hidden="true">›</span></button>}
           </div>
@@ -386,7 +386,7 @@ export default function App() {
         </form>
         <section className="panel solo-panel">
           <p className="solo-title">Playing alone?</p>
-          <button type="button" className="secondary" onClick={() => { setError(''); setSolo(true); }}>⏱ Play solo · {SOLO_SECONDS} seconds</button>
+          <button type="button" className="secondary" onClick={() => { setError(''); setSolo(true); }}>⏱ Solo · {SOLO_CARDS} cards</button>
         </section>
         {dialogs}
       </main>
@@ -414,7 +414,8 @@ export default function App() {
             {state.players.map((player) => (
               <li key={player.name} className={player.connected ? '' : 'offline'}>
                 <Avatar player={player} index={playerIndex(player)} />
-                <span className="player-name">{player.name}{player.isYou && ' (you)'}</span>
+                <span className="player-name">{player.name}</span>
+                {player.isYou && <span className="badge you">You</span>}
                 {player.isHost && <span className="badge">Host</span>}
                 {!player.connected && <span className="badge muted">Away</span>}
               </li>
@@ -450,7 +451,7 @@ export default function App() {
             {ranked.map((player) => (
               <li key={player.name} className={player.isYou ? 'is-you' : ''}>
                 <span className="place">{player.left ? '–' : player.rank === 1 ? '🥇' : player.rank === 2 ? '🥈' : player.rank === 3 ? '🥉' : ordinal(player.rank ?? 0)}</span>
-                <span className="player-name">{player.name}{player.isYou && ' (you)'}{player.left && <span className="badge muted">Left</span>}</span>
+                <span className="player-name">{player.name}{player.isYou && <span className="badge you">You</span>}{player.left && <span className="badge muted">Left</span>}</span>
                 <span className="stats">
                   <span>{player.wins} matched</span>
                   <span>{player.misses} wrong</span>
@@ -502,8 +503,8 @@ export default function App() {
         <button type="button" className="tool-button menu-button" onClick={() => setShowMenu(true)} aria-label="Menu: text size, sound, music, help, leave">☰</button>
       </header>
 
-      <section ref={centreSlot.slotRef} className="card-slot centre-slot" aria-label="Middle card">
-        <p className={centreSlot.labelClass} aria-label="Look here"><span aria-hidden="true">👀</span><span className="label-text" aria-hidden="true"> Look here</span></p>
+      <section className="card-slot centre-slot" aria-label="Middle card">
+        <div className="board" aria-hidden="true" />
         {/* The arrival only plays after the server settled the round. */}
         {state.centre && countdown === null && <div key={state.roundId} className={`arrive arrive-${arrival}`}><KitchenCard card={state.centre} seed={`centre:${state.roundId}`} label="Middle card" onTapAside={tapAside} /></div>}
       </section>
@@ -514,13 +515,11 @@ export default function App() {
       </p>
 
       <section className="card-slot your-slot" aria-label="Your card">
-        <p className="slot-label"><span aria-hidden="true">👆</span> {you?.topCard ? 'Tap here' : 'Your card'}</p>
         {you?.topCard ? (
-          countdown === null && <KitchenCard card={you.topCard} seed={`you:${you.name}`} label="Your card" onPick={claim} disabled={locked} shake={shake} nudge={nudge} wrongItemId={locked ? wrongItem : null} lockFraction={locked ? Math.min(1, lockRemaining / 1500) : 0} />
+          countdown === null && <div key={you.topCard.id} className="hand"><KitchenCard card={you.topCard} seed={`you:${you.name}`} label="Your card" onPick={claim} disabled={locked} shake={locked ? shake : 0} nudge={nudge} pile={you.cardsLeft} wrongItemId={locked ? wrongItem : null} lockFraction={locked ? Math.min(1, lockRemaining / 1500) : 0} /></div>
         ) : (
           <div className="finished-card"><span aria-hidden="true">🏅</span><p>{you?.rank ? `You finished ${ordinal(you.rank)}!` : 'Out of cards'}</p></div>
         )}
-        {you?.topCard && <p className="pile-count" aria-label={`${you.cardsLeft} cards left`}><span aria-hidden="true">{you.cardsLeft} left</span></p>}
       </section>
 
       {countdown !== null && (

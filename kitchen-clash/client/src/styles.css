@@ -20,8 +20,9 @@
   text-size-adjust: 100%;
 }
 html { font-size: 18px; }
-html[data-text-size='large'] { font-size: 21px; }
-html[data-text-size='larger'] { font-size: 24px; }
+/* Larger text grows with the screen, so A++ never outgrows a small phone. */
+html[data-text-size='large'] { font-size: clamp(19px, 5.4vw, 21px); }
+html[data-text-size='larger'] { font-size: clamp(20px, 6.3vw, 24px); }
 * { box-sizing: border-box; }
 body {
   margin: 0;
@@ -109,11 +110,12 @@ h1 { font-size: clamp(34px, 11vw, 60px); letter-spacing: -0.02em; font-weight: 9
 .room-code { margin: 0; font-size: clamp(30px, 11vw, 56px); font-weight: 900; letter-spacing: 0.12em; text-indent: 0.12em; text-align: center; color: var(--tomato); font-variant-numeric: tabular-nums; line-height: 1.1; }
 .count { font-size: 1rem; font-weight: 600; color: var(--ink-soft); }
 .player-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.player-list li { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 10px; border-radius: 14px; background: var(--counter-deep); font-size: 1.1rem; }
+.player-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 52px; padding: 6px 10px; border-radius: 14px; background: var(--counter-deep); font-size: 1.1rem; }
 .player-list li.offline { opacity: 0.6; }
-.player-name { flex: 1; min-width: 0; overflow-wrap: break-word; font-weight: 700; line-height: 1.15; }
+.player-name { flex: 1 1 0; min-width: min-content; max-width: 100%; overflow-wrap: break-word; font-weight: 700; line-height: 1.15; }
 .badge { padding: 3px 10px; border-radius: 999px; background: var(--butter); font-size: clamp(13px, 0.8rem, 17px); font-weight: 800; }
 .badge.muted { background: var(--line); margin-left: 6px; }
+.badge.you { background: var(--ink); color: #fff; margin-left: 6px; }
 .avatar { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 19px; }
 
 .how-to { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
@@ -128,9 +130,8 @@ h1 { font-size: clamp(34px, 11vw, 60px); letter-spacing: -0.02em; font-weight: 9
 .place { grid-row: span 2; font-size: 1.5rem; text-align: center; font-weight: 800; }
 .stats { display: flex; flex-wrap: wrap; gap: 2px 12px; color: var(--ink-soft); font-size: 0.9rem; }
 
-/* Game table. Card sizes come from the space each card slot really has, and
-   the labels sit in the corners the round cards leave free, so the table fits
-   without scrolling at every text size and player count. */
+/* Game table. Card sizes come from the space each card slot really has, so
+   the table fits without scrolling at every text size and player count. */
 .table {
   height: 100vh; height: 100dvh; overflow: hidden;
   display: grid;
@@ -163,30 +164,47 @@ h1 { font-size: clamp(34px, 11vw, 60px); letter-spacing: -0.02em; font-weight: 9
 .opponents.compact .opponent.just-won .avatar { box-shadow: 0 0 0 3px var(--plate), 0 0 0 6px var(--herb); }
 
 .card-slot { position: relative; min-height: 0; display: grid; place-items: center; }
-/* Which card is which: the middle card lies on a wooden board you only look
-   at; your card is bigger, red-rimmed and labelled as the one to tap. */
-.centre-slot { background: linear-gradient(180deg, #ecd3a8, #e0bd88); border-radius: 26px; box-shadow: inset 0 2px 8px rgba(92, 58, 28, 0.25); padding: 4px; }
-.centre-slot .slot-label { top: 6px; left: 8px; }
-.your-slot .kitchen-card-face { filter: drop-shadow(0 8px 14px rgba(168, 44, 24, 0.3)); }
-.kitchen-card-wrap.nudge { animation: nudge 0.6s ease; }
-@keyframes nudge { 0%, 100% { transform: translateY(0) scale(1); } 30% { transform: translateY(-10px) scale(1.04); } 60% { transform: translateY(0) scale(0.98); } }
-.slot-label, .pile-count {
-  position: absolute; left: 0; z-index: 2; margin: 0; padding: 2px 9px; border-radius: 999px;
-  font-weight: 800; font-size: clamp(13px, 0.74rem, 15px); line-height: 1.3; pointer-events: none;
-}
-.slot-label { top: 0; }
-.centre-slot .slot-label { background: #6b4520; color: #fff; }
-.your-slot .slot-label { background: var(--tomato); color: #fff; }
-.pile-count { bottom: 0; background: var(--plate); border: 2px solid var(--line); font-size: clamp(14px, 0.82rem, 17px); }
-.kitchen-card-wrap { position: relative; --size: min(92vw, calc((100dvh - 150px) / 2), 600px); }
+/* Which card is which, without words: the middle card lies flat on a wooden
+   board on the table, tilted away from you; your card is held up towards you,
+   upright, with the rest of your pile stacked under it. Only the middle card
+   is tilted: taps on your card are hit-tested on a flat circle. */
+.card-slot > * { grid-area: 1 / 1; }
+.card-slot { --size: min(88vw, calc((100dvh - 190px) / 2), 600px); }
+.your-slot { padding-bottom: 18px; }
 @supports (width: 1cqh) {
-  .card-slot { container-type: size; }
-  .kitchen-card-wrap { --size: min(100cqw - 8px, 100cqh - 6px, 600px); }
+  .table .card-slot { container-type: size; --size: min(100cqw - 16px, 100cqh - 8px, 600px); }
+  /* The tilted board is 1.1 cards wide and shows its front edge. */
+  .table .centre-slot { --size: min(100cqw - 36px, 86cqh - 12px, 540px); }
+}
+.board, .centre-slot .kitchen-card-wrap { transform: translateY(-5px) perspective(700px) rotateX(27deg); }
+.board {
+  width: calc(var(--size) * 1.1); aspect-ratio: 1; border-radius: 50%;
+  background: repeating-linear-gradient(92deg, transparent 0 14px, rgba(120, 78, 36, 0.09) 14px 16px), radial-gradient(circle at 40% 30%, #f0d8ad, #dcb783);
+  box-shadow: 0 7px 0 #b88a52, 0 16px 18px rgba(60, 35, 10, 0.28);
+}
+.centre-slot .kitchen-card { box-shadow: 0 3px 0 #d8c6a8, 0 5px 5px rgba(60, 35, 10, 0.45); }
+.kitchen-card-wrap { position: relative; }
+.kitchen-card-wrap.nudge { animation: nudge 0.6s ease; }
+@keyframes nudge { 0%, 100% { transform: translateY(0) scale(1); } 30% { transform: translateY(-12px) scale(1.05); } 60% { transform: translateY(0) scale(0.98); } }
+/* Your card: lifted off the table, on the pile it was dealt from. */
+.hand { animation: deal 0.28s ease-out; }
+@keyframes deal { from { transform: translateY(12px) scale(0.95); opacity: 0.5; } }
+.hand.is-missed { animation: missed 1.2s ease-in forwards; }
+@keyframes missed { 0%, 50% { transform: none; opacity: 1; } 100% { transform: translateY(25%) scale(0.85); opacity: 0; } }
+.your-slot .kitchen-card { --lift: 0 22px 26px rgba(120, 44, 20, 0.34); box-shadow: 0 3px 0 #e2d1b6, var(--lift); }
+.your-slot .kitchen-card[data-stack='1'] { box-shadow: 0 3px 0 #e2d1b6, 0 6px 0 #fff, 0 7px 0 #cdb793, var(--lift); }
+.your-slot .kitchen-card[data-stack='2'] { box-shadow: 0 3px 0 #e2d1b6, 0 6px 0 #fff, 0 7px 0 #cdb793, 0 10px 0 #fff, 0 11px 0 #cdb793, var(--lift); }
+.your-slot .kitchen-card[data-stack='3'] { box-shadow: 0 3px 0 #e2d1b6, 0 6px 0 #fff, 0 7px 0 #cdb793, 0 10px 0 #fff, 0 11px 0 #cdb793, 0 14px 0 #fff, 0 15px 0 #cdb793, var(--lift); }
+.your-slot .kitchen-card[data-stack='4'] { box-shadow: 0 3px 0 #e2d1b6, 0 6px 0 #fff, 0 7px 0 #cdb793, 0 10px 0 #fff, 0 11px 0 #cdb793, 0 14px 0 #fff, 0 15px 0 #cdb793, 0 18px 0 #fff, 0 19px 0 #cdb793, var(--lift); }
+.pile-count {
+  position: absolute; left: -2px; bottom: -2px; z-index: 2; margin: 0; min-width: clamp(44px, calc(var(--size) * 0.16), 56px); height: clamp(44px, calc(var(--size) * 0.16), 56px); padding: 0 8px;
+  display: grid; place-items: center; border-radius: 999px; background: var(--ink); color: #fff; border: 3px solid var(--plate);
+  font-weight: 800; font-size: clamp(18px, calc(var(--size) * 0.075), 24px); font-variant-numeric: tabular-nums; pointer-events: none; box-shadow: var(--shadow);
 }
 .kitchen-card { position: relative; width: var(--size); height: var(--size); border-radius: 50%; touch-action: none; }
 .kitchen-card.is-yours { cursor: pointer; }
-.kitchen-card-face { width: 100%; height: 100%; display: block; overflow: visible; transition: transform 0.25s ease; filter: drop-shadow(0 6px 10px rgba(92, 58, 28, 0.22)); }
-.card-plate { fill: var(--plate); stroke: var(--line); stroke-width: 3; }
+.kitchen-card-face { width: 100%; height: 100%; display: block; overflow: visible; transition: transform 0.25s ease; }
+.card-plate { fill: var(--plate); stroke: var(--line); stroke-width: 3; r: 97.5px; }
 .card-rim { fill: none; stroke: #ecdcc3; stroke-width: 1.5; stroke-dasharray: 2 4; }
 .centre-slot .card-plate { stroke: var(--butter); stroke-width: 5; }
 .your-slot .card-plate { stroke: var(--tomato); stroke-width: 5; }
@@ -239,6 +257,7 @@ h1 { font-size: clamp(34px, 11vw, 60px); letter-spacing: -0.02em; font-weight: 9
 .dialog { width: min(100%, 460px); max-height: calc(100dvh - 24px); overflow: auto; padding: clamp(14px, 5vw, 22px); border-radius: 22px; background: var(--plate); display: flex; flex-direction: column; gap: 10px; }
 .dialog > * { flex-shrink: 0; }
 .dialog p { margin: 0; font-size: 1.05rem; }
+.dialog .credit { font-size: 13px; line-height: 1.3; color: var(--ink-soft); text-align: center; }
 .dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .close-button { width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--line); background: var(--counter); font-size: 20px; font-weight: 800; padding: 0; }
 .dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -263,17 +282,16 @@ h1 { font-size: clamp(34px, 11vw, 60px); letter-spacing: -0.02em; font-weight: 9
   .table {
     grid-template-rows: auto minmax(0, 1fr) auto;
     grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    column-gap: clamp(10px, 3vw, 48px);
   }
   .table-header { grid-column: 1 / -1; }
   .table-message { grid-column: 1 / -1; grid-row: 3; height: calc(1.2em + 12px); width: auto; max-width: 100%; white-space: nowrap; }
   .centre-slot { grid-row: 2; grid-column: 1; }
   .your-slot { grid-row: 2; grid-column: 2; }
-  .kitchen-card-wrap { --size: min(44vw, calc(100dvh - 130px), 600px); }
+  .card-slot { --size: min(42vw, calc(100dvh - 150px), 600px); }
+  .your-slot { padding: 0 0 16px; }
   .arrive { --from: -30%, 0; }
   .arrive-from-you { --from: 60%, 0; }
-}
-@media (orientation: landscape) and (min-aspect-ratio: 4/3) {
-  @supports (width: 1cqh) { .kitchen-card-wrap { --size: min(100cqw - 8px, 100cqh - 6px, 600px); } }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -283,12 +301,17 @@ h1 { font-size: clamp(34px, 11vw, 60px); letter-spacing: -0.02em; font-weight: 9
 /* Solo mode */
 .solo-panel { gap: 8px; }
 .solo-title { margin: 0; font-weight: 700; color: var(--ink-soft); text-align: center; }
-.solo .table-header { justify-content: space-between; }
-.solo-timer, .solo-score-chip { min-height: 48px; display: flex; align-items: center; gap: 6px; padding: 4px 16px; border-radius: 999px; background: var(--plate); border: 2px solid var(--line); font-weight: 800; font-size: clamp(18px, 1.1rem, 24px); font-variant-numeric: tabular-nums; }
-.solo-timer.low { background: #fde4df; border-color: var(--tomato); color: #8f2414; animation: pulse 1s ease infinite; }
-@keyframes pulse { 50% { transform: scale(1.06); } }
-.solo-score { margin: 0; text-align: center; font-size: 1.4rem; }
-.solo-score strong { display: block; font-size: 4.5rem; line-height: 1; color: var(--tomato); }
-
-/* Set by useCornerLabel when the full label would touch the round card. */
-.slot-label.icon-only .label-text { display: none; }
+.solo-score-chip { min-height: 48px; display: flex; align-items: center; gap: 6px; padding: 4px 14px; border-radius: 999px; background: var(--plate); border: 2px solid var(--line); font-weight: 800; font-size: clamp(18px, 1.1rem, 22px); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The card's own clock: a bar that empties, and turns red near the end. */
+.card-clock { flex: 1; min-width: 0; height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 999px; background: var(--plate); border: 2px solid var(--line); font-size: 20px; }
+.card-clock-track { flex: 1; height: 14px; border-radius: 999px; background: var(--counter-deep); overflow: hidden; }
+.card-clock-fill { height: 100%; border-radius: inherit; background: var(--herb); transition: width 0.1s linear; }
+.card-clock.low { border-color: var(--tomato); }
+.card-clock.low .card-clock-fill { background: var(--tomato); }
+.solo-score { margin: 0; text-align: center; font-size: 1.2rem; font-weight: 700; }
+.solo-score strong { display: block; font-size: clamp(56px, 4rem, 88px); line-height: 1; color: var(--tomato); }
+.solo-score strong span { font-size: 0.45em; color: var(--ink-soft); }
+.solo-stats { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.solo-stats div { padding: 8px 10px; border-radius: 14px; background: var(--counter-deep); }
+.solo-stats dt { font-size: 0.8rem; color: var(--ink-soft); font-weight: 700; line-height: 1.2; }
+.solo-stats dd { margin: 0; font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
